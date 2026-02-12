@@ -1,0 +1,69 @@
+// ADSR Envelope State Machine — sid_asdr_generator
+// Render: dot -Tsvg docs/adsr_fsm.dot -o docs/adsr_fsm.svg
+//         dot -Tpng docs/adsr_fsm.dot -o docs/adsr_fsm.png
+
+digraph adsr_fsm {
+    rankdir=LR;
+    bgcolor="white";
+    fontname="Helvetica";
+    node [fontname="Helvetica", fontsize=11, style=filled, shape=Mrecord];
+    edge [fontname="Helvetica", fontsize=9];
+
+    // --- States ---
+    IDLE [
+        label="{IDLE|env = 0\noutput silent}",
+        fillcolor="#e8e8e8"
+    ];
+
+    ATTACK [
+        label="{ATTACK|env counts 0 → 255\nat attack_rate}",
+        fillcolor="#aed6f1"
+    ];
+
+    DECAY [
+        label="{DECAY / SUSTAIN|env counts 255 → sustain_level\nat decay_rate\n\nholds at sustain_level\nwhile gate = 1}",
+        fillcolor="#a9dfbf"
+    ];
+
+    RELEASE [
+        label="{RELEASE|env counts down → 0\nat release_rate}",
+        fillcolor="#fadbd8"
+    ];
+
+    // --- Transitions ---
+    IDLE -> ATTACK [
+        label="  gate rising edge  ",
+        color="#2980b9",
+        fontcolor="#2980b9"
+    ];
+
+    ATTACK -> DECAY [
+        label="  env = 0xFF  ",
+        color="#27ae60",
+        fontcolor="#27ae60"
+    ];
+
+    ATTACK -> RELEASE [
+        label="  gate = 0  ",
+        color="#c0392b",
+        fontcolor="#c0392b"
+    ];
+
+    DECAY -> RELEASE [
+        label="  gate = 0  ",
+        color="#c0392b",
+        fontcolor="#c0392b"
+    ];
+
+    RELEASE -> IDLE [
+        label="  env = 0  ",
+        color="#7f8c8d",
+        fontcolor="#7f8c8d"
+    ];
+
+    RELEASE -> ATTACK [
+        label="  gate rising edge  ",
+        color="#2980b9",
+        fontcolor="#2980b9"
+    ];
+}

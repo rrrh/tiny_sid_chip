@@ -1,0 +1,102 @@
+// Architecture Block Diagram — SID Voice Synthesizer (TT10)
+// Render: dot -Tsvg docs/architecture.dot -o docs/architecture.svg
+//         dot -Tpng docs/architecture.dot -o docs/architecture.png
+
+digraph architecture {
+    rankdir=LR;
+    bgcolor="white";
+    fontname="Helvetica";
+    node [fontname="Helvetica", fontsize=11];
+    edge [fontname="Helvetica", fontsize=9];
+
+    // --- External pins (input) ---
+    subgraph cluster_inputs {
+        label="Input Pins";
+        style=dashed;
+        color="#888888";
+        fontsize=10;
+        fontcolor="#888888";
+
+        spi_clk  [label="ui_in[0]\nspi_clk",  shape=rarrow, style=filled, fillcolor="#d4e6f1"];
+        spi_cs_n [label="ui_in[1]\nspi_cs_n",  shape=rarrow, style=filled, fillcolor="#d4e6f1"];
+        spi_mosi [label="ui_in[2]\nspi_mosi",  shape=rarrow, style=filled, fillcolor="#d4e6f1"];
+    }
+
+    // --- Internal modules ---
+    spi_regs [
+        label=<
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6">
+                <TR><TD BGCOLOR="#aed6f1" COLSPAN="2"><B>spi_regs</B></TD></TR>
+                <TR><TD>2FF sync</TD><TD>Write-only<BR/>register bank</TD></TR>
+                <TR><TD COLSPAN="2" ALIGN="LEFT">
+                    <FONT POINT-SIZE="8">
+                    reg 0: frequency [15:0]<BR/>
+                    reg 1: duration [15:0]<BR/>
+                    reg 2: attack [7:0]<BR/>
+                    reg 3: sustain [7:0]<BR/>
+                    reg 4: waveform [7:0]
+                    </FONT>
+                </TD></TR>
+            </TABLE>
+        >,
+        shape=plain
+    ];
+
+    sid_voice [
+        label=<
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6">
+                <TR><TD BGCOLOR="#a9dfbf" COLSPAN="2"><B>sid_voice</B></TD></TR>
+                <TR><TD>24-bit phase<BR/>accumulator</TD><TD>Waveform gen<BR/>(saw/tri/pulse/noise)</TD></TR>
+                <TR><TD>ADSR envelope<BR/>(sid_asdr_generator)</TD><TD>12-bit voice<BR/>= waveform x envelope</TD></TR>
+            </TABLE>
+        >,
+        shape=plain
+    ];
+
+    dac [
+        label=<
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6">
+                <TR><TD BGCOLOR="#f9e79f"><B>delta_sigma_dac</B></TD></TR>
+                <TR><TD><FONT POINT-SIZE="8">{pdm_out, acc} &lt;= acc + din</FONT></TD></TR>
+                <TR><TD>1st-order &Delta;&Sigma;<BR/>12-bit &rarr; 1-bit PDM</TD></TR>
+            </TABLE>
+        >,
+        shape=plain
+    ];
+
+    // --- External pins (output) ---
+    subgraph cluster_outputs {
+        label="Output Pins";
+        style=dashed;
+        color="#888888";
+        fontsize=10;
+        fontcolor="#888888";
+
+        pdm_out  [label="uo_out[1]\npdm_out",  shape=rarrow, style=filled, fillcolor="#fadbd8"];
+        spi_miso [label="uo_out[0]\nspi_miso\n(tied low)", shape=rarrow, style=filled, fillcolor="#e8e8e8"];
+    }
+
+    // --- External filter ---
+    rc_filter [label="RC low-pass\nfilter", shape=trapezium, style=filled, fillcolor="#f5cba7"];
+    audio_out [label="Analog\naudio out", shape=doubleoctagon, style=filled, fillcolor="#d5f5e3"];
+
+    // --- Edges ---
+    spi_clk  -> spi_regs [label=""];
+    spi_cs_n -> spi_regs [label=""];
+    spi_mosi -> spi_regs [label=""];
+
+    spi_regs -> sid_voice [label="  5 registers\n  (16/8-bit)  ", fontcolor="#333333"];
+    sid_voice -> dac       [label="  voice[11:0]\n  (12-bit unsigned)  ", fontcolor="#333333"];
+    dac -> pdm_out         [label="  1-bit PDM\n  @ 50 MHz  ", fontcolor="#333333"];
+
+    spi_regs -> spi_miso [style=dashed, color="#aaaaaa", label="  always 0  ", fontcolor="#aaaaaa"];
+
+    pdm_out -> rc_filter [label="  ", style=dotted];
+    rc_filter -> audio_out [label="  ", style=dotted];
+
+    // --- Clock/reset (shown separately) ---
+    clk_rst [label="clk (50 MHz)\nrst_n", shape=diamond, style=filled, fillcolor="#d7bde2"];
+    clk_rst -> spi_regs  [style=dashed, color="#9b59b6", arrowhead=dot];
+    clk_rst -> sid_voice  [style=dashed, color="#9b59b6", arrowhead=dot];
+    clk_rst -> dac        [style=dashed, color="#9b59b6", arrowhead=dot];
+}

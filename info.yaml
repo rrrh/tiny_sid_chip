@@ -1,0 +1,44 @@
+project:
+  title: "SID Voice Synthesizer"
+  author: "shue"
+  description: "Single SID voice with SPI control and delta-sigma PDM audio output"
+  language: "Verilog"
+  clock_hz: 50000000
+  tiles: "1x1"
+  top_module: "tt_um_sid"
+
+  source_files:
+    - "src/tt_um_sid.v"
+    - "src/spi_regs.v"
+    - "src/sid_voice.v"
+    - "src/sid_asdr_generator.v"
+    - "src/delta_sigma_dac.v"
+
+  pinout:
+    ui_in:
+      - spi_clk
+      - spi_cs_n
+      - spi_mosi
+      - ""
+      - ""
+      - ""
+      - ""
+      - ""
+    uo_out:
+      - spi_miso
+      - pdm_out
+      - ""
+      - ""
+      - ""
+      - ""
+      - ""
+      - ""
+    uio:
+      - ""
+      - ""
+      - ""
+      - ""
+      - ""
+      - ""
+      - ""
+      - ""

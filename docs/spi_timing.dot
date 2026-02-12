@@ -1,0 +1,131 @@
+// SPI Write Transaction Timing Diagram
+// Render: dot -Tsvg docs/spi_timing.dot -o docs/spi_timing.svg
+//         dot -Tpng docs/spi_timing.dot -o docs/spi_timing.png
+
+digraph spi_timing {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Helvetica";
+    node [fontname="Helvetica", shape=none, margin=0];
+    edge [style=invis];
+
+    title [label=<
+        <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="2">
+            <TR><TD ALIGN="CENTER"><B><FONT POINT-SIZE="13">SPI Write Transaction (24-bit, Mode 0)</FONT></B></TD></TR>
+            <TR><TD ALIGN="CENTER"><FONT POINT-SIZE="9" COLOR="#666666">CPOL=0, CPHA=0, MSB first &mdash; data sampled on rising edge of spi_clk</FONT></TD></TR>
+        </TABLE>
+    >];
+
+    timing [label=<
+        <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="0" COLOR="#cccccc">
+
+            <!-- Header row: bit positions -->
+            <TR>
+                <TD BORDER="0" WIDTH="70" ALIGN="RIGHT"><FONT POINT-SIZE="9" COLOR="#888888"> </FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">idle</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">1</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">2</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">3</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">4</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">5</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">6</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">7</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">8</FONT></TD>
+                <TD BORDER="0" WIDTH="14" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">  </FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">9</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">...</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">16</FONT></TD>
+                <TD BORDER="0" WIDTH="14" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">  </FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">17</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">...</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">23</FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#c0392b"><B>24</B></FONT></TD>
+                <TD BORDER="0" WIDTH="28" BGCOLOR="white"><FONT POINT-SIZE="7" COLOR="#888888">idle</FONT></TD>
+            </TR>
+
+            <!-- spi_cs_n -->
+            <TR>
+                <TD BORDER="0" ALIGN="RIGHT"><FONT POINT-SIZE="10"><B>spi_cs_n</B></FONT></TD>
+                <TD BGCOLOR="#fadbd8"><FONT POINT-SIZE="8">HIGH</FONT></TD>
+                <TD BGCOLOR="#aed6f1" COLSPAN="17"><FONT POINT-SIZE="8">LOW (active)</FONT></TD>
+                <TD BGCOLOR="#fadbd8"><FONT POINT-SIZE="8">HIGH</FONT></TD>
+            </TR>
+
+            <!-- spi_clk: show alternating low/high pattern -->
+            <TR>
+                <TD BORDER="0" ALIGN="RIGHT"><FONT POINT-SIZE="10"><B>spi_clk</B></FONT></TD>
+                <TD BGCOLOR="#e8e8e8"><FONT POINT-SIZE="7">L</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#e8e8e8"><FONT POINT-SIZE="5"> </FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#d5d8dc"><FONT POINT-SIZE="7">...</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#e8e8e8"><FONT POINT-SIZE="5"> </FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#d5d8dc"><FONT POINT-SIZE="7">...</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">/\</FONT></TD>
+                <TD BGCOLOR="#f9e79f"><FONT POINT-SIZE="7"><B>/\</B></FONT></TD>
+                <TD BGCOLOR="#e8e8e8"><FONT POINT-SIZE="7">L</FONT></TD>
+            </TR>
+
+            <!-- spi_mosi: data bits -->
+            <TR>
+                <TD BORDER="0" ALIGN="RIGHT"><FONT POINT-SIZE="10"><B>spi_mosi</B></FONT></TD>
+                <TD BGCOLOR="#e8e8e8"><FONT POINT-SIZE="7">-</FONT></TD>
+                <TD BGCOLOR="#d4efdf"><FONT POINT-SIZE="7"><B>W</B></FONT></TD>
+                <TD BGCOLOR="#d4efdf"><FONT POINT-SIZE="7">x</FONT></TD>
+                <TD BGCOLOR="#d4efdf"><FONT POINT-SIZE="7">x</FONT></TD>
+                <TD BGCOLOR="#d4efdf"><FONT POINT-SIZE="7">x</FONT></TD>
+                <TD BGCOLOR="#d4efdf"><FONT POINT-SIZE="7">x</FONT></TD>
+                <TD BGCOLOR="#d4efdf"><FONT POINT-SIZE="7">A2</FONT></TD>
+                <TD BGCOLOR="#d4efdf"><FONT POINT-SIZE="7">A1</FONT></TD>
+                <TD BGCOLOR="#d4efdf"><FONT POINT-SIZE="7">A0</FONT></TD>
+                <TD BGCOLOR="#e8e8e8"><FONT POINT-SIZE="5"> </FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">D15</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">...</FONT></TD>
+                <TD BGCOLOR="#aed6f1"><FONT POINT-SIZE="7">D8</FONT></TD>
+                <TD BGCOLOR="#e8e8e8"><FONT POINT-SIZE="5"> </FONT></TD>
+                <TD BGCOLOR="#d7bde2"><FONT POINT-SIZE="7">D7</FONT></TD>
+                <TD BGCOLOR="#d7bde2"><FONT POINT-SIZE="7">...</FONT></TD>
+                <TD BGCOLOR="#d7bde2"><FONT POINT-SIZE="7">D1</FONT></TD>
+                <TD BGCOLOR="#d7bde2"><FONT POINT-SIZE="7"><B>D0</B></FONT></TD>
+                <TD BGCOLOR="#e8e8e8"><FONT POINT-SIZE="7">-</FONT></TD>
+            </TR>
+
+            <!-- Byte labels -->
+            <TR>
+                <TD BORDER="0" ALIGN="RIGHT"><FONT POINT-SIZE="9" COLOR="#888888">byte</FONT></TD>
+                <TD BORDER="0" BGCOLOR="white"></TD>
+                <TD BORDER="0" BGCOLOR="#d4efdf" COLSPAN="8"><FONT POINT-SIZE="8" COLOR="#1a5276"><B>Byte 0: CMD</B>  (0x80 | reg_index)</FONT></TD>
+                <TD BORDER="0" BGCOLOR="white"></TD>
+                <TD BORDER="0" BGCOLOR="#aed6f1" COLSPAN="3"><FONT POINT-SIZE="8" COLOR="#1a5276"><B>Byte 1: DATA_H</B></FONT></TD>
+                <TD BORDER="0" BGCOLOR="white"></TD>
+                <TD BORDER="0" BGCOLOR="#d7bde2" COLSPAN="4"><FONT POINT-SIZE="8" COLOR="#1a5276"><B>Byte 2: DATA_L</B></FONT></TD>
+                <TD BORDER="0" BGCOLOR="white"></TD>
+            </TR>
+
+            <!-- Action annotation -->
+            <TR>
+                <TD BORDER="0" ALIGN="RIGHT"><FONT POINT-SIZE="9" COLOR="#888888">action</FONT></TD>
+                <TD BORDER="0" BGCOLOR="white"></TD>
+                <TD BORDER="0" BGCOLOR="white" COLSPAN="8"><FONT POINT-SIZE="8" COLOR="#888888">cmd_captured after bit 8</FONT></TD>
+                <TD BORDER="0" BGCOLOR="white"></TD>
+                <TD BORDER="0" BGCOLOR="white" COLSPAN="3"></TD>
+                <TD BORDER="0" BGCOLOR="white"></TD>
+                <TD BORDER="0" BGCOLOR="white" COLSPAN="3"></TD>
+                <TD BORDER="0" BGCOLOR="#f9e79f"><FONT POINT-SIZE="7" COLOR="#c0392b"><B>REG<BR/>WRITE</B></FONT></TD>
+                <TD BORDER="0" BGCOLOR="white"></TD>
+            </TR>
+
+        </TABLE>
+    >];
+
+    title -> timing;
+}

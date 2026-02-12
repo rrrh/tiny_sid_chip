@@ -1,0 +1,101 @@
+// RC Reconstruction Filter — Electronics Schematic Style
+// Render: dot -Tsvg docs/rc_filter.dot -o docs/rc_filter.svg
+//         dot -Tpng docs/rc_filter.dot -o docs/rc_filter.png
+
+digraph rc_filter {
+    bgcolor="white";
+    fontname="Helvetica";
+    pad=0.3;
+    nodesep=0.0;
+    ranksep=0.0;
+    node [fontname="Helvetica", fontsize=10, shape=none, margin=0, width=0, height=0];
+    edge [arrowhead=none, color="#222222", penwidth=1.5];
+
+    // =====================================================================
+    // Nodes — laid out left-to-right on the main signal path,
+    //         then downward for the shunt cap branch.
+    // =====================================================================
+
+    // -- Main horizontal path --
+    pdm [label=<
+        <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="2">
+            <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"><B>uo_out[1]</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="7" COLOR="#666666">PDM 1-bit<BR/>@ 50 MHz</FONT></TD></TR>
+        </TABLE>
+    >];
+
+    w1 [label="" width=0.4 shape=point color="#222222"];
+
+    resistor [label=<
+        <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">
+            <TR><TD ALIGN="CENTER"><FONT FACE="Helvetica" POINT-SIZE="9">R1</FONT></TD></TR>
+            <TR><TD ALIGN="CENTER"><FONT FACE="Courier" POINT-SIZE="11">&#x2500;&#x256C;&#x2500;&#x256C;&#x2500;&#x256C;&#x2500;&#x256C;&#x2500;</FONT></TD></TR>
+            <TR><TD ALIGN="CENTER"><FONT POINT-SIZE="9">1.0 k&#937;</FONT></TD></TR>
+        </TABLE>
+    >];
+
+    junction [label="" shape=point width=0.12 color="#222222" fillcolor="#222222" style=filled];
+
+    w2 [label="" width=0.4 shape=point color="#222222"];
+
+    cap_ac [label=<
+        <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">
+            <TR><TD ALIGN="CENTER"><FONT FACE="Helvetica" POINT-SIZE="9">C2</FONT></TD></TR>
+            <TR><TD ALIGN="CENTER"><FONT FACE="Courier" POINT-SIZE="14">&#x2500;&#x2502;&#x2502;&#x2500;</FONT></TD></TR>
+            <TR><TD ALIGN="CENTER"><FONT POINT-SIZE="9">1 &#956;F</FONT></TD></TR>
+            <TR><TD ALIGN="CENTER"><FONT POINT-SIZE="7" COLOR="#888888">(optional DC block)</FONT></TD></TR>
+        </TABLE>
+    >];
+
+    w3 [label="" width=0.4 shape=point color="#222222"];
+
+    audio_out [label=<
+        <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="2">
+            <TR><TD ALIGN="RIGHT"><FONT POINT-SIZE="10"><B>Audio Out</B></FONT></TD></TR>
+            <TR><TD ALIGN="RIGHT"><FONT POINT-SIZE="7" COLOR="#666666">to headphones<BR/>or amplifier</FONT></TD></TR>
+        </TABLE>
+    >];
+
+    // -- Shunt capacitor branch (vertical, down from junction) --
+    cap_shunt [label=<
+        <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">
+            <TR><TD ALIGN="CENTER"><FONT FACE="Helvetica" POINT-SIZE="9">C1       </FONT></TD></TR>
+            <TR><TD ALIGN="CENTER"><FONT FACE="Courier" POINT-SIZE="11">&#x2500;&#x2500;<BR/>&#x2500;&#x2500;</FONT></TD></TR>
+            <TR><TD ALIGN="CENTER"><FONT POINT-SIZE="9">4.7 nF</FONT></TD></TR>
+        </TABLE>
+    >];
+
+    gnd [label=<
+        <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">
+            <TR><TD ALIGN="CENTER"><FONT FACE="Courier" POINT-SIZE="10">&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;<BR/> &#x2500;&#x2500;&#x2500;&#x2500; <BR/>  &#x2500;&#x2500;  </FONT></TD></TR>
+            <TR><TD ALIGN="CENTER"><FONT POINT-SIZE="8">GND</FONT></TD></TR>
+        </TABLE>
+    >];
+
+    // =====================================================================
+    // Layout control — force horizontal main path, vertical shunt
+    // =====================================================================
+    { rank=same; pdm; w1; resistor; junction; w2; cap_ac; w3; audio_out; }
+
+    // -- Main signal path (L to R) --
+    pdm -> w1 -> resistor -> junction -> w2 -> cap_ac -> w3 -> audio_out;
+
+    // -- Shunt branch (top to bottom) --
+    junction -> cap_shunt -> gnd;
+
+    // =====================================================================
+    // Annotation
+    // =====================================================================
+    note [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#bbbbbb" BGCOLOR="#fafafa" STYLE="rounded">
+            <TR><TD ALIGN="CENTER">
+                <FONT POINT-SIZE="9">
+                    f<SUB>c</SUB> = 1/(2&#960;R1&#183;C1) &#8776; 34 kHz with R1=1k&#937;, C1=4.7nF<BR/>
+                    C2 is optional &mdash; blocks DC offset when driving an AC-coupled amplifier input
+                </FONT>
+            </TD></TR>
+        </TABLE>
+    >];
+
+    gnd -> note [style=invis];
+}
