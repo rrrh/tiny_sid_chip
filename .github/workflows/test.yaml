@@ -1,0 +1,36 @@
+name: test
+on: [push, workflow_dispatch]
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: install iverilog
+      run: sudo apt-get update && sudo apt-get install -y iverilog
+
+    - name: compile testbench
+      run: |
+        iverilog -o tt_um_sid_tb \
+          src/tt_um_sid_tb.v \
+          src/tt_um_sid.v \
+          src/spi_regs.v \
+          src/sid_voice.v \
+          src/sid_asdr_generator.v \
+          src/delta_sigma_dac.v
+
+    - name: run testbench
+      run: |
+        vvp tt_um_sid_tb | tee test_output.txt
+        # fail if any individual test reported FAIL (but not the "0 FAILED" summary)
+        ! grep -q 'TEST.*FAIL' test_output.txt
+
+    - name: upload vcd
+      if: success() || failure()
+      uses: actions/upload-artifact@v4
+      with:
+          name: test-vcd
+          path: tt_um_sid_tb.vcd
