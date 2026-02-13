@@ -1,1 +1,11 @@
 runs/
+
+# Vivado build artifacts
+vivado/tt_um_sid/
+vivado.jou
+vivado.log
+vivado_pid*.str
+
+# Simulation build artifacts
+*.vcd
+tt_um_sid_tb
