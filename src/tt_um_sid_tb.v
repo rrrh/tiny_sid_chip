@@ -43,6 +43,39 @@ module tt_um_sid_tb;
     wire pdm_out = uo_out[1];
 
     //==========================================================================
+    // PDM-to-PCM decimation filter (CIC order 1, integrate-and-dump)
+    // Converts the 50 MHz 1-bit PDM to ~48.8 kHz 10-bit PCM for waveform
+    // inspection in VCD viewers.  Output range: 0 (silence) to 1024 (full).
+    //==========================================================================
+    localparam DECIM_SHIFT = 10;
+    localparam DECIM_N     = 1 << DECIM_SHIFT;  // 1024 samples per window
+
+    reg [DECIM_SHIFT:0]   decim_acc;     // running sum (0..1024)
+    reg [DECIM_SHIFT-1:0] decim_cnt;     // sample counter (0..1023)
+    reg [DECIM_SHIFT:0]   pcm_out;       // latched PCM output
+    reg                   pcm_valid;     // 1-clk strobe per output sample
+
+    always @(posedge clk) begin
+        if (!rst_n) begin
+            decim_acc <= 0;
+            decim_cnt <= 0;
+            pcm_out   <= 0;
+            pcm_valid <= 1'b0;
+        end else begin
+            pcm_valid <= 1'b0;
+            if (&decim_cnt) begin                // decim_cnt == 1023
+                pcm_out   <= decim_acc + pdm_out;
+                pcm_valid <= 1'b1;
+                decim_acc <= 0;
+                decim_cnt <= 0;
+            end else begin
+                decim_acc <= decim_acc + pdm_out;
+                decim_cnt <= decim_cnt + 1;
+            end
+        end
+    end
+
+    //==========================================================================
     // Test scoring
     //==========================================================================
     integer pass_count;
@@ -152,6 +185,27 @@ module tt_um_sid_tb;
                     count = count + 1;
                 last = pdm_out;
             end
+        end
+    endtask
+
+    //==========================================================================
+    // Measure average PCM level over N decimated samples (~48.8 kHz rate)
+    //==========================================================================
+    task measure_pcm;
+        input  integer num_samples;
+        output integer avg;
+        integer sum, got;
+        begin
+            sum = 0;
+            got = 0;
+            while (got < num_samples) begin
+                @(posedge clk);
+                if (pcm_valid) begin
+                    sum = sum + pcm_out;
+                    got = got + 1;
+                end
+            end
+            avg = sum / num_samples;
         end
     endtask
 

@@ -1,0 +1,62 @@
+% RC Reconstruction Filter — TikZ / circuitikz
+% Compile: pdflatex rc_filter.tex  (or tectonic rc_filter.tex)
+\documentclass[border=12pt]{standalone}
+\usepackage[siunitx]{circuitikz}
+\usepackage{amsmath}
+
+\begin{document}
+\begin{circuitikz}[
+    american,
+    thick,
+    every node/.style={font=\sffamily},
+]
+
+% --- Main horizontal signal path ---
+% Input label
+\draw (0,0) node[left, align=right] {
+    \textbf{uo\_out[1]}\\[-2pt]
+    {\scriptsize\color{gray} PDM 1-bit @ 50\,MHz}
+}
+
+% R1: series resistor
+to[R, l={\small $R_1$}, a={\small 1.0\,k$\Omega$}] (3.5,0)
+
+% Junction node
+coordinate (junc) (3.5,0)
+
+% C2: optional AC-coupling cap
+to[C, l={\small $C_2$}, a={\small 1\,\textmu F}] (6.5,0)
+
+% Output label
+node[right, align=left] {
+    \textbf{Audio Out}\\[-2pt]
+    {\scriptsize\color{gray} to headphones}\\[-2pt]
+    {\scriptsize\color{gray} or amplifier}
+};
+
+% Junction dot
+\fill (junc) circle (2pt);
+
+% --- Shunt capacitor branch (vertical) ---
+\draw (junc)
+to[C, l_={\small $C_1$}, a_={\small 4.7\,nF}] (3.5,-2.5)
+node[ground] {};
+
+% --- Annotation box ---
+\node[
+    draw=gray!60,
+    fill=gray!5,
+    rounded corners=4pt,
+    inner sep=6pt,
+    font=\small\sffamily,
+    text width=22em,
+    align=center,
+] at (3.25,-4.5) {
+    $f_c = \dfrac{1}{2\pi R_1 C_1} \approx 34$\,kHz
+    \enspace with $R_1{=}1$\,k$\Omega$, $C_1{=}4.7$\,nF\\[4pt]
+    {\footnotesize $C_2$ is optional\,---\,blocks DC offset when\\
+    driving an AC-coupled amplifier input}
+};
+
+\end{circuitikz}
+\end{document}
