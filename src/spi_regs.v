@@ -5,17 +5,19 @@
 // Direct SPI-to-register interface. Write-only — no read-back support.
 //
 // SPI Protocol (CPOL=0, CPHA=0, MSB first):
-//   3-byte (24-bit) write transactions:
-//     Byte 0 (CMD):    [7]=1 (write)  [6:3]=unused  [2:0]=register index (0-4)
-//     Byte 1 (DATA_H): data[15:8]
-//     Byte 2 (DATA_L): data[7:0]
+//   2-byte (16-bit) write transactions:
+//     [15:13] = addr[2:0]   (3-bit register address)
+//     [12:8]  = reserved    (ignored)
+//     [7:0]   = data[7:0]   (8-bit data)
 //
-// Register Map (by index):
-//   0: frequency [15:0]
-//   1: duration  [15:0]
-//   2: attack    [7:0]  (upper 8 bits ignored)
-//   3: sustain   [7:0]  (upper 8 bits ignored)
-//   4: waveform  [7:0]  (upper 8 bits ignored)
+// Register Map (by address):
+//   0: freq_lo    — sid_frequency[7:0]
+//   1: freq_hi    — sid_frequency[15:8]
+//   2: pw_lo      — sid_duration[7:0]   (pulse width low)
+//   3: pw_hi      — sid_duration[15:8]  (pulse width high)
+//   4: attack     — sid_attack[7:0]     (atk[3:0] / dec[7:4])
+//   5: sustain    — sid_sustain[7:0]    (sus[3:0] / rel[7:4])
+//   6: waveform   — sid_waveform[7:0]
 //==============================================================================
 
 module spi_regs (
@@ -82,19 +84,13 @@ module spi_regs (
     //==========================================================================
     // SPI Receive Logic (system clock domain)
     //==========================================================================
-    reg [23:0] rx_shift;
-    reg [4:0]  bit_cnt;
-    reg        cmd_captured;
-    reg        is_write;
-    reg [2:0]  reg_addr;
+    reg [15:0] rx_shift;
+    reg [3:0]  bit_cnt;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            rx_shift     <= 24'd0;
-            bit_cnt      <= 5'd0;
-            cmd_captured <= 1'b0;
-            is_write     <= 1'b0;
-            reg_addr     <= 3'd0;
+            rx_shift     <= 16'd0;
+            bit_cnt      <= 4'd0;
 
             sid_frequency <= 16'd0;
             sid_duration  <= 16'd0;
@@ -103,30 +99,22 @@ module spi_regs (
             sid_waveform  <= 8'd0;
         end else if (!cs_active) begin
             // CS_n high — reset transaction state
-            rx_shift     <= 24'd0;
-            bit_cnt      <= 5'd0;
-            cmd_captured <= 1'b0;
-            is_write     <= 1'b0;
-            reg_addr     <= 3'd0;
+            rx_shift     <= 16'd0;
+            bit_cnt      <= 4'd0;
         end else if (spi_clk_rise) begin
-            rx_shift <= {rx_shift[22:0], spi_mosi_d2};
+            rx_shift <= {rx_shift[14:0], spi_mosi_d2};
             bit_cnt  <= bit_cnt + 1'b1;
 
-            // After 8 bits: CMD byte captured
-            if (bit_cnt == 5'd7 && !cmd_captured) begin
-                cmd_captured <= 1'b1;
-                is_write     <= rx_shift[6];
-                reg_addr     <= {rx_shift[1:0], spi_mosi_d2};
-            end
-
-            // After 24 bits: if write, store data
-            if (bit_cnt == 5'd23 && is_write) begin
-                case (reg_addr)
-                    3'd0: sid_frequency <= {rx_shift[14:0], spi_mosi_d2};
-                    3'd1: sid_duration  <= {rx_shift[14:0], spi_mosi_d2};
-                    3'd2: sid_attack    <= {rx_shift[6:0], spi_mosi_d2};
-                    3'd3: sid_sustain   <= {rx_shift[6:0], spi_mosi_d2};
-                    3'd4: sid_waveform  <= {rx_shift[6:0], spi_mosi_d2};
+            // After 16 bits: store data to addressed register
+            if (bit_cnt == 4'd15) begin
+                case (rx_shift[14:12])
+                    3'd0: sid_frequency[7:0]  <= {rx_shift[6:0], spi_mosi_d2};
+                    3'd1: sid_frequency[15:8] <= {rx_shift[6:0], spi_mosi_d2};
+                    3'd2: sid_duration[7:0]   <= {rx_shift[6:0], spi_mosi_d2};
+                    3'd3: sid_duration[15:8]  <= {rx_shift[6:0], spi_mosi_d2};
+                    3'd4: sid_attack           <= {rx_shift[6:0], spi_mosi_d2};
+                    3'd5: sid_sustain          <= {rx_shift[6:0], spi_mosi_d2};
+                    3'd6: sid_waveform         <= {rx_shift[6:0], spi_mosi_d2};
                     default: ;
                 endcase
             end

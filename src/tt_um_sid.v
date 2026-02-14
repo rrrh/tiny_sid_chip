@@ -3,9 +3,14 @@
 // TT10 Wrapper — SID Voice Synthesizer
 //==============================================================================
 // Instantiates:
-//   - spi_regs:        SPI slave → write-only register bank
+//   - spi_regs:        SPI slave → write-only register bank (16-bit frames)
 //   - sid_voice:       SID waveform generator with ADSR envelope
 //   - delta_sigma_dac: First-order delta-sigma DAC (12-bit → 1-bit PDM)
+//
+// SPI Protocol (CPOL=0, CPHA=0, MSB first):
+//   16-bit write frame: [15:13]=addr[2:0]  [12:8]=reserved  [7:0]=data
+//   Registers: 0=freq_lo, 1=freq_hi, 2=pw_lo, 3=pw_hi,
+//              4=attack, 5=sustain, 6=waveform
 //
 // Pin Mapping:
 //   ui_in[0]    = spi_clk       ui_in[3:7] = unused
