@@ -4,6 +4,8 @@ Single SID voice with ADSR envelope, controlled via SPI, with a first-order
 delta-sigma PDM audio output. Designed for a Tiny Tapeout 1x1 tile on the
 IHP SG13G2 130nm process at 50 MHz.
 
+[View the GDS layout](https://rrrh.github.io/tiny_sid_chip/)
+
 ---
 
 ## Table of Contents
