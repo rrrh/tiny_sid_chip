@@ -4,33 +4,45 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     steps:
-    - name: checkout repo
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: install iverilog
-      run: sudo apt-get update && sudo apt-get install -y iverilog
+      - name: Install iverilog
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y iverilog
 
-    - name: compile testbench
-      run: |
-        iverilog -o tt_um_sid_tb \
-          src/tt_um_sid_tb.v \
-          src/tt_um_sid.v \
-          src/spi_regs.v \
-          src/sid_voice.v \
-          src/sid_asdr_generator.v \
-          src/delta_sigma_dac.v
+      # Set Python up and install cocotb
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: run testbench
-      run: |
-        vvp tt_um_sid_tb | tee test_output.txt
-        # fail if any individual test reported FAIL (but not the "0 FAILED" summary)
-        ! grep -q 'TEST.*FAIL' test_output.txt
+      - name: Install Python packages
+        shell: bash
+        run: pip install -r test/requirements.txt
 
-    - name: upload vcd
-      if: success() || failure()
-      uses: actions/upload-artifact@v4
-      with:
-          name: test-vcd
-          path: tt_um_sid_tb.vcd
+      - name: Run tests
+        run: |
+          cd test
+          make clean
+          make
+          # make will return success even if the test fails, so check for failure in the results.xml
+          ! grep failure results.xml
+
+      - name: Test Summary
+        uses: test-summary/action@v2.3
+        with:
+          paths: "test/results.xml"
+        if: always()
+
+      - name: upload waveform and test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test/tb.fst
+            test/results.xml
+            test/output/*

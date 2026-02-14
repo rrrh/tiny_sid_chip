@@ -1,4 +1,16 @@
-runs/
+.DS_Store
+.idea
+*.vcd
+*.fst
+*.fst.hier
+runs
+tt_submission
+src/user_config.json
+src/config_merged.json
+test/sim_build
+test/__pycache__/
+test/results.xml
+test/gate_level_netlist.v
 
 # Vivado build artifacts
 vivado/tt_um_sid/
@@ -6,6 +18,5 @@ vivado.jou
 vivado.log
 vivado_pid*.str
 
-# Simulation build artifacts
-*.vcd
+# Compiled testbench binary
 tt_um_sid_tb

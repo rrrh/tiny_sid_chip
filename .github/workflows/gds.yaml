@@ -14,16 +14,17 @@ jobs:
           submodules: recursive
 
       - name: Build GDS
-        uses: TinyTapeout/tt-gds-action@tt10
+        uses: TinyTapeout/tt-gds-action@ttihp26a
         with:
-          flow: openlane2
+          pdk: ihp-sg13g2
+          librelane-version: 3.0.0.dev44
 
   precheck:
     needs: gds
     runs-on: ubuntu-24.04
     steps:
       - name: Run Tiny Tapeout Precheck
-        uses: TinyTapeout/tt-gds-action/precheck@tt10
+        uses: TinyTapeout/tt-gds-action/precheck@ttihp26a
 
   gl_test:
     needs: gds
@@ -35,14 +36,13 @@ jobs:
           submodules: recursive
 
       - name: GL test
-        uses: TinyTapeout/tt-gds-action/gl_test@tt10
+        uses: TinyTapeout/tt-gds-action/gl_test@ttihp26a
 
-  # viewer disabled — GitHub Pages not available on this repo
-  # viewer:
-  #   needs: gds
-  #   runs-on: ubuntu-24.04
-  #   permissions:
-  #     pages: write
-  #     id-token: write
-  #   steps:
-  #     - uses: TinyTapeout/tt-gds-action/viewer@tt10
+  viewer:
+    needs: gds
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - uses: TinyTapeout/tt-gds-action/viewer@ttihp26a
