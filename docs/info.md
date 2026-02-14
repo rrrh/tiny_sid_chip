@@ -40,7 +40,7 @@ This is a single-voice SID (MOS 6581) synthesizer implemented in Verilog. It rec
 
 ## How to test
 
-Connect an SPI master (e.g. microcontroller or Raspberry Pi) to `ui_in[0:2]`:
+Connect an SPI master (e.g. microcontroller or Raspberry Pi) to `ui_in[0:2]` (CS_n on bit 0, CLK on bit 1, MOSI on bit 2):
 
 1. Write frequency: register 0 = low byte, register 1 = high byte (e.g. 4291 = 0x10C3 → write 0xC3 to addr 0, 0x10 to addr 1 for ~C4 at 50 MHz)
 2. Write attack/decay to register 4 (e.g. 0x09 for fast attack, medium decay)

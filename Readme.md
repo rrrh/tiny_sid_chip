@@ -71,8 +71,8 @@ line-level amplifier input.
 
 ```
                          +-----------+     +-----------+     +-----------------+
-  ui_in[0] spi_clk  --->|           |     |           |     |                 |
-  ui_in[1] spi_cs_n --->| spi_regs  |---->| sid_voice |---->| delta_sigma_dac |---> uo_out[1] pdm_out
+  ui_in[0] spi_cs_n --->|           |     |           |     |                 |
+  ui_in[1] spi_clk  --->| spi_regs  |---->| sid_voice |---->| delta_sigma_dac |---> uo_out[1] pdm_out
   ui_in[2] spi_mosi --->|           |     |           |     |                 |
                          +-----------+     +-----------+     +-----------------+
                           7 registers       12-bit voice      1-bit PDM stream
@@ -106,8 +106,8 @@ line-level amplifier input.
 
 | Pin | Signal | Description |
 |-----|--------|-------------|
-| `ui_in[0]` | `spi_clk` | SPI clock (CPOL=0, CPHA=0). Max frequency depends on system clock; must be < clk/4 for reliable synchronization. |
-| `ui_in[1]` | `spi_cs_n` | SPI chip select, active low. Pull high when idle. |
+| `ui_in[0]` | `spi_cs_n` | SPI chip select, active low. Pull high when idle. |
+| `ui_in[1]` | `spi_clk` | SPI clock (CPOL=0, CPHA=0). Max frequency depends on system clock; must be < clk/4 for reliable synchronization. |
 | `ui_in[2]` | `spi_mosi` | SPI data input (master out, slave in). MSB first. |
 | `ui_in[7:3]` | -- | Unused. Active low internally. |
 
@@ -494,8 +494,8 @@ approximately VDD/2 at mid-volume.
 ```
 MCU                    TT Chip                   Audio
 -----------           ----------------          -------
-GPIO (SCK)  --------> ui_in[0] spi_clk
-GPIO (CS)   --------> ui_in[1] spi_cs_n
+GPIO (CS)   --------> ui_in[0] spi_cs_n
+GPIO (SCK)  --------> ui_in[1] spi_clk
 GPIO (MOSI) --------> ui_in[2] spi_mosi
                        uo_out[1] pdm_out ----[1kOhm]---+---> headphones / amp
                                                         |
@@ -503,6 +503,15 @@ GPIO (MOSI) --------> ui_in[2] spi_mosi
                                                         |
                                                        GND
 ```
+
+**TT Demo Board RP2040 GPIO mapping:**
+
+| TT Pin | Function | RP2040 GPIO |
+|--------|----------|-------------|
+| ui_in[0] | spi_cs_n | GPIO17 (SPI0.CS) |
+| ui_in[1] | spi_clk | GPIO18 (SPI0.SCK) |
+| ui_in[2] | spi_mosi | GPIO19 |
+| uo_out[1] | pdm_out | GPIO34 |
 
 No pull-up or pull-down resistors are needed on the SPI lines. The chip's
 internal synchronizers handle signal conditioning.
@@ -656,6 +665,8 @@ To silence the output at any time, either:
 |-----------|-------|
 | Target technology | IHP SG13G2 130nm SiGe BiCMOS |
 | Tile size | Tiny Tapeout 1x1 (202.08 x 154.98 um) |
+| Core supply (VDD) | 1.2V |
+| I/O supply (VDDIO) | 3.3V |
 | System clock | 50 MHz (20 ns period) |
 | Synthesized area | ~27,040 um^2 (Yosys, IHP SG13G2 stdcell) |
 | Flip-flop count | 210 |

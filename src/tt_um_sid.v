@@ -13,8 +13,8 @@
 //              4=attack, 5=sustain, 6=waveform
 //
 // Pin Mapping:
-//   ui_in[0]    = spi_clk       ui_in[3:7] = unused
-//   ui_in[1]    = spi_cs_n
+//   ui_in[0]    = spi_cs_n      ui_in[3:7] = unused
+//   ui_in[1]    = spi_clk
 //   ui_in[2]    = spi_mosi
 //   uo_out[0]   = spi_miso (tied low, write-only)
 //   uo_out[1]   = pdm_out (delta-sigma PDM audio output)
@@ -36,8 +36,8 @@ module tt_um_sid (
     //==========================================================================
     // Input assignments
     //==========================================================================
-    wire spi_clk_in  = ui_in[0];
-    wire spi_cs_n_in = ui_in[1];
+    wire spi_cs_n_in = ui_in[0];
+    wire spi_clk_in  = ui_in[1];
     wire spi_mosi_in = ui_in[2];
 
     wire rst = !rst_n;

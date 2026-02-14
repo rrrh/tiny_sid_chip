@@ -37,7 +37,7 @@ module arty_top (
     //==========================================================================
     wire rst_n = ~btn[0];
 
-    wire [7:0] ui_in  = {5'b00000, spi_mosi_in, spi_cs_n_in, spi_clk_in};
+    wire [7:0] ui_in  = {5'b00000, spi_mosi_in, spi_clk_in, spi_cs_n_in};
     wire [7:0] uo_out;
     wire [7:0] uio_out;
     wire [7:0] uio_oe;

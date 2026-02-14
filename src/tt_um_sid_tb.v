@@ -142,7 +142,7 @@ module tt_um_sid_tb;
             word = {addr, 5'b00000, data};
 
             // Assert CS_n low
-            ui_in[1] <= 1'b0;
+            ui_in[0] <= 1'b0;
             #(SPI_HP);
 
             for (i = 15; i >= 0; i = i - 1) begin
@@ -150,15 +150,15 @@ module tt_um_sid_tb;
                 ui_in[2] <= word[i];
                 #(SPI_HP);
                 // Rising edge — slave samples
-                ui_in[0] <= 1'b1;
+                ui_in[1] <= 1'b1;
                 #(SPI_HP);
                 // Falling edge
-                ui_in[0] <= 1'b0;
+                ui_in[1] <= 1'b0;
             end
 
             // Deassert CS_n
             #(SPI_HP);
-            ui_in[1] <= 1'b1;
+            ui_in[0] <= 1'b1;
             #(SPI_HP);
         end
     endtask
@@ -245,7 +245,7 @@ module tt_um_sid_tb;
 
     initial begin
         // Initialise inputs
-        ui_in  = 8'b0000_0010;   // CS_n=1, CLK=0, MOSI=0
+        ui_in  = 8'b0000_0001;   // CS_n=1, CLK=0, MOSI=0
         uio_in = 8'b0;
         ena    = 1'b1;
         rst_n  = 1'b1;

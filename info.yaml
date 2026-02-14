@@ -25,8 +25,8 @@ project:
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 pinout:
   # Inputs
-  ui[0]: "spi_clk"
-  ui[1]: "spi_cs_n"
+  ui[0]: "spi_cs_n"
+  ui[1]: "spi_clk"
   ui[2]: "spi_mosi"
   ui[3]: ""
   ui[4]: ""

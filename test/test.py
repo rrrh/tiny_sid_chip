@@ -19,14 +19,14 @@ REG_WAVEFORM = 6
 async def spi_write(dut, addr, data):
     """Write a 16-bit SPI transaction: {addr[2:0], 5'b0, data[7:0]}
     CPOL=0, CPHA=0, MSB first.
-    ui_in[0] = spi_clk, ui_in[1] = spi_cs_n, ui_in[2] = spi_mosi
+    ui_in[0] = spi_cs_n, ui_in[1] = spi_clk, ui_in[2] = spi_mosi
     """
     word = ((addr & 0x7) << 13) | (data & 0xFF)
 
     # Assert CS low
     ui = dut.ui_in.value.integer if hasattr(dut.ui_in.value, 'integer') else 0
-    ui = ui & ~0x02  # CS low
-    ui = ui & ~0x01  # CLK low
+    ui = ui & ~0x01  # CS low
+    ui = ui & ~0x02  # CLK low
     dut.ui_in.value = ui
     await ClockCycles(dut.clk, 5)
 
@@ -34,21 +34,21 @@ async def spi_write(dut, addr, data):
         bit = (word >> i) & 1
         # Set MOSI, CLK low
         ui = (ui & ~0x04) | (bit << 2)
-        ui = ui & ~0x01  # CLK low
+        ui = ui & ~0x02  # CLK low
         dut.ui_in.value = ui
         await ClockCycles(dut.clk, 5)
 
         # CLK high — data sampled
-        ui = ui | 0x01
+        ui = ui | 0x02
         dut.ui_in.value = ui
         await ClockCycles(dut.clk, 5)
 
     # CLK low, then deassert CS
-    ui = ui & ~0x01
+    ui = ui & ~0x02
     dut.ui_in.value = ui
     await ClockCycles(dut.clk, 5)
 
-    ui = ui | 0x02  # CS high
+    ui = ui | 0x01  # CS high
     dut.ui_in.value = ui
     await ClockCycles(dut.clk, 10)
 
@@ -90,7 +90,7 @@ async def test_reset(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x02  # CS high, CLK low
+    dut.ui_in.value = 0x01  # CS high, CLK low
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
@@ -109,7 +109,7 @@ async def test_sawtooth(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x02  # CS high
+    dut.ui_in.value = 0x01  # CS high
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
@@ -139,7 +139,7 @@ async def test_triangle(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x02
+    dut.ui_in.value = 0x01
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
@@ -165,7 +165,7 @@ async def test_pulse(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x02
+    dut.ui_in.value = 0x01
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
@@ -193,7 +193,7 @@ async def test_noise(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x02
+    dut.ui_in.value = 0x01
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
@@ -219,7 +219,7 @@ async def test_gate_release(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x02
+    dut.ui_in.value = 0x01
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
