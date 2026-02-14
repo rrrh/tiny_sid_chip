@@ -1,8 +1,8 @@
-# SID Voice Synthesizer (TT10)
+# SID Voice Synthesizer (TT-IHP)
 
 Single SID voice with ADSR envelope, controlled via SPI, with a first-order
 delta-sigma PDM audio output. Designed for a Tiny Tapeout 1x1 tile on the
-sky130 process at 50 MHz.
+IHP SG13G2 130nm process at 50 MHz.
 
 ---
 
@@ -17,7 +17,7 @@ sky130 process at 50 MHz.
 7. [Audio Output and Delta-Sigma DAC](#audio-output-and-delta-sigma-dac)
 8. [Usage Guide](#usage-guide)
 9. [Design Constraints](#design-constraints)
-10. [Physical Implementation (OpenLane PnR)](#physical-implementation-openlane-pnr)
+10. [Physical Implementation (LibreLane PnR)](#physical-implementation-librelane-pnr)
 
 ---
 
@@ -29,11 +29,12 @@ provides four classic waveform types (sawtooth, triangle, pulse, noise), a
 full ADSR amplitude envelope, and ring modulation / hard sync control bits,
 all packed into a Tiny Tapeout 1x1 tile.
 
-A host microcontroller (Arduino, RP2040, ESP32, etc.) writes the five
-SID-style control registers over a simple 3-wire SPI bus. The synthesized
-audio is output as a high-speed 1-bit pulse-density modulated (PDM) stream
-that only requires a passive RC low-pass filter to produce an analog signal
-suitable for headphones or a line-level amplifier input.
+A host microcontroller (Arduino, RP2040, ESP32, etc.) writes seven
+SID-style control registers over a simple 3-wire SPI bus using compact
+16-bit frames. The synthesized audio is output as a high-speed 1-bit
+pulse-density modulated (PDM) stream that only requires a passive RC
+low-pass filter to produce an analog signal suitable for headphones or a
+line-level amplifier input.
 
 ### Key Features
 
@@ -44,9 +45,9 @@ suitable for headphones or a line-level amplifier input.
 - Linear envelope with power-of-2 rate scaling (16 rate settings per phase)
 - 12-bit internal voice resolution, 8-bit envelope depth (20-bit product)
 - First-order delta-sigma DAC: 1-bit PDM output, ~99 dB theoretical SNR
-- 3-wire write-only SPI control interface (CPOL=0, CPHA=0)
+- 3-wire write-only SPI control interface (CPOL=0, CPHA=0, 16-bit frames)
 - Single 50 MHz clock domain
-- Fits in a Tiny Tapeout 1x1 tile (~11,700 um^2 on sky130)
+- Fits in a Tiny Tapeout 1x1 tile (~27,000 um^2 on IHP SG13G2)
 
 ### Source Files
 
@@ -72,7 +73,7 @@ suitable for headphones or a line-level amplifier input.
   ui_in[1] spi_cs_n --->| spi_regs  |---->| sid_voice |---->| delta_sigma_dac |---> uo_out[1] pdm_out
   ui_in[2] spi_mosi --->|           |     |           |     |                 |
                          +-----------+     +-----------+     +-----------------+
-                          5 registers       12-bit voice      1-bit PDM stream
+                          7 registers       12-bit voice      1-bit PDM stream
                           (write-only)      output
 ```
 
@@ -80,9 +81,9 @@ suitable for headphones or a line-level amplifier input.
 
 **Signal flow:**
 
-1. The host sends 24-bit SPI write transactions to `spi_regs`, which
+1. The host sends 16-bit SPI write transactions to `spi_regs`, which
    synchronizes the SPI signals into the 50 MHz clock domain and latches
-   the 16-bit or 8-bit data into one of five control registers.
+   the 8-bit data into one of seven byte-addressed control registers.
 
 2. `sid_voice` reads those registers every clock cycle. A 24-bit phase
    accumulator generates the master oscillator, from which the four
@@ -129,17 +130,21 @@ suitable for headphones or a line-level amplifier input.
 ### `tt_um_sid` (Top Level)
 
 The Tiny Tapeout wrapper. Connects the SPI bus pins to `spi_regs`, wires
-the five register outputs to `sid_voice`, feeds the 12-bit voice output
+the seven register outputs to `sid_voice`, feeds the 12-bit voice output
 into `delta_sigma_dac`, and maps `pdm_out` to `uo_out[1]`. All unused pins
 are tied to safe defaults (outputs low, bidirectional pins set as inputs).
 
 ### `spi_regs` (SPI Register Bank)
 
-A write-only SPI slave that accepts 24-bit transactions (8-bit command +
-16-bit data). All three SPI signals (`spi_clk`, `spi_cs_n`, `spi_mosi`)
-pass through 2-stage flip-flop synchronizers before processing, making the
-interface safe across clock domains. Rising edges of `spi_clk` are detected
-in the system clock domain via a 3-stage pipeline and edge comparator.
+A write-only SPI slave that accepts 16-bit transactions. The frame format
+is `{addr[2:0], 5'b0, data[7:0]}`. All three SPI signals (`spi_clk`,
+`spi_cs_n`, `spi_mosi`) pass through 2-stage flip-flop synchronizers
+before processing, making the interface safe across clock domains. Rising
+edges of `spi_clk` are detected in the system clock domain via a 3-stage
+pipeline and edge comparator.
+
+16-bit frequency and pulse width values are split into low/high byte
+register pairs (addresses 0/1 and 2/3 respectively).
 
 Transaction state resets whenever `spi_cs_n` goes high (inactive), so
 partial or corrupted transactions are safely discarded.
@@ -217,19 +222,26 @@ as pulse density.
 
 ## Register Reference
 
-The five registers are written via SPI using a 3-bit index (0--4).
-Registers 0 and 1 are 16-bit; registers 2--4 are 8-bit (the upper 8 data
-bits are ignored for 8-bit registers).
+The seven registers are written via SPI using a 3-bit address (0--6).
+All registers are 8-bit. The 16-bit frequency and pulse width values are
+split into low/high byte pairs.
 
-### Register 0: Frequency (16-bit)
+### Register 0: Frequency Low Byte (8-bit)
 
 ```
-Bit:  15  14  13  12  11  10   9   8   7   6   5   4   3   2   1   0
-     [                        frequency[15:0]                        ]
+Bit:   7    6    5    4    3    2    1    0
+     [              frequency[7:0]            ]
 ```
 
-The phase accumulator increment. Added to the 24-bit accumulator every
-clock cycle, so the oscillator frequency is:
+### Register 1: Frequency High Byte (8-bit)
+
+```
+Bit:   7    6    5    4    3    2    1    0
+     [             frequency[15:8]            ]
+```
+
+The combined 16-bit frequency is the phase accumulator increment. Added
+to the 24-bit accumulator every clock cycle, so the oscillator frequency is:
 
 ```
 f_out = frequency * f_clk / 2^24
@@ -241,9 +253,8 @@ At 50 MHz:
 |---------------------|-----------------|------|
 | 0x0000 | 0 Hz | Silence |
 | 0x0112 | ~16.35 Hz | C0 |
+| 0x10C3 | ~261.6 Hz | C4 |
 | 0x1CD6 | ~440 Hz | A4 (concert pitch) |
-| 0x39AC | ~880 Hz | A5 |
-| 0x7358 | ~1760 Hz | A6 |
 | 0xFFFF | ~3051.76 Hz | Maximum fundamental |
 
 **Frequency calculation:**
@@ -251,39 +262,32 @@ At 50 MHz:
 frequency_reg = round(f_desired * 2^24 / 50000000)
 ```
 
-For 440 Hz: `round(440 * 16777216 / 50000000)` = `round(147849.97)` = 0x0241A (rounded, approximately 0x1CD6 for the raw value -- use the exact formula above for precision).
+To write e.g. 4291 (0x10C3): write 0xC3 to register 0, then 0x10 to register 1.
 
-The actual formula yields `frequency_reg = round(f * 335544.32)`. Some
-useful constants:
-
-| Note | Freq (Hz) | Register (hex) | Register (decimal) |
-|------|-----------|----------------|---------------------|
-| C2 | 65.41 | 0x0055 | 85 |
-| C3 | 130.81 | 0x00AB | 171 |
-| C4 | 261.63 | 0x0156 | 342 |
-| A4 | 440.00 | 0x0241 | 577 |
-| C5 | 523.25 | 0x02AC | 684 |
-| C6 | 1046.50 | 0x0558 | 1368 |
-
-### Register 1: Duration / Pulse Width (16-bit)
+### Register 2: Pulse Width Low Byte (8-bit)
 
 ```
-Bit:  15  14  13  12  11  10   9   8   7   6   5   4   3   2   1   0
-     [ unused (3:0) ] [           duration[11:0]                     ]
+Bit:   7    6    5    4    3    2    1    0
+     [              duration[7:0]             ]
 ```
 
-Only bits `[11:0]` are used. Sets the pulse waveform duty cycle by
-comparison with `accumulator[23:12]`:
+### Register 3: Pulse Width High Byte (8-bit)
+
+```
+Bit:   7    6    5    4    3    2    1    0
+     [             duration[15:8]             ]
+```
+
+Only bits `[11:0]` of the combined 16-bit value are used. Sets the pulse
+waveform duty cycle by comparison with `accumulator[23:12]`:
 
 - `duration = 0x000`: Pulse is always low (0% duty cycle, silent)
 - `duration = 0x800`: 50% duty cycle (classic square wave)
 - `duration = 0xFFF`: Pulse is almost always high (~100% duty, nearly DC)
 
-Intermediate values produce asymmetric pulse waves with varying timbres.
-Narrow pulses (low duration) sound thin and nasal; wider pulses sound
-fuller. This register has no effect when the pulse waveform is not enabled.
+To write e.g. 2048 (0x0800): write 0x00 to register 2, then 0x08 to register 3.
 
-### Register 2: Attack / Decay Rates (8-bit)
+### Register 4: Attack / Decay Rates (8-bit)
 
 ```
 Bit:   7    6    5    4    3    2    1    0
@@ -297,7 +301,7 @@ Bit:   7    6    5    4    3    2    1    0
 
 Both fields use the same 4-bit rate encoding (see [Envelope Rate Table](#envelope-rate-table)).
 
-### Register 3: Sustain Level / Release Rate (8-bit)
+### Register 5: Sustain Level / Release Rate (8-bit)
 
 ```
 Bit:   7    6    5    4    3    2    1    0
@@ -314,7 +318,7 @@ phase completes, for as long as the gate remains high. Setting sustain to
 15 (0xF) means the envelope stays near maximum after attack; setting it to
 0 means the sound decays to silence even while the gate is held.
 
-### Register 4: Waveform Control (8-bit)
+### Register 6: Waveform Control (8-bit)
 
 ```
 Bit:   7      6      5        4        3     2     1     0
@@ -329,7 +333,7 @@ Bit:   7      6      5        4        3     2     1     0
 | 3 | `test` | **Test bit.** Forces the oscillator accumulator and LFSR to reset. While held high, the oscillator is frozen at 0 and noise output is reset. Useful for synchronizing or silencing. |
 | 4 | `triangle` | **Enable triangle waveform.** Produces a triangle wave from the phase accumulator. |
 | 5 | `sawtooth` | **Enable sawtooth waveform.** Produces a ramp (sawtooth) wave from the accumulator upper bits. |
-| 6 | `pulse` | **Enable pulse waveform.** Produces a pulse/square wave; duty cycle set by register 1. |
+| 6 | `pulse` | **Enable pulse waveform.** Produces a pulse/square wave; duty cycle set by registers 2/3. |
 | 7 | `noise` | **Enable noise waveform.** Produces pseudo-random noise from a 23-bit LFSR. |
 
 **Waveform combining:** When multiple waveform bits are set simultaneously,
@@ -381,51 +385,41 @@ Formula: `envelope_time = 256 * 2^(rate+9) / 50000000` seconds.
 
 ### Transaction Format
 
-Each write is a 24-bit (3-byte) transaction with `spi_cs_n` held low for
+Each write is a 16-bit (2-byte) transaction with `spi_cs_n` held low for
 the entire transfer:
 
 ```
-         Byte 0 (CMD)          Byte 1 (DATA_H)      Byte 2 (DATA_L)
-  CS_n  __|                                                           |__
-         |                                                             |
-  MOSI  [W][x][x][x][x][A2][A1][A0] [D15][D14]...[D8] [D7][D6]...[D0]
-         ^                                                             ^
-       bit 7                                                         bit 0
+         Byte 0                 Byte 1
+  CS_n  __|                                   |__
+         |                                     |
+  MOSI  [A2][A1][A0][x][x][x][x][x] [D7][D6]...[D0]
+         ^                                     ^
+       bit 15                                bit 0
 ```
 
 | Byte | Bits | Field | Description |
 |------|------|-------|-------------|
-| 0 | `[7]` | W | Write flag. Must be 1 for writes. |
-| 0 | `[6:3]` | -- | Unused (ignored). |
-| 0 | `[2:0]` | A | Register index (0--4). |
-| 1 | `[7:0]` | D_H | Data bits `[15:8]`. |
-| 2 | `[7:0]` | D_L | Data bits `[7:0]`. |
+| 0 | `[7:5]` | A | Register address (0--6). |
+| 0 | `[4:0]` | -- | Reserved (ignored). |
+| 1 | `[7:0]` | D | 8-bit register data. |
 
-The command byte is: `0x80 | register_index`.
-
-**Important:** The register write takes effect on the 24th rising edge of
+**Important:** The register write takes effect on the 16th rising edge of
 `spi_clk`. After the transaction, deassert `spi_cs_n` (drive high) before
 starting the next transaction. The internal state machine resets on
 `spi_cs_n` going high.
 
 ### Timing Diagram
 
-![SPI Timing Diagram](docs/spi_timing.svg)
-
-<details><summary>ASCII fallback</summary>
-
 ```
-spi_cs_n  ‾‾‾\_____________________________________________/‾‾‾‾
-                                                             ^
-spi_clk   ____/‾\_/‾\_/‾\_/‾\_/‾\_/ ... \_/‾\_/‾\_/‾\_/‾\__
-              1   2   3   4   5        21  22  23  24
-                                                     ^
-                                                     register written
+spi_cs_n  ‾‾‾\___________________________/‾‾‾‾
+                                           ^
+spi_clk   ____/‾\_/‾\_/ ... \_/‾\_/‾\____
+              1   2         15  16
+                                 ^
+                                 register written
 
-spi_mosi  ----<W><x><x><x><x><A2><A1><A0><D15><D14>...<D1><D0>----
+spi_mosi  ----<A2><A1><A0><x><x><x><x><x><D7><D6>...<D1><D0>----
 ```
-
-</details>
 
 ---
 
@@ -462,10 +456,6 @@ The PDM output is a 50 MHz digital signal swinging between 0 and VDD
 (typically 3.3V or 1.8V depending on the TT I/O standard). To recover the
 audio, connect a simple passive RC low-pass filter:
 
-![RC Reconstruction Filter](docs/rc_filter.svg)
-
-<details><summary>ASCII fallback</summary>
-
 ```
 uo_out[1] ---[R]---+---> Audio Out
                     |
@@ -474,15 +464,12 @@ uo_out[1] ---[R]---+---> Audio Out
                    GND
 ```
 
-</details>
-
 **Recommended component values:**
 
 | Cutoff Target | R | C | -3 dB Frequency |
 |---------------|---|---|-----------------|
 | 20 kHz | 1.0 kOhm | 8.2 nF | 19.4 kHz |
 | 24 kHz | 1.0 kOhm | 6.8 nF | 23.4 kHz |
-| 30 kHz | 1.0 kOhm | 4.7 nF | 33.9 kHz |
 | 34 kHz (recommended) | 1.0 kOhm | 4.7 nF | 33.9 kHz |
 
 A cutoff around 20--34 kHz passes the full audio band while attenuating
@@ -490,16 +477,6 @@ the high-frequency quantization noise. A single-pole RC filter provides
 -20 dB/decade rolloff. For better noise rejection, a second-order filter
 (two cascaded RC stages or a Sallen-Key active filter) can be used, but is
 usually not necessary for casual listening.
-
-The output amplitude at the filter node is approximately:
-
-```
-V_audio_peak = VDD * (max_voice_value / 4096)
-```
-
-At full volume (envelope=255, waveform=0xFFF), this approaches VDD. For
-line-level output (~1V RMS), a voltage divider or coupling capacitor may
-be appropriate after the filter.
 
 **AC coupling:** If connecting to an amplifier input, add a DC blocking
 capacitor (e.g., 10 uF electrolytic or 1 uF ceramic) in series after the
@@ -531,17 +508,28 @@ internal synchronizers handle signal conditioning.
 ### SPI Write Function (C / Arduino Example)
 
 ```c
-// Write a 16-bit value to a SID register (index 0-4)
-void sid_write(uint8_t reg_index, uint16_t data) {
-    uint8_t cmd = 0x80 | (reg_index & 0x07);
-    uint8_t data_h = (data >> 8) & 0xFF;
-    uint8_t data_l = data & 0xFF;
+// Write an 8-bit value to a SID register (address 0-6)
+void sid_write(uint8_t addr, uint8_t data) {
+    uint16_t word = ((addr & 0x07) << 13) | data;
+    uint8_t byte0 = (word >> 8) & 0xFF;
+    uint8_t byte1 = word & 0xFF;
 
     digitalWrite(CS_PIN, LOW);
-    SPI.transfer(cmd);
-    SPI.transfer(data_h);
-    SPI.transfer(data_l);
+    SPI.transfer(byte0);
+    SPI.transfer(byte1);
     digitalWrite(CS_PIN, HIGH);
+}
+
+// Write a 16-bit frequency as two byte registers
+void sid_write_freq(uint16_t freq) {
+    sid_write(0, freq & 0xFF);        // freq_lo
+    sid_write(1, (freq >> 8) & 0xFF); // freq_hi
+}
+
+// Write a 16-bit pulse width as two byte registers
+void sid_write_pw(uint16_t pw) {
+    sid_write(2, pw & 0xFF);          // pw_lo
+    sid_write(3, (pw >> 8) & 0xFF);   // pw_hi
 }
 ```
 
@@ -554,15 +542,15 @@ bit. To stop the note, clear the gate bit to trigger the release phase.
 
 ```c
 // Configure a 440 Hz sawtooth note with moderate ADSR
-sid_write(0, 0x0241);   // Register 0: frequency = 440 Hz
-sid_write(1, 0x0800);   // Register 1: pulse width = 50% (unused for sawtooth)
-sid_write(2, 0x22);     // Register 2: attack=2 (~10ms), decay=2 (~10ms)
-sid_write(3, 0x2A);     // Register 3: sustain=10 (160/255), release=2 (~10ms)
-sid_write(4, 0x21);     // Register 4: sawtooth + gate ON
+sid_write_freq(0x0241);  // Frequency = 440 Hz
+sid_write_pw(0x0800);    // Pulse width = 50% (unused for sawtooth)
+sid_write(4, 0x22);      // Attack=2 (~10ms), Decay=2 (~10ms)
+sid_write(5, 0x2A);      // Sustain=10 (160/255), Release=2 (~10ms)
+sid_write(6, 0x21);      // Sawtooth + gate ON
 
-delay(500);             // Hold note for 500 ms
+delay(500);              // Hold note for 500 ms
 
-sid_write(4, 0x20);     // Register 4: sawtooth + gate OFF (release begins)
+sid_write(6, 0x20);      // Sawtooth + gate OFF (release begins)
 ```
 
 ### Sound Recipes
@@ -572,43 +560,41 @@ Below are some starting-point register settings for common sounds.
 #### Simple Square Wave (8-bit Game Style)
 
 ```c
-sid_write(0, freq);      // Desired frequency
-sid_write(1, 0x0800);    // 50% duty cycle
-sid_write(2, 0x00);      // Attack=0 (instant), Decay=0 (instant)
-sid_write(3, 0x0F);      // Sustain=15 (max), Release=0 (instant)
-sid_write(4, 0x41);      // Pulse waveform + gate ON
+sid_write_freq(freq);    // Desired frequency
+sid_write_pw(0x0800);    // 50% duty cycle
+sid_write(4, 0x00);      // Attack=0 (instant), Decay=0 (instant)
+sid_write(5, 0x0F);      // Sustain=15 (max), Release=0 (instant)
+sid_write(6, 0x41);      // Pulse waveform + gate ON
 ```
 
 #### Bass (Pulse with Slow Attack)
 
 ```c
-sid_write(0, 0x0056);    // ~65 Hz (low C)
-sid_write(1, 0x0400);    // 25% duty cycle (nasal/thin bass)
-sid_write(2, 0x53);      // Attack=3 (~21ms), Decay=5 (~84ms)
-sid_write(3, 0x38);      // Sustain=8 (128/255), Release=3 (~21ms)
-sid_write(4, 0x41);      // Pulse + gate ON
+sid_write_freq(0x0056);  // ~65 Hz (low C)
+sid_write_pw(0x0400);    // 25% duty cycle (nasal/thin bass)
+sid_write(4, 0x53);      // Attack=3 (~21ms), Decay=5 (~84ms)
+sid_write(5, 0x38);      // Sustain=8 (128/255), Release=3 (~21ms)
+sid_write(6, 0x41);      // Pulse + gate ON
 ```
 
 #### Pad (Triangle with Long Attack/Release)
 
 ```c
-sid_write(0, freq);      // Desired frequency
-sid_write(1, 0x0000);    // (not used for triangle)
-sid_write(2, 0x47);      // Attack=7 (~336ms), Decay=4 (~42ms)
-sid_write(3, 0x6C);      // Sustain=12 (192/255), Release=6 (~168ms)
-sid_write(4, 0x11);      // Triangle + gate ON
+sid_write_freq(freq);    // Desired frequency
+sid_write(4, 0x47);      // Attack=7 (~336ms), Decay=4 (~42ms)
+sid_write(5, 0x6C);      // Sustain=12 (192/255), Release=6 (~168ms)
+sid_write(6, 0x11);      // Triangle + gate ON
 ```
 
 #### Drum / Percussion Hit (Noise with Fast Decay)
 
 ```c
-sid_write(0, 0x4000);    // High frequency for dense noise texture
-sid_write(1, 0x0000);    // (not used)
-sid_write(2, 0x30);      // Attack=0 (instant), Decay=3 (~21ms)
-sid_write(3, 0x20);      // Sustain=0 (full decay to silence), Release=2
-sid_write(4, 0x81);      // Noise + gate ON
+sid_write_freq(0x4000);  // High frequency for dense noise texture
+sid_write(4, 0x30);      // Attack=0 (instant), Decay=3 (~21ms)
+sid_write(5, 0x20);      // Sustain=0 (full decay to silence), Release=2
+sid_write(6, 0x81);      // Noise + gate ON
 // After ~30ms the sound naturally decays to silence
-sid_write(4, 0x80);      // Gate OFF
+sid_write(6, 0x80);      // Gate OFF
 ```
 
 #### SID-Style Lead (Pulse with PWM Sweep)
@@ -617,14 +603,14 @@ For the classic SID "PWM lead" sound, sweep the pulse width register over
 time from your host MCU:
 
 ```c
-sid_write(0, freq);
-sid_write(2, 0x22);      // Attack=2, Decay=2
-sid_write(3, 0x2B);      // Sustain=11, Release=2
-sid_write(4, 0x41);      // Pulse + gate ON
+sid_write_freq(freq);
+sid_write(4, 0x22);      // Attack=2, Decay=2
+sid_write(5, 0x2B);      // Sustain=11, Release=2
+sid_write(6, 0x41);      // Pulse + gate ON
 
 // Sweep pulse width in a loop
 for (uint16_t pw = 0x200; pw < 0xE00; pw += 0x10) {
-    sid_write(1, pw);
+    sid_write_pw(pw);
     delay(5);            // ~5ms per step
 }
 ```
@@ -648,33 +634,6 @@ Register values for standard musical notes at 50 MHz system clock:
 | A# | 0x0099 | 0x0132 | 0x0264 | 0x04C8 | 0x098F |
 | B | 0x00A2 | 0x0144 | 0x0288 | 0x0510 | 0x0A20 |
 
-### Sequencing Notes
-
-For simple melodies, write each note's frequency and gate the waveform
-register:
-
-```c
-struct Note {
-    uint16_t freq_reg;
-    uint16_t duration_ms;
-};
-
-void play_melody(struct Note *notes, int count) {
-    // Set up timbre once
-    sid_write(1, 0x0800);    // Pulse width 50%
-    sid_write(2, 0x09);      // Attack=9, Decay=0
-    sid_write(3, 0x1F);      // Sustain=15, Release=1
-
-    for (int i = 0; i < count; i++) {
-        sid_write(0, notes[i].freq_reg);
-        sid_write(4, 0x41);  // Pulse + gate ON
-        delay(notes[i].duration_ms - 20);
-        sid_write(4, 0x40);  // Gate OFF (release)
-        delay(20);           // Short gap between notes
-    }
-}
-```
-
 ### Reset and Initialization
 
 After power-on or chip reset (`rst_n` asserted low), all registers are
@@ -683,9 +642,9 @@ disabled). No initialization sequence is required beyond configuring the
 desired sound parameters.
 
 To silence the output at any time, either:
-- Clear the gate bit: `sid_write(4, waveform & 0xFE)`
-- Set frequency to 0: `sid_write(0, 0x0000)`
-- Set the test bit to freeze the oscillator: `sid_write(4, 0x08)`
+- Clear the gate bit: `sid_write(6, waveform & 0xFE)`
+- Set frequency to 0: `sid_write_freq(0x0000)`
+- Set the test bit to freeze the oscillator: `sid_write(6, 0x08)`
 
 ---
 
@@ -693,11 +652,11 @@ To silence the output at any time, either:
 
 | Parameter | Value |
 |-----------|-------|
-| Target technology | sky130 (sky130_fd_sc_hd) |
-| Tile size | Tiny Tapeout 1x1 |
+| Target technology | IHP SG13G2 130nm SiGe BiCMOS |
+| Tile size | Tiny Tapeout 1x1 (202.08 x 154.98 um) |
 | System clock | 50 MHz (20 ns period) |
-| Synthesized area | ~11,715 um^2 (Yosys + abc, sky130 tt corner) |
-| Flip-flop count | ~221 (84 sid_voice + 34 sid_asdr + 90 spi_regs + 13 dac) |
+| Synthesized area | ~27,040 um^2 (Yosys, IHP SG13G2 stdcell) |
+| Flip-flop count | 210 |
 | SPI max clock | < 12.5 MHz (clk/4); 10 MHz recommended |
 | PDM output rate | 50 MHz (equals system clock) |
 | Audio bandwidth | 20 kHz (limited by external RC filter) |
@@ -705,105 +664,79 @@ To silence the output at any time, either:
 
 ---
 
-## Physical Implementation (OpenLane PnR)
+## Physical Implementation (LibreLane PnR)
 
-Post place-and-route results from OpenLane 2.3.10, targeting the TT 1x1 tile
-with aggressive placement density.
+Post place-and-route results from LibreLane 3.0.0.dev50, targeting the
+TT-IHP 1x1 tile on IHP SG13G2 130nm.
 
 ### Die / Floorplan
 
 | Parameter | Value |
 |-----------|-------|
-| Die area | 161.0 x 111.52 um (17,955 um^2) |
-| Core area | 0.46, 2.72 to 160.54, 108.80 (16,986 um^2) |
-| Std cell area | 14,516 um^2 |
-| Utilization | 85.5% |
-| PDK | sky130A (sky130_fd_sc_hd) |
-| Routing layers | met1 -- met4 |
+| Die area | 202.08 x 154.98 um (31,318 um^2) |
+| Core area | 196.32 x 147.42 um (28,942 um^2) |
+| Std cell area | 27,040 um^2 |
+| Utilization | 93.4% |
+| PDK | IHP SG13G2 (sg13g2_stdcell) |
+| Routing layers | Metal1 -- TopMetal2 |
 
 ### Cell Count (after fill insertion)
 
 | Cell Type | Count | Area (um^2) |
 |-----------|------:|----------:|
-| Multi-input combinational | 1,035 | 7,614.80 |
-| Sequential (flip-flops) | 216 | 4,787.09 |
-| Fill cells | 657 | 2,464.86 |
-| Antenna diodes | 307 | 768.24 |
-| Timing repair buffers | 92 | 535.51 |
-| Tap cells | 246 | 307.80 |
-| Clock buffers | 19 | 289.03 |
-| Inverters | 34 | 127.62 |
-| Clock inverters | 7 | 82.58 |
-| Buffers | 1 | 3.75 |
-| **Total** | **2,614** | **16,981 um^2** |
+| Multi-input combinational | 1,283 | 12,463 |
+| Sequential (flip-flops) | 210 | 10,288 |
+| Timing repair buffers | 255 | 3,248 |
+| Fill cells | 495 | 1,901 |
+| Clock buffers | 22 | 628 |
+| Inverters | 58 | 316 |
+| Clock inverters | 8 | 62 |
+| Antenna diodes | 4 | 22 |
+| Buffers | 2 | 15 |
+| **Total** | **2,337** | **28,942 um^2** |
+
+### Timing (Post-PnR Sign-off, 3 PVT Corners)
+
+| Corner | Setup Slack | Hold Slack | Fmax |
+|--------|------------|------------|------|
+| Fast (1.32V, -40C) | +13.26 ns | +0.023 ns | 149 MHz |
+| Typical (1.20V, 25C) | +11.87 ns | +0.164 ns | 123 MHz |
+| Slow (1.08V, 125C) | +9.51 ns | +0.403 ns | 95 MHz |
+
+- Clock period: 20.0 ns (50 MHz target)
+- Worst-case Fmax: 95 MHz (slow corner) -- 90% margin over 50 MHz target
+- Zero setup violations, zero hold violations across all corners
+- Zero max-slew violations, zero max-cap violations
 
 ### Routing
 
 | Parameter | Value |
 |-----------|-------|
-| Total wirelength | 29,551 um |
-| met1 (horizontal) | 14,440 um (48.9%) |
-| met2 (vertical) | 11,501 um (38.9%) |
-| met3 (horizontal) | 3,360 um (11.4%) |
-| met4 (vertical) | 249 um (0.8%) |
-| Total vias | 10,782 |
-| Routed nets | 1,398 |
-| DRT iterations | 6 (934 -> 550 -> 516 -> 142 -> 8 -> 0 violations) |
+| Total wirelength | 90,361 um |
+| Total vias | 14,194 |
+| Routed nets | 1,847 |
+| DRT iterations | 5 (1537 -> 838 -> 715 -> 66 -> 0 violations) |
 
-### Congestion (Global Routing)
-
-| Layer | Resource | Demand | Usage |
-|-------|----------|--------|-------|
-| met1 | 3,295 | 2,010 | 61.0% |
-| met2 | 3,485 | 1,503 | 43.1% |
-| met3 | 2,424 | 286 | 11.8% |
-| met4 | 1,305 | 22 | 1.7% |
-| **Total** | **10,509** | **3,821** | **36.4%** |
-
-Zero routing overflow across all layers.
-
-### Timing (Post-PnR Sign-off, 9 PVT Corners)
-
-| Corner | Setup Slack | Hold Slack | Fmax |
-|--------|------------|------------|------|
-| nom_tt_025C_1v80 | +12.88 ns | +0.244 ns | 140 MHz |
-| nom_ss_100C_1v60 | +6.28 ns | +0.719 ns | 73 MHz |
-| nom_ff_n40C_1v95 | +13.94 ns | +0.060 ns | 165 MHz |
-| min_tt_025C_1v80 | +12.94 ns | +0.242 ns | 142 MHz |
-| min_ss_100C_1v60 | +6.41 ns | +0.711 ns | 74 MHz |
-| min_ff_n40C_1v95 | +13.98 ns | +0.058 ns | 166 MHz |
-| max_tt_025C_1v80 | +12.83 ns | +0.246 ns | 139 MHz |
-| max_ss_100C_1v60 | +6.16 ns | +0.728 ns | 72 MHz |
-| max_ff_n40C_1v95 | +13.91 ns | +0.062 ns | 164 MHz |
-
-- Clock period: 20.0 ns (50 MHz target)
-- Critical path: waveform x ADSR multiply chain (xnor2 cascade)
-- Worst-case Fmax: 72 MHz (max_ss corner) -- 44% margin over 50 MHz target
-- Zero setup violations, zero hold violations, zero max-cap violations
-- 10 max-slew warnings in the slow-slow corner only
-
-### Clock Tree
+### Power
 
 | Parameter | Value |
 |-----------|-------|
-| Clock nets | 1 (clk) |
-| Sinks | 216 flip-flops |
-| CTS buffers | 15 (clkbuf_16 root, clkbuf_8 leaves) |
-| Tree depth | 3 levels |
-| Avg sink wirelength | 218 um |
+| Total power | 0.80 mW |
+| Internal power | 0.67 mW |
+| Switching power | 0.13 mW |
+| Leakage power | 0.39 uW |
 
-### IR Drop (nom_tt_025C_1v80)
+### IR Drop (nom_typ_1p20V_25C)
 
 | Net | Supply | Worst Drop | Average Drop |
 |-----|--------|-----------|-------------|
-| VPWR | 1.80 V | 88.3 uV | 14.2 uV |
-| VGND | 0.00 V | 71.3 uV | 14.0 uV |
+| VPWR | 1.20 V | 0.43 mV (0.04%) | 0.07 mV |
+| VGND | 0.00 V | 0.34 mV (0.03%) | 0.07 mV |
 
-### DRC / LVS / Antenna
+### DRC / LVS
 
 | Check | Result |
 |-------|--------|
-| Magic DRC | Passed |
-| KLayout DRC | Passed |
-| Antenna | Passed |
-| LVS | 1 unmatched pin (uio_in[0], unused input optimized to VGND -- handled by TT framework) |
+| Magic DRC | Passed (0 errors) |
+| Antenna | Passed (0 violations) |
+| LVS | Passed (0 errors) |
