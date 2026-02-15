@@ -5,7 +5,7 @@
         "dir::src/spi_regs.v",
         "dir::src/sid_voice.v",
         "dir::src/sid_asdr_generator.v",
-        "dir::src/delta_sigma_dac.v"
+        "dir::src/pwm_audio.v"
     ],
     "CLOCK_PORT": "clk",
     "CLOCK_PERIOD": 20.0,

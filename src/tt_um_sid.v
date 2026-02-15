@@ -5,7 +5,7 @@
 // Instantiates:
 //   - spi_regs:        SPI slave → write-only register bank (16-bit frames)
 //   - sid_voice:       SID waveform generator with ADSR envelope
-//   - delta_sigma_dac: First-order delta-sigma DAC (12-bit → 1-bit PDM)
+//   - pwm_audio:       12-bit PWM audio output (4095-clock period)
 //
 // SPI Protocol (CPOL=0, CPHA=0, MSB first):
 //   16-bit write frame: [15:13]=addr[2:0]  [12:8]=reserved  [7:0]=data
@@ -17,9 +17,9 @@
 //   ui_in[1]    = spi_clk
 //   ui_in[2]    = spi_mosi
 //   uo_out[0]   = spi_miso (tied low, write-only)
-//   uo_out[1]   = pdm_out (delta-sigma PDM audio output)
-//   uo_out[7:2] = 0
-//   uio[7:0]    = unused (active low, no drive)
+//   uo_out[7:1] = 0
+//   uio[7]      = pwm_out (12-bit PWM audio output)
+//   uio[6:0]    = unused (input, no drive)
 //==============================================================================
 
 module tt_um_sid (
@@ -84,28 +84,27 @@ module tt_um_sid (
     );
 
     //==========================================================================
-    // Delta-Sigma DAC (12-bit → 1-bit PDM)
+    // PWM Audio Output (12-bit)
     //==========================================================================
-    wire pdm_out;
+    wire pwm_out;
 
-    delta_sigma_dac u_dac (
-        .clk     (clk),
-        .rst     (rst),
-        .din     (voice_out),
-        .pdm_out (pdm_out)
+    pwm_audio u_pwm (
+        .clk    (clk),
+        .rst_n  (rst_n),
+        .sample (voice_out),
+        .pwm    (pwm_out)
     );
 
     //==========================================================================
     // Output Pin Mapping
     //==========================================================================
     // uo_out[0] = spi_miso (tied low by spi_regs)
-    // uo_out[1] = pdm_out (delta-sigma PDM audio)
-    assign uo_out[1]   = pdm_out;
-    assign uo_out[7:2] = 6'b0;
+    assign uo_out[7:1] = 7'b0;
 
-    // uio unused (all inputs, no drive)
-    assign uio_out = 8'b0;
-    assign uio_oe  = 8'h00;
+    // uio[7] = pwm_out (12-bit PWM audio, output enabled)
+    // uio[6:0] = unused (inputs, no drive)
+    assign uio_out = {pwm_out, 7'b0};
+    assign uio_oe  = 8'h80;
 
     // Suppress unused input warnings
     wire _unused = &{ena, ui_in[7:3], uio_in, 1'b0};
