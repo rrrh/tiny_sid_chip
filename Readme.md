@@ -1,8 +1,8 @@
 # SID Voice Synthesizer (TT-IHP)
 
-Single SID voice with ADSR envelope, controlled via SPI, with a first-order
-delta-sigma PDM audio output. Designed for a Tiny Tapeout 1x1 tile on the
-IHP SG13G2 130nm process at 50 MHz.
+Single SID voice with ADSR envelope, controlled via SPI, with a 12-bit PWM
+audio output. Designed for a Tiny Tapeout 1x1 tile on the IHP SG13G2 130nm
+process at 50 MHz.
 
 [View the GDS layout](https://rrrh.github.io/tiny_sid_chip/)
 
@@ -16,10 +16,11 @@ IHP SG13G2 130nm process at 50 MHz.
 4. [Module Descriptions](#module-descriptions)
 5. [Register Reference](#register-reference)
 6. [SPI Protocol](#spi-protocol)
-7. [Audio Output and Delta-Sigma DAC](#audio-output-and-delta-sigma-dac)
-8. [Usage Guide](#usage-guide)
-9. [Design Constraints](#design-constraints)
-10. [Physical Implementation (LibreLane PnR)](#physical-implementation-librelane-pnr)
+7. [Audio Output and PWM](#audio-output-and-pwm)
+8. [Audio Recovery Filter](#audio-recovery-filter)
+9. [Usage Guide](#usage-guide)
+10. [Design Constraints](#design-constraints)
+11. [Physical Implementation (LibreLane PnR)](#physical-implementation-librelane-pnr)
 
 ---
 
@@ -33,10 +34,10 @@ all packed into a Tiny Tapeout 1x1 tile.
 
 A host microcontroller (Arduino, RP2040, ESP32, etc.) writes seven
 SID-style control registers over a simple 3-wire SPI bus using compact
-16-bit frames. The synthesized audio is output as a high-speed 1-bit
-pulse-density modulated (PDM) stream that only requires a passive RC
-low-pass filter to produce an analog signal suitable for headphones or a
-line-level amplifier input.
+16-bit frames. The synthesized audio is output as a 12-bit PWM signal on
+`uio[7]` with a ~12.2 kHz PWM frequency that only requires a passive
+second-order RC low-pass filter to produce an analog signal suitable for
+headphones or a line-level amplifier input.
 
 ### Key Features
 
@@ -46,10 +47,10 @@ line-level amplifier input.
 - Full ADSR envelope with independent attack, decay, sustain, and release
 - Linear envelope with power-of-2 rate scaling (16 rate settings per phase)
 - 12-bit internal voice resolution, 8-bit envelope depth (20-bit product)
-- First-order delta-sigma DAC: 1-bit PDM output, ~99 dB theoretical SNR
+- 12-bit PWM audio output (~12.2 kHz PWM frequency at 50 MHz)
 - 3-wire write-only SPI control interface (CPOL=0, CPHA=0, 16-bit frames)
 - Single 50 MHz clock domain
-- Fits in a Tiny Tapeout 1x1 tile (~27,000 um^2 on IHP SG13G2)
+- Fits in a Tiny Tapeout 1x1 tile (~14,000 um^2 logic area on IHP SG13G2)
 
 ### Source Files
 
@@ -59,7 +60,7 @@ line-level amplifier input.
 | `src/spi_regs.v` | SPI slave with 2FF synchronizers and write-only register bank |
 | `src/sid_voice.v` | SID waveform generator: oscillator, waveform mux, envelope scaling |
 | `src/sid_asdr_generator.v` | Simplified linear ADSR envelope state machine |
-| `src/delta_sigma_dac.v` | First-order delta-sigma DAC (12-bit to 1-bit PDM) |
+| `src/pwm_audio.v` | 12-bit PWM audio output (4095-clock period) |
 
 ---
 
@@ -70,13 +71,13 @@ line-level amplifier input.
 <details><summary>ASCII fallback</summary>
 
 ```
-                         +-----------+     +-----------+     +-----------------+
-  ui_in[0] spi_cs_n --->|           |     |           |     |                 |
-  ui_in[1] spi_clk  --->| spi_regs  |---->| sid_voice |---->| delta_sigma_dac |---> uo_out[1] pdm_out
-  ui_in[2] spi_mosi --->|           |     |           |     |                 |
-                         +-----------+     +-----------+     +-----------------+
-                          7 registers       12-bit voice      1-bit PDM stream
-                          (write-only)      output
+                         +-----------+     +-----------+     +-----------+
+  ui_in[0] spi_cs_n --->|           |     |           |     |           |
+  ui_in[1] spi_clk  --->| spi_regs  |---->| sid_voice |---->| pwm_audio |---> uio[7] pwm_out
+  ui_in[2] spi_mosi --->|           |     |           |     |           |
+                         +-----------+     +-----------+     +-----------+
+                          7 registers       12-bit voice      12-bit PWM
+                          (write-only)      output            (~12.2 kHz)
 ```
 
 </details>
@@ -94,9 +95,10 @@ line-level amplifier input.
    ADSR envelope to produce a 20-bit product. The top 12 bits become the
    voice output.
 
-3. `delta_sigma_dac` converts the 12-bit voice sample into a 1-bit PDM
-   stream at the full 50 MHz clock rate. Externally, a simple RC low-pass
-   filter recovers the analog audio.
+3. `pwm_audio` converts the 12-bit voice sample into a PWM signal with a
+   4095-clock period (~12.2 kHz at 50 MHz). The output duty cycle is
+   proportional to the sample value. Externally, a second-order RC
+   low-pass filter recovers the analog audio.
 
 ---
 
@@ -116,14 +118,14 @@ line-level amplifier input.
 | Pin | Signal | Description |
 |-----|--------|-------------|
 | `uo_out[0]` | `spi_miso` | Tied low. SPI is write-only; no read-back. |
-| `uo_out[1]` | `pdm_out` | Delta-sigma PDM audio output. Connect to RC filter. |
-| `uo_out[7:2]` | -- | Tied low. |
+| `uo_out[7:1]` | -- | Tied low. |
 
 ### Bidirectional Pins (`uio`)
 
 | Pin | Signal | Description |
 |-----|--------|-------------|
-| `uio[7:0]` | -- | Unused. Output enable = 0 (all configured as inputs, no drive). |
+| `uio[7]` | `pwm_out` | PWM audio output. Connect to reconstruction filter. Output enabled. |
+| `uio[6:0]` | -- | Unused. Configured as inputs (no drive). |
 
 ---
 
@@ -133,8 +135,9 @@ line-level amplifier input.
 
 The Tiny Tapeout wrapper. Connects the SPI bus pins to `spi_regs`, wires
 the seven register outputs to `sid_voice`, feeds the 12-bit voice output
-into `delta_sigma_dac`, and maps `pdm_out` to `uo_out[1]`. All unused pins
-are tied to safe defaults (outputs low, bidirectional pins set as inputs).
+into `pwm_audio`, and maps `pwm_out` to `uio[7]`. All unused pins are tied
+to safe defaults (outputs low, bidirectional pins set as inputs). Only
+`uio[7]` is output-enabled (`uio_oe = 0x80`).
 
 ### `spi_regs` (SPI Register Bank)
 
@@ -207,18 +210,26 @@ The sustain level is the upper 4 bits of the sustain register value,
 zero-extended to 8 bits (`{sustain_value, 4'h0}`), giving 16 sustain
 levels in steps of 16 (0, 16, 32, ..., 240).
 
-### `delta_sigma_dac` (Delta-Sigma DAC)
+### `pwm_audio` (PWM Audio Output)
 
-A minimal first-order delta-sigma modulator. The entire operation is:
+A 12-bit PWM modulator with a 4095-clock period. The entire operation is:
 
 ```verilog
-{pdm_out, acc} <= acc + din;
+pwm <= count < sample;
+count <= count + 1;
+if (count == 12'hffe) count <= 0;
 ```
 
-On each clock cycle, the 12-bit input sample is added to a 12-bit
-accumulator. The carry (overflow) bit becomes the PDM output. Higher
-input values produce more frequent carry pulses, encoding the amplitude
-as pulse density.
+On each clock cycle, the 12-bit counter is compared against the input
+sample. The output is high when the counter is less than the sample value,
+producing a pulse whose width is proportional to the input amplitude.
+
+| Parameter | Value |
+|-----------|-------|
+| Input resolution | 12 bits (unsigned, 0--4095) |
+| PWM period | 4095 clocks |
+| PWM frequency @ 50 MHz | ~12.2 kHz (50 MHz / 4095) |
+| Output duty cycle | sample / 4095 (0% to 100%) |
 
 ---
 
@@ -425,65 +436,119 @@ spi_mosi  ----<A2><A1><A0><x><x><x><x><x><D7><D6>...<D1><D0>----
 
 ---
 
-## Audio Output and Delta-Sigma DAC
+## Audio Output and PWM
 
 ### How It Works
 
-The delta-sigma DAC is a first-order noise-shaping modulator. The core
-operation is a single addition per clock cycle:
+The PWM audio module converts the 12-bit voice output into a pulse-width
+modulated signal. A free-running 12-bit counter cycles from 0 to 4094
+(period = 4095 clocks). On each clock, the output is high when the counter
+is less than the input sample value:
 
 ```
-{carry, accumulator} <= accumulator + input_sample
+pwm_out = (count < sample) ? 1 : 0
 ```
 
-The carry bit is the 1-bit PDM output. When the input sample is large,
-the accumulator overflows (carry=1) more frequently, producing a higher
-density of "1" pulses. When the input is small, carries are rare, producing
-mostly "0" pulses. The time-averaged density of 1s is proportional to the
-input amplitude.
+When the sample value is large, the output pulse is wider (higher duty
+cycle). When the sample is small, the pulse is narrow. The time-averaged
+voltage is proportional to the input amplitude.
 
 ### Signal Characteristics
 
 | Parameter | Value |
 |-----------|-------|
 | Input resolution | 12 bits (unsigned, 0--4095) |
-| Output | 1-bit PDM at 50 MHz |
-| Oversampling ratio (OSR) | 50 MHz / (2 x 20 kHz) = 1250 |
-| Theoretical SNR | ~69 dB (12-bit) + ~30 dB (1st-order shaping at OSR 1250) = ~99 dB |
-| Quantization noise floor | Shaped to high frequencies, removed by external LP filter |
+| Output | 1-bit PWM on `uio[7]` |
+| PWM period | 4095 clocks |
+| PWM frequency @ 50 MHz | ~12.2 kHz |
+| Duty cycle range | 0% (sample=0) to 100% (sample=4095) |
+| Audio bandwidth | Limited by PWM frequency; max usable ~3 kHz |
 
-### External Reconstruction Filter
+### Comparison with Delta-Sigma DAC
 
-The PDM output is a 50 MHz digital signal swinging between 0 and VDD
-(typically 3.3V or 1.8V depending on the TT I/O standard). To recover the
-audio, connect a simple passive RC low-pass filter:
+The previous design used a first-order delta-sigma DAC running at 50 MHz,
+which pushed quantization noise to ultrasonic frequencies and allowed a
+simple single-pole RC filter for reconstruction. The PWM approach trades
+the higher oversampling ratio for implementation simplicity (no accumulator
+overflow logic), but requires a steeper reconstruction filter to adequately
+suppress the 12.2 kHz PWM carrier and its harmonics.
+
+---
+
+## Audio Recovery Filter
+
+The PWM output on `uio[7]` is a digital signal swinging between 0 and VDD.
+To recover a clean analog audio signal, a second-order (two-stage) passive
+RC low-pass filter is recommended. This provides -40 dB/decade rolloff,
+which is necessary to adequately suppress the 12.2 kHz PWM carrier while
+passing audio frequencies.
+
+### Recommended Circuit
 
 ```
-uo_out[1] ---[R]---+---> Audio Out
-                    |
-                   [C]
-                    |
-                   GND
+uio[7] ---[R1]---+---[R2]---+---> Audio Out
+                  |          |
+                 [C1]       [C2]
+                  |          |
+                 GND        GND
 ```
 
-**Recommended component values:**
+### Component Values
 
-| Cutoff Target | R | C | -3 dB Frequency |
-|---------------|---|---|-----------------|
-| 20 kHz | 1.0 kOhm | 8.2 nF | 19.4 kHz |
-| 24 kHz | 1.0 kOhm | 6.8 nF | 23.4 kHz |
-| 34 kHz (recommended) | 1.0 kOhm | 4.7 nF | 33.9 kHz |
+The filter should be designed with a cutoff frequency between 3--5 kHz:
+high enough to pass the useful audio band, low enough to attenuate the
+12.2 kHz PWM frequency by at least 20 dB.
 
-A cutoff around 20--34 kHz passes the full audio band while attenuating
-the high-frequency quantization noise. A single-pole RC filter provides
--20 dB/decade rolloff. For better noise rejection, a second-order filter
-(two cascaded RC stages or a Sallen-Key active filter) can be used, but is
-usually not necessary for casual listening.
+| Cutoff Target | R1 | C1 | R2 | C2 | PWM Attenuation |
+|---------------|----|----|----|----|-----------------|
+| 3.4 kHz (recommended) | 4.7 kOhm | 10 nF | 4.7 kOhm | 10 nF | ~-22 dB @ 12.2 kHz |
+| 4.8 kHz | 3.3 kOhm | 10 nF | 3.3 kOhm | 10 nF | ~-16 dB @ 12.2 kHz |
+| 2.4 kHz (aggressive) | 6.8 kOhm | 10 nF | 6.8 kOhm | 10 nF | ~-28 dB @ 12.2 kHz |
 
-**AC coupling:** If connecting to an amplifier input, add a DC blocking
-capacitor (e.g., 10 uF electrolytic or 1 uF ceramic) in series after the
-RC filter. The SID voice output is unsigned, so the DC offset is
-approximately VDD/2 at mid-volume.
+The recommended 3.4 kHz cutoff passes frequencies up to the mid-range
+comfortably (440 Hz A4 is attenuated by less than 1 dB) while providing
+good suppression of the PWM switching frequency.
+
+### Design Notes
+
+- **Why second-order?** A single-pole RC filter only provides -20 dB/decade
+  rolloff. At 12.2 kHz with a 3.4 kHz cutoff, a first-order filter gives
+  only ~-11 dB attenuation -- the PWM carrier would be clearly audible.
+  Two cascaded stages double the rolloff to -40 dB/decade, giving ~-22 dB
+  at 12.2 kHz.
+
+- **Stage interaction:** The second RC stage loads the first, shifting the
+  overall cutoff slightly lower than the individual stage cutoffs. The
+  values above account for this interaction.
+
+- **AC coupling:** The voice output is unsigned (centered at ~VDD/2), so
+  add a DC blocking capacitor (10 uF electrolytic or 1 uF ceramic) in
+  series after the filter when connecting to an amplifier input.
+
+- **Output impedance:** The two-stage filter has a combined output
+  impedance of R1+R2. For driving low-impedance loads (headphones), follow
+  the filter with a unity-gain op-amp buffer, or reduce the resistor values
+  (e.g., 1 kOhm each) and increase the capacitors proportionally.
+
+- **Active alternative:** For better performance, replace the passive
+  filter with a second-order Sallen-Key active filter using a single
+  op-amp. This eliminates stage interaction and provides a buffered
+  low-impedance output.
+
+### Simulation Testbench
+
+A Verilog testbench (`vivado/pwm_audio_tb.v`) is provided that generates a
+440 Hz sine wave, feeds it through the `pwm_audio` module, simulates
+two-stage RC filter recovery using a digital IIR model, and writes the
+result as a 16-bit 44.1 kHz mono WAV file (`pwm_440hz.wav`).
+
+```bash
+# Icarus Verilog
+iverilog -o pwm_audio_tb vivado/pwm_audio_tb.v src/pwm_audio.v && vvp pwm_audio_tb
+
+# Vivado
+xvlog vivado/pwm_audio_tb.v src/pwm_audio.v && xelab pwm_audio_tb && xsim pwm_audio_tb -R
+```
 
 ---
 
@@ -497,11 +562,11 @@ MCU                    TT Chip                   Audio
 GPIO (CS)   --------> ui_in[0] spi_cs_n
 GPIO (SCK)  --------> ui_in[1] spi_clk
 GPIO (MOSI) --------> ui_in[2] spi_mosi
-                       uo_out[1] pdm_out ----[1kOhm]---+---> headphones / amp
-                                                        |
-                                                      [4.7nF]
-                                                        |
-                                                       GND
+                       uio[7] pwm_out ----[4.7k]---+---[4.7k]---+---> amp / headphones
+                                                    |            |
+                                                  [10nF]       [10nF]
+                                                    |            |
+                                                   GND          GND
 ```
 
 **TT Demo Board RP2040 GPIO mapping:**
@@ -511,7 +576,7 @@ GPIO (MOSI) --------> ui_in[2] spi_mosi
 | ui_in[0] | spi_cs_n | GPIO17 (SPI0.CS) |
 | ui_in[1] | spi_clk | GPIO18 (SPI0.SCK) |
 | ui_in[2] | spi_mosi | GPIO19 |
-| uo_out[1] | pdm_out | GPIO34 |
+| uio[7] | pwm_out | GPIO28 |
 
 No pull-up or pull-down resistors are needed on the SPI lines. The chip's
 internal synchronizers handle signal conditioning.
@@ -664,16 +729,16 @@ To silence the output at any time, either:
 | Parameter | Value |
 |-----------|-------|
 | Target technology | IHP SG13G2 130nm SiGe BiCMOS |
-| Tile size | Tiny Tapeout 1x1 (202.08 x 154.98 um) |
+| Tile size | Tiny Tapeout 1x1 (~197 x 208 um) |
 | Core supply (VDD) | 1.2V |
 | I/O supply (VDDIO) | 3.3V |
 | System clock | 50 MHz (20 ns period) |
-| Synthesized area | ~27,040 um^2 (Yosys, IHP SG13G2 stdcell) |
-| Flip-flop count | 210 |
+| Logic area | ~13,828 um^2 (Yosys, IHP SG13G2 stdcell) |
+| Core utilization | 41.6% |
+| Flip-flop count | 203 |
 | SPI max clock | < 12.5 MHz (clk/4); 10 MHz recommended |
-| PDM output rate | 50 MHz (equals system clock) |
-| Audio bandwidth | 20 kHz (limited by external RC filter) |
-| Dynamic range | ~99 dB theoretical (first-order delta-sigma at OSR 1250) |
+| PWM output frequency | ~12.2 kHz |
+| Audio bandwidth | ~3 kHz (limited by PWM frequency and reconstruction filter) |
 
 ---
 
@@ -686,70 +751,76 @@ TT-IHP 1x1 tile on IHP SG13G2 130nm.
 
 | Parameter | Value |
 |-----------|-------|
-| Die area | 202.08 x 154.98 um (31,318 um^2) |
-| Core area | 196.32 x 147.42 um (28,942 um^2) |
-| Std cell area | 27,040 um^2 |
-| Utilization | 93.4% |
+| Die area | 196.97 x 207.69 um (40,936 um^2) |
+| Core area | 185.84 x 184.96 um (34,373 um^2) |
+| Logic area | 13,828 um^2 |
+| Core utilization | 41.6% |
 | PDK | IHP SG13G2 (sg13g2_stdcell) |
-| Routing layers | Metal1 -- TopMetal2 |
+| Routing layers | Metal1 -- Metal5 |
 
 ### Cell Count (after fill insertion)
 
-| Cell Type | Count | Area (um^2) |
-|-----------|------:|----------:|
-| Multi-input combinational | 1,283 | 12,463 |
-| Sequential (flip-flops) | 210 | 10,288 |
-| Timing repair buffers | 255 | 3,248 |
-| Fill cells | 495 | 1,901 |
-| Clock buffers | 22 | 628 |
-| Inverters | 58 | 316 |
-| Clock inverters | 8 | 62 |
-| Antenna diodes | 4 | 22 |
-| Buffers | 2 | 15 |
-| **Total** | **2,337** | **28,942 um^2** |
+| Cell Type | Count |
+|-----------|------:|
+| Multi-input combinational | 950 |
+| Sequential (flip-flops) | 203 |
+| Decap cells | 738 |
+| Tap cells | 490 |
+| Antenna diodes | 417 |
+| Fill cells | 136 |
+| **Total instances** | **2,488** |
 
-### Timing (Post-PnR Sign-off, 3 PVT Corners)
+### Area Breakdown
 
-| Corner | Setup Slack | Hold Slack | Fmax |
-|--------|------------|------------|------|
-| Fast (1.32V, -40C) | +13.26 ns | +0.023 ns | 149 MHz |
-| Typical (1.20V, 25C) | +11.87 ns | +0.164 ns | 123 MHz |
-| Slow (1.08V, 125C) | +9.51 ns | +0.403 ns | 95 MHz |
+| Category | Area (um^2) | % of Logic |
+|----------|----------:|----------:|
+| Combinational | 9,095 | 65.8% |
+| Sequential | 4,733 | 34.2% |
+| **Total logic** | **13,828** | 100% |
 
-- Clock period: 20.0 ns (50 MHz target)
-- Worst-case Fmax: 95 MHz (slow corner) -- 90% margin over 50 MHz target
-- Zero setup violations, zero hold violations across all corners
-- Zero max-slew violations, zero max-cap violations
+### Timing (Post-PnR, nom_tt_025C_1v80)
+
+| Parameter | Value |
+|-----------|-------|
+| Clock period | 20.0 ns (50 MHz) |
+| Setup violations | 0 |
+| Hold violations | 0 |
+| Max slew violations | 0 |
+| Max cap violations | 0 |
 
 ### Routing
 
 | Parameter | Value |
 |-----------|-------|
-| Total wirelength | 90,361 um |
-| Total vias | 14,194 |
-| Routed nets | 1,847 |
-| DRT iterations | 5 (1537 -> 838 -> 715 -> 66 -> 0 violations) |
+| Total wirelength | 31,764 um |
+| Total vias | 10,018 |
+| met1 | 16,474 um (51.8%) |
+| met2 | 14,658 um (46.1%) |
+| met3 | 457 um (1.4%) |
+| met4 | 172 um (0.5%) |
 
-### Power
+### Power (nom_tt_025C_1v80)
 
 | Parameter | Value |
 |-----------|-------|
 | Total power | 0.80 mW |
-| Internal power | 0.67 mW |
-| Switching power | 0.13 mW |
-| Leakage power | 0.39 uW |
+| Sequential (registers + clocking) | 0.41 mW (51%) |
+| Clock distribution | 0.37 mW (46%) |
+| Combinational | 0.02 mW (3%) |
+| Leakage | < 0.001 mW |
 
-### IR Drop (nom_typ_1p20V_25C)
+### IR Drop (nom_tt_025C_1v80)
 
-| Net | Supply | Worst Drop | Average Drop |
-|-----|--------|-----------|-------------|
-| VPWR | 1.20 V | 0.43 mV (0.04%) | 0.07 mV |
-| VGND | 0.00 V | 0.34 mV (0.03%) | 0.07 mV |
+| Net | Worst Drop |
+|-----|-----------|
+| VPWR (1.20 V) | 0.25 mV (0.02%) |
+| VGND (0.00 V) | 0.24 mV (0.02%) |
 
-### DRC / LVS
+### Verification
 
 | Check | Result |
 |-------|--------|
-| Magic DRC | Passed (0 errors) |
-| Antenna | Passed (0 violations) |
-| LVS | Passed (0 errors) |
+| Magic DRC | Passed |
+| KLayout DRC | Passed |
+| LVS | Passed |
+| XOR (GDS match) | Passed |
