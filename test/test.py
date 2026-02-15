@@ -24,7 +24,7 @@ async def spi_write(dut, addr, data):
     word = ((addr & 0x7) << 13) | (data & 0xFF)
 
     # Assert CS low
-    ui = dut.ui_in.value.integer if hasattr(dut.ui_in.value, 'integer') else 0
+    ui = dut.ui_in.value.to_unsigned() if hasattr(dut.ui_in.value, 'to_unsigned') else 0
     ui = ui & ~0x01  # CS low
     ui = ui & ~0x02  # CLK low
     dut.ui_in.value = ui
@@ -76,7 +76,7 @@ async def count_pwm(dut, cycles):
     last = 0
     for _ in range(cycles):
         await RisingEdge(dut.clk)
-        val = (dut.uio_out.value.integer >> 7) & 1
+        val = (dut.uio_out.value.to_unsigned() >> 7) & 1
         if val == 1 and last == 0:
             count += 1
         last = val
@@ -96,7 +96,7 @@ async def test_reset(dut):
     await ClockCycles(dut.clk, 20)
 
     # During reset, PWM should be 0
-    assert (dut.uio_out.value.integer & 0x80) == 0, "PWM should be 0 during reset"
+    assert (dut.uio_out.value.to_unsigned() & 0x80) == 0, "PWM should be 0 during reset"
 
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 10)
