@@ -3,8 +3,8 @@
 *
 * PWM output on uio[7] (3.3V logic) -> filter -> audio out
 *
-*        R1          R2
-* IN ---[4.7k]--+--[4.7k]--+--- OUT
+*        R1          R2          Cac
+* IN ---[4.7k]--+--[4.7k]--+--[1uF]--- OUT
 *               |           |
 *             [10nF]      [10nF]
 *               |           |
@@ -20,8 +20,11 @@ R1 in n1 4.7k
 C1 n1 0 10n
 
 * Stage 2
-R2 n1 out 4.7k
-C2 out 0 10n
+R2 n1 n2 4.7k
+C2 n2 0 10n
+
+* DC blocking capacitor
+Cac n2 out 1u
 
 * AC analysis: 10 Hz to 100 kHz, 100 points per decade
 .ac dec 100 10 100k
