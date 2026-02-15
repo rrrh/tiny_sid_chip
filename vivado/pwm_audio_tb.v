@@ -12,18 +12,20 @@ module pwm_audio_tb;
     // Parameters
     //--------------------------------------------------------------------------
     localparam CLK_PERIOD    = 20;        // 50 MHz clock → 20 ns period
-    localparam PWM_PERIOD    = 4095;      // PWM cycle length in clocks
+    localparam PWM_PERIOD    = 255;       // PWM cycle length in clocks (8-bit)
     localparam SETTLE_CLOCKS = 5_000_000;  // 100 ms filter settling time
     localparam SIM_CLOCKS    = 30_000_000; // settle + 0.5 s recording
     localparam WAV_SAMPLE_DIV = 1134;     // 50 MHz / 44.1 kHz ≈ 1134
     localparam NUM_WAV_SAMPLES = 22050;   // ~0.5 s at 44.1 kHz
-    // Phase accumulator: 24-bit (12.12 fixed point)
-    // Increment = 4096 * 440 / (50e6/4095) ≈ 147.5 → 147.5 * 4096 = 604160
-    localparam PHASE_INC     = 604160;
-    // IIR filter alpha: ~1.2 kHz cutoff at 50 MHz → 2*pi*1200/50e6 ≈ 0.000151
-    // In 16-bit fixed point: 0.000151 * 65536 ≈ 10
-    // Two cascaded stages give -40 dB at 12.2 kHz PWM freq, -1 dB at 440 Hz
-    localparam ALPHA         = 10;
+    // Phase accumulator: 24-bit (8.16 fixed point)
+    // fs_pwm = 50e6 / 255 ≈ 196078 Hz
+    // Increment per PWM sample = 256 * 440 / 196078 ≈ 0.575
+    // In 16-bit fractional: 0.575 * 65536 = 37683
+    localparam PHASE_INC     = 37683;
+    // IIR filter alpha: ~20 kHz cutoff at 50 MHz → 2*pi*20000/50e6 ≈ 0.00251
+    // In 16-bit fixed point: 0.00251 * 65536 ≈ 165
+    // Two cascaded stages give -40 dB/decade rolloff above 20 kHz
+    localparam ALPHA         = 165;
 
     //--------------------------------------------------------------------------
     // Clock and reset
@@ -37,36 +39,36 @@ module pwm_audio_tb;
     end
 
     //--------------------------------------------------------------------------
-    // Sine lookup table (4096 entries, 12-bit unsigned, centered at 2048)
+    // Sine lookup table (256 entries, 8-bit unsigned, centered at 128)
     //--------------------------------------------------------------------------
-    reg [11:0] sine_lut [0:4095];
+    reg [7:0] sine_lut [0:255];
     integer i;
 
     initial begin
-        for (i = 0; i < 4096; i = i + 1) begin
-            sine_lut[i] = 2048 + $rtoi(2047.0 * $sin(2.0 * 3.14159265358979 * i / 4096.0));
+        for (i = 0; i < 256; i = i + 1) begin
+            sine_lut[i] = 128 + $rtoi(127.0 * $sin(2.0 * 3.14159265358979 * i / 256.0));
         end
     end
 
     //--------------------------------------------------------------------------
     // Phase accumulator and sample generation
     //--------------------------------------------------------------------------
-    reg [23:0] phase_acc;  // 12.12 fixed point
-    reg [11:0] pwm_count;
-    reg [11:0] audio_sample;
+    reg [23:0] phase_acc;  // 8.16 fixed point
+    reg [7:0]  pwm_count;
+    reg [7:0]  audio_sample;
     wire        pwm_out;
 
     always @(posedge clk) begin
         if (!rst_n) begin
             phase_acc <= 0;
             pwm_count <= 0;
-            audio_sample <= 2048;
+            audio_sample <= 128;
         end else begin
             pwm_count <= pwm_count + 1;
             if (pwm_count == PWM_PERIOD - 1) begin
                 pwm_count <= 0;
                 phase_acc <= phase_acc + PHASE_INC;
-                audio_sample <= sine_lut[phase_acc[23:12]];
+                audio_sample <= sine_lut[phase_acc[23:16]];
             end
         end
     end
