@@ -31,10 +31,10 @@ module pwm_audio_sweep_tb;
     // Total PWM samples in 3 s: 3 * 12207 ≈ 36621
     // Increment step per PWM sample: 20616380 / 36621 ≈ 563
 
-    // IIR filter alpha: ~8 kHz cutoff at 50 MHz
-    // alpha = 2*pi*8000/50e6 ≈ 0.001005
-    // In 16-bit fixed point: 0.001005 * 65536 ≈ 66
-    localparam ALPHA         = 66;
+    // IIR filter alpha: ~4 kHz cutoff at 50 MHz
+    // alpha = 2*pi*4000/50e6 ≈ 0.000503
+    // In 16-bit fixed point: 0.000503 * 65536 ≈ 33
+    localparam ALPHA         = 33;
 
     //--------------------------------------------------------------------------
     // Clock and reset
