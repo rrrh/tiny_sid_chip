@@ -542,6 +542,8 @@ A Verilog testbench (`vivado/pwm_audio_tb.v`) is provided that generates a
 two-stage RC filter recovery using a digital IIR model, and writes the
 result as a 16-bit 44.1 kHz mono WAV file (`pwm_440hz.wav`).
 
+![PWM testbench output waveform](docs/pwm_testbench_output.png)
+
 ```bash
 # Icarus Verilog
 iverilog -o pwm_audio_tb vivado/pwm_audio_tb.v src/pwm_audio.v && vvp pwm_audio_tb
