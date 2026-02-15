@@ -544,11 +544,24 @@ result as a 16-bit 44.1 kHz mono WAV file (`pwm_440hz.wav`).
 
 ![PWM testbench output waveform](docs/pwm_testbench_output.png)
 
+A frequency sweep testbench (`vivado/pwm_audio_sweep_tb.v`) sweeps a sine
+wave from 0 to 15 kHz over 3 seconds, producing a Bode plot of the
+end-to-end PWM + filter frequency response:
+
+![PWM frequency response (Bode plot)](docs/pwm_bode_plot.png)
+
+The response is flat to ~3 kHz, rolls off toward the PWM Nyquist limit at
+~6.1 kHz, and shows aliased energy above that. This confirms the usable
+audio bandwidth of the 12-bit PWM output is approximately 0--5 kHz.
+
 ```bash
-# Icarus Verilog
+# Icarus Verilog — 440 Hz tone test
 iverilog -o pwm_audio_tb vivado/pwm_audio_tb.v src/pwm_audio.v && vvp pwm_audio_tb
 
-# Vivado
+# Icarus Verilog — frequency sweep
+iverilog -o pwm_audio_sweep_tb vivado/pwm_audio_sweep_tb.v src/pwm_audio.v && vvp pwm_audio_sweep_tb
+
+# Vivado — 440 Hz tone test
 xvlog vivado/pwm_audio_tb.v src/pwm_audio.v && xelab pwm_audio_tb && xsim pwm_audio_tb -R
 ```
 
