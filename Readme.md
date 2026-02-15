@@ -729,7 +729,7 @@ To silence the output at any time, either:
 | Parameter | Value |
 |-----------|-------|
 | Target technology | IHP SG13G2 130nm SiGe BiCMOS |
-| Tile size | Tiny Tapeout 1x1 (~197 x 208 um) |
+| Tile size | Tiny Tapeout 1x1 (~167 x 108 um) |
 | Core supply (VDD) | 1.2V |
 | I/O supply (VDDIO) | 3.3V |
 | System clock | 50 MHz (20 ns period) |
