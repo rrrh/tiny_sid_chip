@@ -70,13 +70,13 @@ async def sid_write_pw(dut, pw16):
     await sid_write(dut, REG_PW_HI, (pw16 >> 8) & 0xFF)
 
 
-async def count_pdm(dut, cycles):
-    """Count PDM rising edges on uo_out[1] over a number of clock cycles."""
+async def count_pwm(dut, cycles):
+    """Count PWM rising edges on uio_out[7] over a number of clock cycles."""
     count = 0
     last = 0
     for _ in range(cycles):
         await RisingEdge(dut.clk)
-        val = (dut.uo_out.value.integer >> 1) & 1
+        val = (dut.uio_out.value.integer >> 7) & 1
         if val == 1 and last == 0:
             count += 1
         last = val
@@ -95,8 +95,8 @@ async def test_reset(dut):
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
 
-    # During reset, PDM should be 0
-    assert (dut.uo_out.value.integer & 0x02) == 0, "PDM should be 0 during reset"
+    # During reset, PWM should be 0
+    assert (dut.uio_out.value.integer & 0x80) == 0, "PWM should be 0 during reset"
 
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 10)
@@ -104,7 +104,7 @@ async def test_reset(dut):
 
 @cocotb.test()
 async def test_sawtooth(dut):
-    """Test sawtooth waveform produces PDM output."""
+    """Test sawtooth waveform produces PWM output."""
     clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
@@ -127,14 +127,14 @@ async def test_sawtooth(dut):
 
     # Wait for attack to ramp up and check PDM activity
     await ClockCycles(dut.clk, 200000)
-    pdm_count = await count_pdm(dut, 100000)
-    dut._log.info(f"Sawtooth PDM count: {pdm_count}")
-    assert pdm_count > 0, f"Sawtooth should produce PDM pulses, got {pdm_count}"
+    pdm_count = await count_pwm(dut, 100000)
+    dut._log.info(f"Sawtooth PWM count: {pdm_count}")
+    assert pdm_count > 0, f"Sawtooth should produce PWM pulses, got {pdm_count}"
 
 
 @cocotb.test()
 async def test_triangle(dut):
-    """Test triangle waveform produces PDM output."""
+    """Test triangle waveform produces PWM output."""
     clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
@@ -153,14 +153,14 @@ async def test_triangle(dut):
     await sid_write(dut, REG_WAVEFORM, 0x11)
 
     await ClockCycles(dut.clk, 200000)
-    pdm_count = await count_pdm(dut, 100000)
-    dut._log.info(f"Triangle PDM count: {pdm_count}")
-    assert pdm_count > 0, f"Triangle should produce PDM pulses, got {pdm_count}"
+    pdm_count = await count_pwm(dut, 100000)
+    dut._log.info(f"Triangle PWM count: {pdm_count}")
+    assert pdm_count > 0, f"Triangle should produce PWM pulses, got {pdm_count}"
 
 
 @cocotb.test()
 async def test_pulse(dut):
-    """Test pulse waveform produces PDM output."""
+    """Test pulse waveform produces PWM output."""
     clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
@@ -181,14 +181,14 @@ async def test_pulse(dut):
     await sid_write(dut, REG_WAVEFORM, 0x41)
 
     await ClockCycles(dut.clk, 200000)
-    pdm_count = await count_pdm(dut, 100000)
-    dut._log.info(f"Pulse PDM count: {pdm_count}")
-    assert pdm_count > 0, f"Pulse should produce PDM pulses, got {pdm_count}"
+    pdm_count = await count_pwm(dut, 100000)
+    dut._log.info(f"Pulse PWM count: {pdm_count}")
+    assert pdm_count > 0, f"Pulse should produce PWM pulses, got {pdm_count}"
 
 
 @cocotb.test()
 async def test_noise(dut):
-    """Test noise waveform produces PDM output."""
+    """Test noise waveform produces PWM output."""
     clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
@@ -207,14 +207,14 @@ async def test_noise(dut):
     await sid_write(dut, REG_WAVEFORM, 0x81)
 
     await ClockCycles(dut.clk, 200000)
-    pdm_count = await count_pdm(dut, 100000)
-    dut._log.info(f"Noise PDM count: {pdm_count}")
-    assert pdm_count > 0, f"Noise should produce PDM pulses, got {pdm_count}"
+    pdm_count = await count_pwm(dut, 100000)
+    dut._log.info(f"Noise PWM count: {pdm_count}")
+    assert pdm_count > 0, f"Noise should produce PWM pulses, got {pdm_count}"
 
 
 @cocotb.test(skip=os.environ.get("GATES") == "yes")
 async def test_gate_release(dut):
-    """Test that releasing the gate silences PDM output. Skipped in GL sim."""
+    """Test that releasing the gate silences PWM output. Skipped in GL sim."""
     clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
@@ -241,7 +241,7 @@ async def test_gate_release(dut):
     # Wait for release to fully complete (~2.6ms at rate 0 = 130k cycles at 50 MHz)
     await ClockCycles(dut.clk, 300000)
 
-    # PDM should be silent
-    pdm_count = await count_pdm(dut, 100000)
-    dut._log.info(f"After release PDM count: {pdm_count}")
-    assert pdm_count == 0, f"PDM should be silent after release, got {pdm_count}"
+    # PWM should be silent
+    pdm_count = await count_pwm(dut, 100000)
+    dut._log.info(f"After release PWM count: {pdm_count}")
+    assert pdm_count == 0, f"PWM should be silent after release, got {pdm_count}"
