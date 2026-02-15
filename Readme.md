@@ -495,31 +495,34 @@ uio[7] ---[R1]---+---[R2]---+---> Audio Out
 
 ### Component Values
 
-The filter should be designed with a cutoff frequency between 3--5 kHz:
-high enough to pass the useful audio band, low enough to attenuate the
-12.2 kHz PWM frequency by at least 20 dB.
+Each stage has a per-stage cutoff of 1/(2*pi*R*C). However, in a passive
+RC ladder the second stage loads the first, pulling the overall -3 dB
+point significantly lower than the per-stage value.
 
-| Cutoff Target | R1 | C1 | R2 | C2 | PWM Attenuation |
-|---------------|----|----|----|----|-----------------|
-| 3.4 kHz (recommended) | 4.7 kOhm | 10 nF | 4.7 kOhm | 10 nF | ~-22 dB @ 12.2 kHz |
-| 4.8 kHz | 3.3 kOhm | 10 nF | 3.3 kOhm | 10 nF | ~-16 dB @ 12.2 kHz |
-| 2.4 kHz (aggressive) | 6.8 kOhm | 10 nF | 6.8 kOhm | 10 nF | ~-28 dB @ 12.2 kHz |
+| R (per stage) | C (per stage) | Per-stage fc | Actual -3 dB | @ 6.1 kHz | @ 12.2 kHz |
+|---------------|---------------|-------------|-------------|-----------|-----------|
+| 4.7 kOhm | 10 nF | 3.4 kHz | **1.26 kHz** | -15 dB | -24 dB |
+| 3.3 kOhm | 10 nF | 4.8 kHz | ~1.8 kHz | -12 dB | -20 dB |
+| 1.5 kOhm | 10 nF | 10.6 kHz | ~4.0 kHz | -5 dB | -12 dB |
 
-The recommended 3.4 kHz cutoff passes frequencies up to the mid-range
-comfortably (440 Hz A4 is attenuated by less than 1 dB) while providing
-good suppression of the PWM switching frequency.
+The recommended 4.7 kOhm / 10 nF values give a -3 dB point around
+1.26 kHz with good suppression of the PWM carrier (-24 dB at 12.2 kHz).
+
+![2nd-order RC filter Bode plot](docs/pwm_rc_filter_bode.png)
+
+A SPICE netlist for the filter is provided at `vivado/rc_filter.spice`.
 
 ### Design Notes
 
 - **Why second-order?** A single-pole RC filter only provides -20 dB/decade
-  rolloff. At 12.2 kHz with a 3.4 kHz cutoff, a first-order filter gives
-  only ~-11 dB attenuation -- the PWM carrier would be clearly audible.
-  Two cascaded stages double the rolloff to -40 dB/decade, giving ~-22 dB
-  at 12.2 kHz.
+  rolloff. Two cascaded stages double the rolloff to -40 dB/decade, giving
+  -24 dB at the 12.2 kHz PWM frequency with the recommended values.
 
 - **Stage interaction:** The second RC stage loads the first, shifting the
-  overall cutoff slightly lower than the individual stage cutoffs. The
-  values above account for this interaction.
+  overall -3 dB point well below the individual per-stage cutoff. With
+  4.7 kOhm / 10 nF (3.4 kHz per stage), the actual -3 dB point is
+  ~1.26 kHz. The Bode plot above shows both the actual ladder response
+  (solid) and the ideal non-interacting response (dashed) for comparison.
 
 - **AC coupling:** The voice output is unsigned (centered at ~VDD/2), so
   add a DC blocking capacitor (10 uF electrolytic or 1 uF ceramic) in
