@@ -486,7 +486,7 @@ passing audio frequencies.
 ### Recommended Circuit
 
 ```
-uio[7] ---[R1]---+---[R2]---+---> Audio Out
+uio[7] ---[R1]---+---[R2]---+---[Cac]---> Audio Out
                   |          |
                  [C1]       [C2]
                   |          |
@@ -508,6 +508,8 @@ point significantly lower than the per-stage value.
 The recommended 4.7 kOhm / 10 nF values give a -3 dB point around
 1.26 kHz with good suppression of the PWM carrier (-24 dB at 12.2 kHz).
 
+**Cac** = 1 uF ceramic — DC blocking capacitor in series after the filter.
+
 ![2nd-order RC filter Bode plot](docs/pwm_rc_filter_bode.png)
 
 A SPICE netlist for the filter is provided at `vivado/rc_filter.spice`.
@@ -525,8 +527,11 @@ A SPICE netlist for the filter is provided at `vivado/rc_filter.spice`.
   (solid) and the ideal non-interacting response (dashed) for comparison.
 
 - **AC coupling:** The voice output is unsigned (centered at ~VDD/2), so
-  add a DC blocking capacitor (10 uF electrolytic or 1 uF ceramic) in
-  series after the filter when connecting to an amplifier input.
+  a 1 uF DC blocking capacitor (Cac) is included in series after the filter
+  to remove the DC offset when connecting to an amplifier input. With a
+  10 kOhm load this forms a high-pass at ~16 Hz; with a 47 kOhm load
+  the corner drops to ~3.4 Hz. The Bode plot above shows the effect for
+  different load impedances.
 
 - **Output impedance:** The two-stage filter has a combined output
   impedance of R1+R2. For driving low-impedance loads (headphones), follow
@@ -580,7 +585,7 @@ MCU                    TT Chip                   Audio
 GPIO (CS)   --------> ui_in[0] spi_cs_n
 GPIO (SCK)  --------> ui_in[1] spi_clk
 GPIO (MOSI) --------> ui_in[2] spi_mosi
-                       uio[7] pwm_out ----[4.7k]---+---[4.7k]---+---> amp / headphones
+                       uio[7] pwm_out ----[4.7k]---+---[4.7k]---+---[1uF]---> amp / headphones
                                                     |            |
                                                   [10nF]       [10nF]
                                                     |            |

@@ -53,7 +53,7 @@ Connect an SPI master (e.g. microcontroller or Raspberry Pi) to `ui_in[0:2]` (CS
 A second-order (two-stage) RC low-pass reconstruction filter is needed on the PWM output (`uio[7]`) to recover the analog audio signal:
 
 ```
-uio[7] ---[R1]---+---[R2]---+---> Audio Out
+uio[7] ---[R1]---+---[R2]---+---[Cac]---> Audio Out
                   |          |
                  [C1]       [C2]
                   |          |
@@ -62,6 +62,6 @@ uio[7] ---[R1]---+---[R2]---+---> Audio Out
 
 - **R1, R2** = 4.7 kOhm (series)
 - **C1, C2** = 10 nF (shunt to ground) — gives fc ~ 3.4 kHz, ~-22 dB at 12.2 kHz PWM frequency
-- **C_ac** = 1 uF (optional AC-coupling cap for amplifier input)
+- **Cac** = 1 uF ceramic — DC blocking capacitor to remove DC offset
 
 Connect the filter output to headphones (via op-amp buffer) or an audio amplifier.
