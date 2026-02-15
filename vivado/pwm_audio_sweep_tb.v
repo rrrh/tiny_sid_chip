@@ -34,6 +34,7 @@ module pwm_audio_sweep_tb;
     // IIR filter alpha: ~4 kHz cutoff at 50 MHz
     // alpha = 2*pi*4000/50e6 ≈ 0.000503
     // In 16-bit fixed point: 0.000503 * 65536 ≈ 33
+    // Two cascaded stages give -40 dB/decade rolloff
     localparam ALPHA         = 33;
 
     //--------------------------------------------------------------------------
@@ -104,7 +105,7 @@ module pwm_audio_sweep_tb;
 
     //--------------------------------------------------------------------------
     // Digital R/C low-pass filter (two cascaded 1st-order IIR stages)
-    // 16.16 fixed-point accumulators, ~8 kHz cutoff
+    // 16.16 fixed-point accumulators, ~4 kHz cutoff, -40 dB/decade rolloff
     //--------------------------------------------------------------------------
     reg [31:0] filter_acc1;
     reg [31:0] filter_acc2;
