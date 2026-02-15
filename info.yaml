@@ -3,7 +3,7 @@ project:
   title:        "SID Voice Synthesizer"
   author:       "shue"
   discord:      ""
-  description:  "Single SID voice with SPI control and delta-sigma PDM audio output"
+  description:  "Single SID voice with SPI control and 12-bit PWM audio output"
   language:     "Verilog"
   clock_hz:     50000000  # 50 MHz
 
@@ -20,7 +20,7 @@ project:
     - "spi_regs.v"
     - "sid_voice.v"
     - "sid_asdr_generator.v"
-    - "delta_sigma_dac.v"
+    - "pwm_audio.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 pinout:
@@ -36,7 +36,7 @@ pinout:
 
   # Outputs
   uo[0]: "spi_miso (tied low)"
-  uo[1]: "pdm_out"
+  uo[1]: ""
   uo[2]: ""
   uo[3]: ""
   uo[4]: ""
@@ -52,7 +52,7 @@ pinout:
   uio[4]: ""
   uio[5]: ""
   uio[6]: ""
-  uio[7]: ""
+  uio[7]: "pwm_out"
 
 # Do not change!
 yaml_version: 6
