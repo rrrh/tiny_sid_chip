@@ -89,15 +89,8 @@ module sid_voice #(
     // Combinational process
     //==========================================================================
     reg [7:0]  tmp;
+    reg [15:0] voice_tmp;
     reg [7:0]  voice_mux;
-
-    //==========================================================================
-    // Sequential shift-and-add multiplier (voice_mux × adsr_value)
-    //==========================================================================
-    reg [7:0]  mul_a;       // latched multiplicand (voice_mux)
-    reg [16:0] mul_pb;      // {partial_product[8:0], multiplier_shift[7:0]}
-    reg [3:0]  mul_cnt;     // step counter: 0=latch, 1-8=shift-add, 9=done
-    reg [7:0]  mul_result;  // latched voice output
 
     always @(*) begin
         // Default: hold current state
@@ -162,6 +155,9 @@ module sid_voice #(
         if (noise_en)
             voice_mux = voice_mux | noise;
 
+        // Scale by ADSR envelope
+        voice_tmp = voice_mux * adsr_value;
+
         //--------------------------------------------------------------
         // Sync and control
         //--------------------------------------------------------------
@@ -181,6 +177,9 @@ module sid_voice #(
         if (rst || test)
             next_lfsr = 23'b00000000000000000000001;
 
+        // Rst resets the voice output
+        if (rst)
+            voice_tmp = 16'b0;
     end
 
     //==========================================================================
@@ -196,10 +195,6 @@ module sid_voice #(
             accumulator_msb_prev <= 1'b0;
             lfsr               <= 23'b00000000000000000000001;
             lfsr_clk_prev      <= 1'b0;
-            mul_a              <= 8'd0;
-            mul_pb             <= 17'd0;
-            mul_cnt            <= 4'd0;
-            mul_result         <= 8'd0;
         end else begin
             sawtooth           <= next_sawtooth;
             triangle           <= next_triangle;
@@ -209,32 +204,13 @@ module sid_voice #(
             accumulator_msb_prev <= next_accumulator_msb_prev;
             lfsr               <= next_lfsr;
             lfsr_clk_prev      <= next_lfsr_clk_prev;
-
-            // Sequential shift-and-add multiplier
-            if (mul_cnt == 4'd0) begin
-                // Latch operands: multiplicand and {0, multiplier}
-                mul_a   <= voice_mux;
-                mul_pb  <= {9'b0, adsr_value};
-                mul_cnt <= 4'd1;
-            end else if (mul_cnt <= 4'd8) begin
-                // Shift-and-add: if LSB set, add multiplicand to upper bits
-                if (mul_pb[0])
-                    mul_pb <= {1'b0, mul_pb[16:8] + {1'b0, mul_a}, mul_pb[7:1]};
-                else
-                    mul_pb <= {1'b0, mul_pb[16:8], mul_pb[7:1]};
-                mul_cnt <= mul_cnt + 4'd1;
-            end else begin
-                // Done: latch upper 8 bits of 16-bit product, restart
-                mul_result <= mul_pb[15:8];
-                mul_cnt    <= 4'd0;
-            end
         end
     end
 
     //==========================================================================
     // Output assignments
     //==========================================================================
-    assign voice = mul_result;
+    assign voice = voice_tmp[15:8];
     assign accumulator_msb_out = accumulator[23];
 
 endmodule
