@@ -79,7 +79,7 @@ module sid_sequencer (
     assign duration  = {is_active, 7'b0};
     assign attack    = {1'b0, is_kick, is_snare, is_hihat, 4'b0};
     assign sustain   = {4'b0, is_snare, 3'b0};
-    assign waveform  = {drum_type[1], 2'b0, is_kick, 3'b0, gate_on & is_active};
+    assign waveform  = {drum_type[1], 1'b0, is_kick, 4'b0, gate_on & is_active};
 
     wire _unused = enable;
 

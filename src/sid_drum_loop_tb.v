@@ -44,7 +44,7 @@ module sid_drum_loop_tb;
     localparam [7:0]  KICK_ATK   = 8'h40;       // attack=0 (instant), decay=4 (~42 ms)
     localparam [7:0]  KICK_SUS   = 8'h00;       // sustain=0, release=0 (fast)
     localparam [7:0]  KICK_PW    = 8'h80;
-    localparam [7:0]  KICK_WAV   = 8'h11;       // triangle + gate
+    localparam [7:0]  KICK_WAV   = 8'h21;       // sawtooth + gate
 
     // Snare: noise, fast attack, short decay, slight sustain for body
     //   freq = round(5000 * 2^24 / 50e6) = 1678 (fast LFSR clocking)
