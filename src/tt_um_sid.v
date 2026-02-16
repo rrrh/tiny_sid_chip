@@ -13,8 +13,8 @@
 //              4=attack, 5=sustain, 6=waveform
 //
 // Pin Mapping:
-//   ui_in[0]    = spi_cs_n      ui_in[3:7] = unused
-//   ui_in[1]    = spi_clk
+//   ui_in[0]    = spi_cs_n      ui_in[3]   = seq_enable (1=sequencer, 0=SPI)
+//   ui_in[1]    = spi_clk       ui_in[7:4] = unused
 //   ui_in[2]    = spi_mosi
 //   uo_out[0]   = spi_miso (tied low, write-only)
 //   uo_out[7:1] = 0
@@ -39,6 +39,7 @@ module tt_um_sid (
     wire spi_cs_n_in = ui_in[0];
     wire spi_clk_in  = ui_in[1];
     wire spi_mosi_in = ui_in[2];
+    wire seq_enable  = ui_in[3];
 
     wire rst = !rst_n;
 
@@ -66,6 +67,35 @@ module tt_um_sid (
     );
 
     //==========================================================================
+    // Drum Sequencer (built-in boom-bap beat)
+    //==========================================================================
+    wire [15:0] seq_frequency;
+    wire [7:0]  seq_duration;
+    wire [7:0]  seq_attack;
+    wire [7:0]  seq_sustain;
+    wire [7:0]  seq_waveform;
+
+    sid_sequencer u_seq (
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (seq_enable),
+        .frequency (seq_frequency),
+        .duration  (seq_duration),
+        .attack    (seq_attack),
+        .sustain   (seq_sustain),
+        .waveform  (seq_waveform)
+    );
+
+    //==========================================================================
+    // Source mux: ui_in[3] selects sequencer (1) or SPI (0)
+    //==========================================================================
+    wire [15:0] voice_frequency = seq_enable ? seq_frequency : sid_frequency;
+    wire [7:0]  voice_duration  = seq_enable ? seq_duration  : sid_duration;
+    wire [7:0]  voice_attack    = seq_enable ? seq_attack    : sid_attack;
+    wire [7:0]  voice_sustain   = seq_enable ? seq_sustain   : sid_sustain;
+    wire [7:0]  voice_waveform  = seq_enable ? seq_waveform  : sid_waveform;
+
+    //==========================================================================
     // SID Voice
     //==========================================================================
     wire [7:0]  voice_out;
@@ -73,11 +103,11 @@ module tt_um_sid (
     sid_voice #(.IS_8580(0)) u_voice (
         .clk                (clk),
         .rst                (rst),
-        .frequency          (sid_frequency),
-        .duration           (sid_duration),
-        .attack             (sid_attack),
-        .sustain            (sid_sustain),
-        .waveform           (sid_waveform),
+        .frequency          (voice_frequency),
+        .duration           (voice_duration),
+        .attack             (voice_attack),
+        .sustain            (voice_sustain),
+        .waveform           (voice_waveform),
         .accumulator_msb_in (1'b0),
         .voice              (voice_out),
         .accumulator_msb_out()
@@ -107,6 +137,6 @@ module tt_um_sid (
     assign uio_oe  = 8'h80;
 
     // Suppress unused input warnings
-    wire _unused = &{ena, ui_in[7:3], uio_in, 1'b0};
+    wire _unused = &{ena, ui_in[7:4], uio_in, 1'b0};
 
 endmodule
