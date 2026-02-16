@@ -1,0 +1,44 @@
+* 2nd-Order RC Low-Pass Reconstruction Filter for PWM Audio Output
+* Two cascaded RC stages for -40 dB/decade rolloff
+*
+* PWM output on uio[7] (3.3V logic) -> filter -> audio out
+*
+*        R1          R2          Cac
+* IN ---[4.7k]--+--[4.7k]--+--[1uF]--- OUT
+*               |           |
+*             [10nF]      [10nF]
+*               |           |
+*              GND         GND
+
+.title PWM Audio Reconstruction Filter - AC Analysis
+
+* Input source: 1V AC for frequency response
+Vin in 0 DC 0 AC 1
+
+* Stage 1
+R1 in n1 4.7k
+C1 n1 0 10n
+
+* Stage 2
+R2 n1 n2 4.7k
+C2 n2 0 10n
+
+* DC blocking capacitor
+Cac n2 out 1u
+
+* AC analysis: 10 Hz to 100 kHz, 100 points per decade
+.ac dec 100 10 100k
+
+* Output
+.control
+run
+set hcopypscolor = 1
+set color0 = white
+set color1 = black
+set color2 = blue
+set color3 = red
+wrdata rc_filter_ac.dat v(out)
+quit
+.endc
+
+.end

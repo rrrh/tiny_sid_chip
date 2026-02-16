@@ -9,7 +9,7 @@
 //   - Ring modulation and hard sync between oscillators
 //   - LFSR-based noise generator
 //   - Waveform output mux (OR-combining, matching real SID behavior)
-//   - 12-bit voice output scaled by 8-bit ADSR envelope (20-bit product)
+//   - 8-bit voice output scaled by 8-bit ADSR envelope (16-bit product)
 //
 // Record types from sequrga_pkg are flattened into individual port signals.
 //==============================================================================
@@ -29,7 +29,7 @@ module sid_voice #(
     input  wire        accumulator_msb_in,
 
     // Voice output (sid_voice_out_type)
-    output wire [11:0] voice,
+    output wire [7:0]  voice,
     output wire        accumulator_msb_out
 );
 
@@ -48,10 +48,10 @@ module sid_voice #(
     //==========================================================================
     // Registered state
     //==========================================================================
-    reg [11:0] sawtooth;
-    reg [11:0] triangle;
+    reg [7:0]  sawtooth;
+    reg [7:0]  triangle;
     reg        pulse;
-    reg [11:0] noise;
+    reg [7:0]  noise;
     reg [23:0] accumulator;
     reg        accumulator_msb_prev;
     reg [22:0] lfsr;
@@ -60,10 +60,10 @@ module sid_voice #(
     //==========================================================================
     // Next-state signals
     //==========================================================================
-    reg [11:0] next_sawtooth;
-    reg [11:0] next_triangle;
+    reg [7:0]  next_sawtooth;
+    reg [7:0]  next_triangle;
     reg        next_pulse;
-    reg [11:0] next_noise;
+    reg [7:0]  next_noise;
     reg [23:0] next_accumulator;
     reg        next_accumulator_msb_prev;
     reg [22:0] next_lfsr;
@@ -88,9 +88,9 @@ module sid_voice #(
     //==========================================================================
     // Combinational process
     //==========================================================================
-    reg [11:0] tmp;
-    reg [19:0] voice_tmp;
-    reg [11:0] voice_mux;
+    reg [7:0]  tmp;
+    reg [15:0] voice_tmp;
+    reg [7:0]  voice_mux;
 
     always @(*) begin
         // Default: hold current state
@@ -111,26 +111,26 @@ module sid_voice #(
         //--------------------------------------------------------------
         // Sawtooth (uses current registered accumulator)
         //--------------------------------------------------------------
-        next_sawtooth = accumulator[23:12];
+        next_sawtooth = accumulator[23:16];
 
         //--------------------------------------------------------------
         // Triangle (uses current registered accumulator)
         //--------------------------------------------------------------
         if (!sawtooth_en) begin
             if (ringmod)
-                tmp = {12{accumulator_msb_in}};
+                tmp = {8{accumulator_msb_in}};
             else
-                tmp = {12{accumulator[23]}};
+                tmp = {8{accumulator[23]}};
         end else begin
             // XOR circuit not used when sawtooth is enabled
-            tmp = 12'h000;
+            tmp = 8'h00;
         end
-        next_triangle = accumulator[22:11] ^ tmp;
+        next_triangle = accumulator[22:15] ^ tmp;
 
         //--------------------------------------------------------------
         // Pulse (uses current registered accumulator)
         //--------------------------------------------------------------
-        if (accumulator[23:12] > duration[11:0])
+        if (accumulator[23:16] > duration[7:0])
             next_pulse = 1'b1;
         else
             next_pulse = 1'b0;
@@ -140,18 +140,18 @@ module sid_voice #(
         //--------------------------------------------------------------
         if (lfsr_clk_prev != accumulator[19])
             next_lfsr = {lfsr[21:0], lfsr[17] ^ lfsr[22]};
-        next_noise = next_lfsr[22:11];
+        next_noise = next_lfsr[22:15];
 
         //--------------------------------------------------------------
         // Output mux (OR-combining like real SID)
         //--------------------------------------------------------------
-        voice_mux = 12'h000;
+        voice_mux = 8'h00;
         if (triangle_en)
             voice_mux = voice_mux | triangle;
         if (sawtooth_en)
             voice_mux = voice_mux | sawtooth;
         if (pulse_en)
-            voice_mux = voice_mux | {12{pulse}};
+            voice_mux = voice_mux | {8{pulse}};
         if (noise_en)
             voice_mux = voice_mux | noise;
 
@@ -179,7 +179,7 @@ module sid_voice #(
 
         // Rst resets the voice output
         if (rst)
-            voice_tmp = 20'b0;
+            voice_tmp = 16'b0;
     end
 
     //==========================================================================
@@ -187,10 +187,10 @@ module sid_voice #(
     //==========================================================================
     always @(posedge clk) begin
         if (rst) begin
-            sawtooth           <= 12'd0;
-            triangle           <= 12'd0;
+            sawtooth           <= 8'd0;
+            triangle           <= 8'd0;
             pulse              <= 1'b0;
-            noise              <= 12'd0;
+            noise              <= 8'd0;
             accumulator        <= 24'd0;
             accumulator_msb_prev <= 1'b0;
             lfsr               <= 23'b00000000000000000000001;
@@ -210,7 +210,7 @@ module sid_voice #(
     //==========================================================================
     // Output assignments
     //==========================================================================
-    assign voice = voice_tmp[19:8];
+    assign voice = voice_tmp[15:8];
     assign accumulator_msb_out = accumulator[23];
 
 endmodule
