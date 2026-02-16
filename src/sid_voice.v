@@ -80,9 +80,22 @@ module sid_voice #(
         if (noise_en)    voice_mux = voice_mux | lfsr[15:8];
     end
 
-    // Scale by ADSR envelope
-    wire [15:0] voice_tmp = voice_mux * adsr_value;
-    assign voice = voice_tmp[15:8];
+    // Scale by ADSR envelope — logarithmic barrel shifter (−6 dB/step)
+    // adsr_value bit 0 is always 0, so test bits [7:1]
+    reg [2:0] shift_amt;
+    always @(*) begin
+        casez (adsr_value[7:1])
+            7'b1??????: shift_amt = 3'd0;  // 128-254 → ×1
+            7'b01?????: shift_amt = 3'd1;  // 64-127  → ×0.5
+            7'b001????: shift_amt = 3'd2;  // 32-63   → ×0.25
+            7'b0001???: shift_amt = 3'd3;  // 16-31   → ×0.125
+            7'b00001??: shift_amt = 3'd4;  // 8-15    → ×0.0625
+            7'b000001?: shift_amt = 3'd5;  // 4-7     → ×0.03125
+            7'b0000001: shift_amt = 3'd6;  // 2-3     → ×0.015625
+            default:    shift_amt = 3'd7;  // 0-1     → ×0.0078125
+        endcase
+    end
+    assign voice = (adsr_value[7:1] == 7'd0) ? 8'd0 : (voice_mux >> shift_amt);
     assign accumulator_msb_out = accumulator[23];
 
     //==========================================================================
