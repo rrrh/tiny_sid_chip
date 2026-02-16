@@ -2,7 +2,7 @@
 //==============================================================================
 // PWM Audio Sweep Testbench
 //==============================================================================
-// Generates a sine wave sweeping from 0 to 15 kHz, feeds it into pwm_audio,
+// Generates a sine wave sweeping from 0 to 20 kHz, feeds it into pwm_audio,
 // simulates R/C low-pass filter recovery, and saves the result as a WAV file.
 //==============================================================================
 
@@ -12,7 +12,7 @@ module pwm_audio_sweep_tb;
     // Parameters
     //--------------------------------------------------------------------------
     localparam CLK_PERIOD    = 20;         // 50 MHz clock → 20 ns period
-    localparam PWM_PERIOD    = 4095;       // PWM cycle length in clocks
+    localparam PWM_PERIOD    = 255;        // PWM cycle length in clocks (8-bit)
     localparam SETTLE_CLOCKS = 5_000_000;  // 100 ms filter settling time
     localparam WAV_SAMPLE_DIV = 1134;      // 50 MHz / 44.1 kHz ≈ 1134
     // 3 seconds of audio at 44.1 kHz
@@ -20,22 +20,22 @@ module pwm_audio_sweep_tb;
     // settle + 3 s recording
     localparam SIM_CLOCKS    = 155_000_000;
     // Sample rate of PWM updates
-    // fs_pwm = 50e6 / 4095 ≈ 12207 Hz
+    // fs_pwm = 50e6 / 255 ≈ 196078 Hz
     //
     // Phase increment per PWM sample for frequency f:
-    //   inc = 4096 * f / fs_pwm * 4096 (in 12.12 fixed point)
-    //   inc = 4096 * 4096 * f / 12207 = 1374.4 * f
-    // At 15 kHz: inc = 1374.4 * 15000 = 20,616,380
+    //   inc = 256 * f / fs_pwm * 65536 (in 8.16 fixed point)
+    //   inc = 256 * 65536 * f / 196078 = 85.6 * f
+    // At 20 kHz: inc = 85.6 * 20000 = 1,711,570
     // We ramp from 0 to this value over the recording duration.
     //
-    // Total PWM samples in 3 s: 3 * 12207 ≈ 36621
-    // Increment step per PWM sample: 20616380 / 36621 ≈ 563
+    // Total PWM samples in 3 s: 3 * 196078 ≈ 588235
+    // Increment step per PWM sample: 1711570 / 588235 ≈ 3
 
-    // IIR filter alpha: ~4 kHz cutoff at 50 MHz
-    // alpha = 2*pi*4000/50e6 ≈ 0.000503
-    // In 16-bit fixed point: 0.000503 * 65536 ≈ 33
+    // IIR filter alpha: ~20 kHz cutoff at 50 MHz
+    // alpha = 2*pi*20000/50e6 ≈ 0.00251
+    // In 16-bit fixed point: 0.00251 * 65536 ≈ 165
     // Two cascaded stages give -40 dB/decade rolloff
-    localparam ALPHA         = 33;
+    localparam ALPHA         = 165;
 
     //--------------------------------------------------------------------------
     // Clock and reset
@@ -49,43 +49,43 @@ module pwm_audio_sweep_tb;
     end
 
     //--------------------------------------------------------------------------
-    // Sine lookup table (4096 entries, 12-bit unsigned, centered at 2048)
+    // Sine lookup table (256 entries, 8-bit unsigned, centered at 128)
     //--------------------------------------------------------------------------
-    reg [11:0] sine_lut [0:4095];
+    reg [7:0] sine_lut [0:255];
     integer i;
 
     initial begin
-        for (i = 0; i < 4096; i = i + 1) begin
-            sine_lut[i] = 2048 + $rtoi(2047.0 * $sin(2.0 * 3.14159265358979 * i / 4096.0));
+        for (i = 0; i < 256; i = i + 1) begin
+            sine_lut[i] = 128 + $rtoi(127.0 * $sin(2.0 * 3.14159265358979 * i / 256.0));
         end
     end
 
     //--------------------------------------------------------------------------
     // Phase accumulator with swept frequency
     //--------------------------------------------------------------------------
-    reg [23:0] phase_acc;      // 12.12 fixed point
+    reg [23:0] phase_acc;      // 8.16 fixed point
     reg [31:0] phase_inc;      // current phase increment (ramps up)
-    reg [11:0] pwm_count;
-    reg [11:0] audio_sample;
+    reg [7:0]  pwm_count;
+    reg [7:0]  audio_sample;
     wire        pwm_out;
 
-    // Frequency sweep: ramp phase_inc from 0 to 20616380 over recording
-    // Increment phase_inc by 563 each PWM sample
-    localparam PHASE_INC_MAX  = 20_616_380;
-    localparam PHASE_INC_STEP = 563;
+    // Frequency sweep: ramp phase_inc from 0 to 1711570 over recording
+    // Increment phase_inc by 3 each PWM sample
+    localparam PHASE_INC_MAX  = 1_711_570;
+    localparam PHASE_INC_STEP = 3;
 
     always @(posedge clk) begin
         if (!rst_n) begin
             phase_acc <= 0;
             phase_inc <= 0;
             pwm_count <= 0;
-            audio_sample <= 2048;
+            audio_sample <= 128;
         end else begin
             pwm_count <= pwm_count + 1;
             if (pwm_count == PWM_PERIOD - 1) begin
                 pwm_count <= 0;
                 phase_acc <= phase_acc + phase_inc[23:0];
-                audio_sample <= sine_lut[phase_acc[23:12]];
+                audio_sample <= sine_lut[phase_acc[23:16]];
                 // Ramp frequency
                 if (phase_inc < PHASE_INC_MAX)
                     phase_inc <= phase_inc + PHASE_INC_STEP;
@@ -105,7 +105,7 @@ module pwm_audio_sweep_tb;
 
     //--------------------------------------------------------------------------
     // Digital R/C low-pass filter (two cascaded 1st-order IIR stages)
-    // 16.16 fixed-point accumulators, ~4 kHz cutoff, -40 dB/decade rolloff
+    // 16.16 fixed-point accumulators, ~20 kHz cutoff, -40 dB/decade rolloff
     //--------------------------------------------------------------------------
     reg [31:0] filter_acc1;
     reg [31:0] filter_acc2;
@@ -188,7 +188,7 @@ module pwm_audio_sweep_tb;
     // Main simulation
     //--------------------------------------------------------------------------
     initial begin
-        $display("PWM Audio Sweep Testbench - 0 to 15 kHz");
+        $display("PWM Audio Sweep Testbench - 0 to 20 kHz");
         $display("Simulation: %0d clock cycles (%.3f seconds)",
                  SIM_CLOCKS, SIM_CLOCKS * 20.0e-9);
 
