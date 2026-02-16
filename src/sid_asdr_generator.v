@@ -3,12 +3,12 @@
 // Simplified Linear ADSR Envelope Generator
 //==============================================================================
 // Linear attack/decay/release with power-of-2 rate scaling.
-// Uses a free-running prescaler — the 4-bit rate value selects which
-// prescaler bit to use as the envelope tick (rate 0 = fast, 15 = slow).
+// Uses a free-running 16-bit prescaler — the 4-bit rate value selects which
+// prescaler bit to use as the envelope tick (rate 0 = fast, 7+ = slow).
 //
 // Approximate timings at 50 MHz (256 steps per phase):
-//   Rate 0:  ~2.6 ms     Rate 8:  ~671 ms
-//   Rate 4:  ~42 ms      Rate 12: ~10.7 s
+//   Rate 0:  ~2.6 ms     Rate 4:  ~42 ms
+//   Rate 7:  ~335 ms     Rate 8+: ~335 ms (clamped)
 //
 // States: IDLE → ATTACK → DECAY → RELEASE → IDLE
 //   Sustain is handled within DECAY (hold when env reaches sustain level).
@@ -39,7 +39,7 @@ module sid_asdr_generator (
     reg [1:0]  state;
     reg [7:0]  env_counter;
     reg        last_gate;
-    reg [22:0] prescaler;
+    reg [15:0] prescaler;
 
     //==========================================================================
     // Rate selection — pick active rate based on state
@@ -55,28 +55,22 @@ module sid_asdr_generator (
     end
 
     //==========================================================================
-    // Envelope tick — select prescaler bit based on rate
+    // Envelope tick — select prescaler bit based on rate (clamped to 7)
     // Rate N checks &prescaler[N+8:0], firing every 2^(N+9) clocks
+    // Rates 8-15 clamp to rate 7 (~335 ms per phase at 50 MHz)
     //==========================================================================
     reg env_tick;
+    wire [2:0] clamped_rate = (active_rate > 4'd7) ? 3'd7 : active_rate[2:0];
     always @(*) begin
-        case (active_rate)
-            4'd0:  env_tick = &prescaler[8:0];
-            4'd1:  env_tick = &prescaler[9:0];
-            4'd2:  env_tick = &prescaler[10:0];
-            4'd3:  env_tick = &prescaler[11:0];
-            4'd4:  env_tick = &prescaler[12:0];
-            4'd5:  env_tick = &prescaler[13:0];
-            4'd6:  env_tick = &prescaler[14:0];
-            4'd7:  env_tick = &prescaler[15:0];
-            4'd8:  env_tick = &prescaler[16:0];
-            4'd9:  env_tick = &prescaler[17:0];
-            4'd10: env_tick = &prescaler[18:0];
-            4'd11: env_tick = &prescaler[19:0];
-            4'd12: env_tick = &prescaler[20:0];
-            4'd13: env_tick = &prescaler[21:0];
-            4'd14: env_tick = &prescaler[22:0];
-            default: env_tick = &prescaler[22:0];
+        case (clamped_rate)
+            3'd0:    env_tick = &prescaler[8:0];
+            3'd1:    env_tick = &prescaler[9:0];
+            3'd2:    env_tick = &prescaler[10:0];
+            3'd3:    env_tick = &prescaler[11:0];
+            3'd4:    env_tick = &prescaler[12:0];
+            3'd5:    env_tick = &prescaler[13:0];
+            3'd6:    env_tick = &prescaler[14:0];
+            default: env_tick = &prescaler[15:0];
         endcase
     end
 
@@ -90,7 +84,7 @@ module sid_asdr_generator (
             state       <= ENV_IDLE;
             env_counter <= 8'd0;
             last_gate   <= 1'b0;
-            prescaler   <= 23'd0;
+            prescaler   <= 16'd0;
         end else begin
             prescaler <= prescaler + 1'b1;
             last_gate <= gate;
