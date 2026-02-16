@@ -46,7 +46,7 @@ module tt_um_sid (
     // SPI Register Bank (write-only)
     //==========================================================================
     wire [15:0] sid_frequency;
-    wire [15:0] sid_duration;
+    wire [7:0]  sid_duration;
     wire [7:0]  sid_attack;
     wire [7:0]  sid_sustain;
     wire [7:0]  sid_waveform;

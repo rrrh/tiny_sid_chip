@@ -22,7 +22,7 @@ module sid_voice #(
 
     // Voice input (sid_voice_in_type)
     input  wire [15:0] frequency,
-    input  wire [15:0] duration,
+    input  wire [7:0]  duration,
     input  wire [7:0]  attack,
     input  wire [7:0]  sustain,
     input  wire [7:0]  waveform,
@@ -54,7 +54,7 @@ module sid_voice #(
     reg [7:0]  noise;
     reg [23:0] accumulator;
     reg        accumulator_msb_prev;
-    reg [22:0] lfsr;
+    reg [15:0] lfsr;
     reg        lfsr_clk_prev;
 
     //==========================================================================
@@ -66,7 +66,7 @@ module sid_voice #(
     reg [7:0]  next_noise;
     reg [23:0] next_accumulator;
     reg        next_accumulator_msb_prev;
-    reg [22:0] next_lfsr;
+    reg [15:0] next_lfsr;
     reg        next_lfsr_clk_prev;
 
     //==========================================================================
@@ -130,7 +130,7 @@ module sid_voice #(
         //--------------------------------------------------------------
         // Pulse (uses current registered accumulator)
         //--------------------------------------------------------------
-        if (accumulator[23:16] > duration[7:0])
+        if (accumulator[23:16] > duration)
             next_pulse = 1'b1;
         else
             next_pulse = 1'b0;
@@ -139,8 +139,8 @@ module sid_voice #(
         // Noise (LFSR, clocked by accumulator bit 19)
         //--------------------------------------------------------------
         if (lfsr_clk_prev != accumulator[19])
-            next_lfsr = {lfsr[21:0], lfsr[17] ^ lfsr[22]};
-        next_noise = next_lfsr[22:15];
+            next_lfsr = {lfsr[14:0], lfsr[15] ^ lfsr[13] ^ lfsr[12] ^ lfsr[10]};
+        next_noise = next_lfsr[15:8];
 
         //--------------------------------------------------------------
         // Output mux (OR-combining like real SID)
@@ -175,7 +175,7 @@ module sid_voice #(
 
         // Test or rst resets the LFSR
         if (rst || test)
-            next_lfsr = 23'b00000000000000000000001;
+            next_lfsr = 16'b0000000000000001;
 
         // Rst resets the voice output
         if (rst)
@@ -193,7 +193,7 @@ module sid_voice #(
             noise              <= 8'd0;
             accumulator        <= 24'd0;
             accumulator_msb_prev <= 1'b0;
-            lfsr               <= 23'b00000000000000000000001;
+            lfsr               <= 16'b0000000000000001;
             lfsr_clk_prev      <= 1'b0;
         end else begin
             sawtooth           <= next_sawtooth;

@@ -133,6 +133,6 @@ module sid_asdr_generator (
         end
     end
 
-    assign adsr_value = env_counter;
+    assign adsr_value = {env_counter[7:1], 1'b0};
 
 endmodule

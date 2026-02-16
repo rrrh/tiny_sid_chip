@@ -13,8 +13,7 @@
 // Register Map (by address):
 //   0: freq_lo    — sid_frequency[7:0]
 //   1: freq_hi    — sid_frequency[15:8]
-//   2: pw_lo      — sid_duration[7:0]   (pulse width low)
-//   3: pw_hi      — sid_duration[15:8]  (pulse width high)
+//   2: pw_lo      — sid_duration[7:0]   (pulse width)
 //   4: attack     — sid_attack[7:0]     (atk[3:0] / dec[7:4])
 //   5: sustain    — sid_sustain[7:0]    (sus[3:0] / rel[7:4])
 //   6: waveform   — sid_waveform[7:0]
@@ -32,7 +31,7 @@ module spi_regs (
 
     // SID register outputs
     output reg  [15:0] sid_frequency,
-    output reg  [15:0] sid_duration,
+    output reg  [7:0]  sid_duration,
     output reg  [7:0]  sid_attack,
     output reg  [7:0]  sid_sustain,
     output reg  [7:0]  sid_waveform
@@ -93,7 +92,7 @@ module spi_regs (
             bit_cnt      <= 4'd0;
 
             sid_frequency <= 16'd0;
-            sid_duration  <= 16'd0;
+            sid_duration  <= 8'd0;
             sid_attack    <= 8'd0;
             sid_sustain   <= 8'd0;
             sid_waveform  <= 8'd0;
@@ -110,8 +109,7 @@ module spi_regs (
                 case (rx_shift[14:12])
                     3'd0: sid_frequency[7:0]  <= {rx_shift[6:0], spi_mosi_d2};
                     3'd1: sid_frequency[15:8] <= {rx_shift[6:0], spi_mosi_d2};
-                    3'd2: sid_duration[7:0]   <= {rx_shift[6:0], spi_mosi_d2};
-                    3'd3: sid_duration[15:8]  <= {rx_shift[6:0], spi_mosi_d2};
+                    3'd2: sid_duration         <= {rx_shift[6:0], spi_mosi_d2};
                     3'd4: sid_attack           <= {rx_shift[6:0], spi_mosi_d2};
                     3'd5: sid_sustain          <= {rx_shift[6:0], spi_mosi_d2};
                     3'd6: sid_waveform         <= {rx_shift[6:0], spi_mosi_d2};

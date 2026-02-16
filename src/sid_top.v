@@ -9,7 +9,7 @@ module sid_top (
 
     // Voice controls
     input  wire [15:0] frequency,
-    input  wire [15:0] duration,
+    input  wire [7:0]  duration,
     input  wire [7:0]  attack,
     input  wire [7:0]  sustain,
     input  wire [7:0]  waveform,
