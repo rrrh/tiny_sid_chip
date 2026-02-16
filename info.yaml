@@ -21,6 +21,7 @@ project:
     - "sid_voice.v"
     - "sid_asdr_generator.v"
     - "pwm_audio.v"
+    - "sid_sequencer.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 pinout:
@@ -28,7 +29,7 @@ pinout:
   ui[0]: "spi_cs_n"
   ui[1]: "spi_clk"
   ui[2]: "spi_mosi"
-  ui[3]: ""
+  ui[3]: "seq_enable"
   ui[4]: ""
   ui[5]: ""
   ui[6]: ""
