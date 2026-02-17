@@ -3,7 +3,7 @@ project:
   title:        "SID Voice Synthesizer"
   author:       "shue"
   discord:      ""
-  description:  "Single SID voice with SPI control and 12-bit PWM audio output"
+  description:  "Single SID voice with I2C control and 8-bit PWM audio output"
   language:     "Verilog"
   clock_hz:     50000000  # 50 MHz
 
@@ -17,7 +17,7 @@ project:
   # Source files must be in ./src and you must list each source file separately, one per line.
   source_files:
     - "tt_um_sid.v"
-    - "spi_regs.v"
+    - "i2c_regs.v"
     - "sid_voice.v"
     - "sid_noise_voice.v"
     - "sid_asdr_generator.v"
@@ -27,9 +27,9 @@ project:
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 pinout:
   # Inputs
-  ui[0]: "spi_cs_n"
-  ui[1]: "spi_clk"
-  ui[2]: "spi_mosi"
+  ui[0]: ""
+  ui[1]: ""
+  ui[2]: ""
   ui[3]: "seq_enable"
   ui[4]: ""
   ui[5]: ""
@@ -37,7 +37,7 @@ pinout:
   ui[7]: ""
 
   # Outputs
-  uo[0]: "spi_miso (tied low)"
+  uo[0]: ""
   uo[1]: ""
   uo[2]: ""
   uo[3]: ""
@@ -47,8 +47,8 @@ pinout:
   uo[7]: ""
 
   # Bidirectional pins
-  uio[0]: ""
-  uio[1]: ""
+  uio[0]: "SDA (I2C data, open-drain)"
+  uio[1]: "SCL (I2C clock, input)"
   uio[2]: ""
   uio[3]: ""
   uio[4]: ""

@@ -1,13 +1,15 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// Comprehensive Testbench for tt_um_sid
+// Comprehensive Testbench for tt_um_sid (I2C interface)
 //==============================================================================
-// Tests the full TT top-level including SPI register interface, all waveform
-// types, ADSR envelope behavior, PDM output activity, and edge cases.
+// Tests the full TT top-level including I2C register interface, all waveform
+// types, ADSR envelope behavior, PWM output activity, and edge cases.
 //
-// SPI Protocol: 16-bit frames, {addr[2:0], 5'b0, data[7:0]}
-// Registers: 0=freq_lo, 1=freq_hi, 2=pw_lo, 3=pw_hi,
-//            4=attack, 5=sustain, 6=waveform
+// I2C Protocol:
+//   Address 0x36, write-only
+//   START → [0x6C] → ACK → [reg_addr] → ACK → [data] → ACK → STOP
+//   Registers: 0=freq_lo, 1=freq_hi, 2=pw_lo,
+//              4=attack, 5=sustain, 6=waveform
 //==============================================================================
 
 module tt_um_sid_tb;
@@ -48,16 +50,14 @@ module tt_um_sid_tb;
 
     //==========================================================================
     // PDM-to-PCM decimation filter (CIC order 1, integrate-and-dump)
-    // Converts the 50 MHz 1-bit PDM to ~48.8 kHz 10-bit PCM for waveform
-    // inspection in VCD viewers.  Output range: 0 (silence) to 1024 (full).
     //==========================================================================
     localparam DECIM_SHIFT = 10;
-    localparam DECIM_N     = 1 << DECIM_SHIFT;  // 1024 samples per window
+    localparam DECIM_N     = 1 << DECIM_SHIFT;
 
-    reg [DECIM_SHIFT:0]   decim_acc;     // running sum (0..1024)
-    reg [DECIM_SHIFT-1:0] decim_cnt;     // sample counter (0..1023)
-    reg [DECIM_SHIFT:0]   pcm_out;       // latched PCM output
-    reg                   pcm_valid;     // 1-clk strobe per output sample
+    reg [DECIM_SHIFT:0]   decim_acc;
+    reg [DECIM_SHIFT-1:0] decim_cnt;
+    reg [DECIM_SHIFT:0]   pcm_out;
+    reg                   pcm_valid;
 
     always @(posedge clk) begin
         if (!rst_n) begin
@@ -67,7 +67,7 @@ module tt_um_sid_tb;
             pcm_valid <= 1'b0;
         end else begin
             pcm_valid <= 1'b0;
-            if (&decim_cnt) begin                // decim_cnt == 1023
+            if (&decim_cnt) begin
                 pcm_out   <= decim_acc + pdm_out;
                 pcm_valid <= 1'b1;
                 decim_acc <= 0;
@@ -109,7 +109,7 @@ module tt_um_sid_tb;
                       FREQ_G4 = 16'd6430,
                       FREQ_C5 = 16'd8583;
 
-    // Register addresses (16-bit SPI, 8-bit data)
+    // Register addresses
     localparam [2:0] REG_FREQ_LO = 3'd0,
                      REG_FREQ_HI = 3'd1,
                      REG_PW_LO   = 3'd2,
@@ -118,8 +118,9 @@ module tt_um_sid_tb;
                      REG_SUS     = 3'd5,
                      REG_WAV     = 3'd6;
 
-    // SPI half-period: 100 ns → 5 MHz SPI clock
-    localparam SPI_HP = 100;
+    // I2C timing: ~1 MHz half-period (500 ns = 25 sys clocks at 50 MHz)
+    localparam I2C_HP = 500;
+    localparam [6:0] I2C_ADDR = 7'h36;
 
     //==========================================================================
     // VCD dump
@@ -130,47 +131,84 @@ module tt_um_sid_tb;
     end
 
     //==========================================================================
-    // SPI Master — bit-bang 16-bit write (CPOL=0, CPHA=0, MSB first)
-    //   Word: {addr[2:0], 5'b0, data[7:0]}
+    // I2C Master — bit-bang tasks
     //==========================================================================
-    task spi_write;
-        input [2:0] addr;
-        input [7:0] data;
-        reg   [15:0] word;
-        integer i;
+
+    // Drive SDA (uio_in[0])
+    task set_sda;
+        input val;
         begin
-            word = {addr, 5'b00000, data};
-
-            // Assert CS_n low
-            ui_in[0] <= 1'b0;
-            #(SPI_HP);
-
-            for (i = 15; i >= 0; i = i - 1) begin
-                // Set MOSI while clock is low
-                ui_in[2] <= word[i];
-                #(SPI_HP);
-                // Rising edge — slave samples
-                ui_in[1] <= 1'b1;
-                #(SPI_HP);
-                // Falling edge
-                ui_in[1] <= 1'b0;
-            end
-
-            // Deassert CS_n
-            #(SPI_HP);
-            ui_in[0] <= 1'b1;
-            #(SPI_HP);
+            uio_in[0] <= val;
         end
     endtask
 
-    //==========================================================================
-    // Convenience: SPI register write + synchronizer settling
-    //==========================================================================
+    // Drive SCL (uio_in[1])
+    task set_scl;
+        input val;
+        begin
+            uio_in[1] <= val;
+        end
+    endtask
+
+    // I2C START: SDA falls while SCL is high
+    task i2c_start;
+        begin
+            set_sda(1'b1);
+            set_scl(1'b1);
+            #(I2C_HP);
+            set_sda(1'b0);   // SDA↓ while SCL high = START
+            #(I2C_HP);
+            set_scl(1'b0);   // SCL low to begin first bit
+            #(I2C_HP);
+        end
+    endtask
+
+    // I2C STOP: SDA rises while SCL is high
+    task i2c_stop;
+        begin
+            set_sda(1'b0);
+            #(I2C_HP);
+            set_scl(1'b1);
+            #(I2C_HP);
+            set_sda(1'b1);   // SDA↑ while SCL high = STOP
+            #(I2C_HP);
+        end
+    endtask
+
+    // Send one byte MSB-first, read ACK on 9th clock
+    task i2c_send_byte;
+        input [7:0] data;
+        integer i;
+        begin
+            for (i = 7; i >= 0; i = i - 1) begin
+                set_sda(data[i]);
+                #(I2C_HP);
+                set_scl(1'b1);     // SCL rise — slave samples
+                #(I2C_HP);
+                set_scl(1'b0);     // SCL fall
+                #(I2C_HP);
+            end
+            // 9th clock: ACK — release SDA (high), slave pulls low
+            set_sda(1'b1);
+            #(I2C_HP);
+            set_scl(1'b1);         // SCL rise — read ACK
+            #(I2C_HP);
+            // ACK is on uio_out[0] (sda_oe drives SDA low)
+            set_scl(1'b0);         // SCL fall
+            #(I2C_HP);
+        end
+    endtask
+
+    // Write a single register via I2C
     task sid_write;
         input [2:0] idx;
         input [7:0] val;
         begin
-            spi_write(idx, val);
+            i2c_start;
+            i2c_send_byte({I2C_ADDR, 1'b0});  // address + write
+            i2c_send_byte({5'b0, idx});        // register address
+            i2c_send_byte(val);                // data
+            i2c_stop;
             repeat (10) @(posedge clk);
         end
     endtask
@@ -218,7 +256,7 @@ module tt_um_sid_tb;
     endtask
 
     //==========================================================================
-    // Measure average PCM level over N decimated samples (~48.8 kHz rate)
+    // Measure average PCM level over N decimated samples
     //==========================================================================
     task measure_pcm;
         input  integer num_samples;
@@ -244,9 +282,9 @@ module tt_um_sid_tb;
     integer cnt1, cnt2;
 
     initial begin
-        // Initialise inputs
-        ui_in  = 8'b0000_0001;   // CS_n=1, CLK=0, MOSI=0
-        uio_in = 8'b0;
+        // Initialise inputs — I2C idle: SDA=1, SCL=1
+        ui_in  = 8'b0000_0000;
+        uio_in = 8'b0000_0011;   // SDA=1, SCL=1
         ena    = 1'b1;
         rst_n  = 1'b1;
         repeat (2) @(posedge clk);
@@ -290,24 +328,23 @@ module tt_um_sid_tb;
         end
 
         // =============================================================
-        // 2. SPI register write — verify PDM becomes active
+        // 2. I2C register write — verify PDM becomes active
         // =============================================================
-        $display("\n===== 2. SPI register write =====");
+        $display("\n===== 2. I2C register write =====");
         sid_write_freq(FREQ_C4);
         sid_write_pw(16'h0800);
-        sid_write(REG_ATK, 8'h00);   // attack=0(fast), decay=0(fast)
-        sid_write(REG_SUS, 8'h0F);   // sustain=F(max), release=0(fast)
+        sid_write(REG_ATK, 8'h00);
+        sid_write(REG_SUS, 8'h0F);
         sid_write(REG_WAV, SAW | GATE);
 
-        // Wait for ADSR attack to complete (rate 0: ~131k clocks)
         repeat (150_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
         if (cnt1 > 10) begin
-            $display("[%0t] TEST %0d PASS: PDM active after SPI writes (count=%0d)", $time, test_num, cnt1);
+            $display("[%0t] TEST %0d PASS: PDM active after I2C writes (count=%0d)", $time, test_num, cnt1);
             pass_count = pass_count + 1;
         end else begin
-            $display("[%0t] TEST %0d FAIL: PDM inactive after SPI writes (count=%0d)", $time, test_num, cnt1);
+            $display("[%0t] TEST %0d FAIL: PDM inactive after I2C writes (count=%0d)", $time, test_num, cnt1);
             fail_count = fail_count + 1;
         end
 
@@ -366,7 +403,7 @@ module tt_um_sid_tb;
         // =============================================================
         $display("\n===== 5. Pulse waveform =====");
         sid_write_freq(FREQ_E4);
-        sid_write_pw(16'h0800);   // 50% duty
+        sid_write_pw(16'h0800);
         sid_write(REG_ATK, 8'h00);
         sid_write(REG_SUS, 8'h0F);
         sid_write(REG_WAV, PULSE | GATE);
@@ -414,16 +451,14 @@ module tt_um_sid_tb;
         $display("\n===== 7. ADSR attack ramp =====");
         sid_write_freq(FREQ_C4);
         sid_write_pw(16'h0800);
-        sid_write(REG_ATK, 8'h04);   // attack_rate=4, decay_rate=0
-        sid_write(REG_SUS, 8'h0F);   // sustain=F, release=0
+        sid_write(REG_ATK, 8'h04);
+        sid_write(REG_SUS, 8'h0F);
         sid_write(REG_WAV, SAW | GATE);
 
-        // Early window — envelope still low
         repeat (100_000) @(posedge clk);
         count_pdm(50_000, cnt1);
         $display("[%0t]   Early window PDM count = %0d", $time, cnt1);
 
-        // Late window — envelope has ramped higher
         repeat (500_000) @(posedge clk);
         count_pdm(50_000, cnt2);
         $display("[%0t]   Late  window PDM count = %0d", $time, cnt2);
@@ -452,10 +487,8 @@ module tt_um_sid_tb;
         count_pdm(10_000, cnt1);
         $display("[%0t]   Before release: PDM count = %0d", $time, cnt1);
 
-        // Release gate
         sid_write(REG_WAV, SAW);
 
-        // Wait for envelope release (rate 0: ~131k clocks from max)
         repeat (200_000) @(posedge clk);
         count_pdm(10_000, cnt2);
         $display("[%0t]   After  release: PDM count = %0d", $time, cnt2);
@@ -493,7 +526,6 @@ module tt_um_sid_tb;
         count_pdm(10_000, cnt1);
         $display("[%0t]   Before test bit: PDM count = %0d", $time, cnt1);
 
-        // Set test bit — accumulator held at 0, waveform output = 0
         sid_write(REG_WAV, SAW | GATE | TEST);
         repeat (50_000) @(posedge clk);
 

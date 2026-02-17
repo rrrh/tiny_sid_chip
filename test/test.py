@@ -6,7 +6,7 @@ from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, RisingEdge
 
 
-# Register addresses (16-bit SPI, 8-bit data per register)
+# Register addresses
 REG_FREQ_LO  = 0
 REG_FREQ_HI  = 1
 REG_PW_LO    = 2
@@ -15,47 +15,87 @@ REG_ATTACK   = 4
 REG_SUSTAIN  = 5
 REG_WAVEFORM = 6
 
+# I2C slave address
+I2C_ADDR = 0x36
+I2C_HALF_PERIOD = 25  # clock cycles (~1 MHz at 50 MHz sys clock)
 
-async def spi_write(dut, addr, data):
-    """Write a 16-bit SPI transaction: {addr[2:0], 5'b0, data[7:0]}
-    CPOL=0, CPHA=0, MSB first.
-    ui_in[0] = spi_cs_n, ui_in[1] = spi_clk, ui_in[2] = spi_mosi
-    """
-    word = ((addr & 0x7) << 13) | (data & 0xFF)
 
-    # Assert CS low
-    ui = dut.ui_in.value.to_unsigned() if hasattr(dut.ui_in.value, 'to_unsigned') else 0
-    ui = ui & ~0x01  # CS low
-    ui = ui & ~0x02  # CLK low
-    dut.ui_in.value = ui
-    await ClockCycles(dut.clk, 5)
+async def i2c_start(dut):
+    """I2C START condition: SDA falls while SCL is high."""
+    uio = dut.uio_in.value.to_unsigned() if hasattr(dut.uio_in.value, 'to_unsigned') else 0x03
+    # SDA=1, SCL=1
+    uio = uio | 0x03
+    dut.uio_in.value = uio
+    await ClockCycles(dut.clk, I2C_HALF_PERIOD)
+    # SDA=0 while SCL=1 → START
+    uio = uio & ~0x01
+    dut.uio_in.value = uio
+    await ClockCycles(dut.clk, I2C_HALF_PERIOD)
+    # SCL=0 to begin clocking
+    uio = uio & ~0x02
+    dut.uio_in.value = uio
+    await ClockCycles(dut.clk, I2C_HALF_PERIOD)
 
-    for i in range(15, -1, -1):
-        bit = (word >> i) & 1
-        # Set MOSI, CLK low
-        ui = (ui & ~0x04) | (bit << 2)
-        ui = ui & ~0x02  # CLK low
-        dut.ui_in.value = ui
-        await ClockCycles(dut.clk, 5)
 
-        # CLK high — data sampled
-        ui = ui | 0x02
-        dut.ui_in.value = ui
-        await ClockCycles(dut.clk, 5)
+async def i2c_stop(dut):
+    """I2C STOP condition: SDA rises while SCL is high."""
+    uio = dut.uio_in.value.to_unsigned() if hasattr(dut.uio_in.value, 'to_unsigned') else 0
+    # SDA=0, SCL=0
+    uio = uio & ~0x03
+    dut.uio_in.value = uio
+    await ClockCycles(dut.clk, I2C_HALF_PERIOD)
+    # SCL=1
+    uio = uio | 0x02
+    dut.uio_in.value = uio
+    await ClockCycles(dut.clk, I2C_HALF_PERIOD)
+    # SDA=1 while SCL=1 → STOP
+    uio = uio | 0x01
+    dut.uio_in.value = uio
+    await ClockCycles(dut.clk, I2C_HALF_PERIOD)
 
-    # CLK low, then deassert CS
-    ui = ui & ~0x02
-    dut.ui_in.value = ui
-    await ClockCycles(dut.clk, 5)
 
-    ui = ui | 0x01  # CS high
-    dut.ui_in.value = ui
-    await ClockCycles(dut.clk, 10)
+async def i2c_send_byte(dut, byte):
+    """Send one byte MSB-first, then read ACK on 9th clock."""
+    uio = dut.uio_in.value.to_unsigned() if hasattr(dut.uio_in.value, 'to_unsigned') else 0
+
+    for i in range(7, -1, -1):
+        bit = (byte >> i) & 1
+        # Set SDA, SCL low
+        uio = (uio & ~0x03) | bit  # bit0=SDA, bit1=SCL stays low
+        dut.uio_in.value = uio
+        await ClockCycles(dut.clk, I2C_HALF_PERIOD)
+        # SCL high — slave samples
+        uio = uio | 0x02
+        dut.uio_in.value = uio
+        await ClockCycles(dut.clk, I2C_HALF_PERIOD)
+        # SCL low
+        uio = uio & ~0x02
+        dut.uio_in.value = uio
+        await ClockCycles(dut.clk, I2C_HALF_PERIOD)
+
+    # 9th clock: ACK — release SDA (high), slave pulls low via sda_oe
+    uio = uio | 0x01  # SDA=1 (released)
+    uio = uio & ~0x02  # SCL=0
+    dut.uio_in.value = uio
+    await ClockCycles(dut.clk, I2C_HALF_PERIOD)
+    # SCL high — read ACK
+    uio = uio | 0x02
+    dut.uio_in.value = uio
+    await ClockCycles(dut.clk, I2C_HALF_PERIOD)
+    # SCL low
+    uio = uio & ~0x02
+    dut.uio_in.value = uio
+    await ClockCycles(dut.clk, I2C_HALF_PERIOD)
 
 
 async def sid_write(dut, reg_addr, data):
-    """Write to a SID register (0-6) via SPI. Data is 8-bit."""
-    await spi_write(dut, reg_addr, data)
+    """Write to a SID register via I2C."""
+    await i2c_start(dut)
+    await i2c_send_byte(dut, (I2C_ADDR << 1) | 0)  # address + write
+    await i2c_send_byte(dut, reg_addr & 0xFF)
+    await i2c_send_byte(dut, data & 0xFF)
+    await i2c_stop(dut)
+    await ClockCycles(dut.clk, 10)
 
 
 async def sid_write_freq(dut, freq16):
@@ -83,6 +123,20 @@ async def count_pwm(dut, cycles):
     return count
 
 
+async def reset_dut(dut):
+    """Common reset sequence for all tests."""
+    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    cocotb.start_soon(clock.start())
+
+    dut.ena.value = 1
+    dut.ui_in.value = 0x00
+    dut.uio_in.value = 0x03  # SDA=1, SCL=1 (I2C idle)
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 20)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 10)
+
+
 @cocotb.test()
 async def test_reset(dut):
     """Test that reset clears outputs."""
@@ -90,8 +144,8 @@ async def test_reset(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x01  # CS high, CLK low
-    dut.uio_in.value = 0
+    dut.ui_in.value = 0x00
+    dut.uio_in.value = 0x03  # I2C idle
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
 
@@ -109,27 +163,13 @@ async def test_reset(dut):
 @cocotb.test()
 async def test_sawtooth(dut):
     """Test sawtooth waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
-    cocotb.start_soon(clock.start())
+    await reset_dut(dut)
 
-    dut.ena.value = 1
-    dut.ui_in.value = 0x01  # CS high
-    dut.uio_in.value = 0
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 20)
-    dut.rst_n.value = 1
-    await ClockCycles(dut.clk, 10)
-
-    # Frequency: C4 (~262 Hz at 50 MHz) = 4291 = 0x10C3
     await sid_write_freq(dut, 4291)
-    # Attack=0 (fastest), Decay=0
     await sid_write(dut, REG_ATTACK, 0x00)
-    # Sustain=F (full), Release=0
     await sid_write(dut, REG_SUSTAIN, 0x0F)
-    # Sawtooth + gate: bit5=saw, bit0=gate
-    await sid_write(dut, REG_WAVEFORM, 0x21)
+    await sid_write(dut, REG_WAVEFORM, 0x21)  # SAW + GATE
 
-    # Wait for attack to ramp up and check PDM activity
     await ClockCycles(dut.clk, 200000)
     pdm_count = await count_pwm(dut, 100000)
     dut._log.info(f"Sawtooth PWM count: {pdm_count}")
@@ -139,22 +179,12 @@ async def test_sawtooth(dut):
 @cocotb.test()
 async def test_triangle(dut):
     """Test triangle waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
-    cocotb.start_soon(clock.start())
-
-    dut.ena.value = 1
-    dut.ui_in.value = 0x01
-    dut.uio_in.value = 0
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 20)
-    dut.rst_n.value = 1
-    await ClockCycles(dut.clk, 10)
+    await reset_dut(dut)
 
     await sid_write_freq(dut, 4291)
     await sid_write(dut, REG_ATTACK, 0x00)
     await sid_write(dut, REG_SUSTAIN, 0x0F)
-    # Triangle + gate: bit4=tri, bit0=gate
-    await sid_write(dut, REG_WAVEFORM, 0x11)
+    await sid_write(dut, REG_WAVEFORM, 0x11)  # TRI + GATE
 
     await ClockCycles(dut.clk, 200000)
     pdm_count = await count_pwm(dut, 100000)
@@ -165,24 +195,13 @@ async def test_triangle(dut):
 @cocotb.test()
 async def test_pulse(dut):
     """Test pulse waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
-    cocotb.start_soon(clock.start())
-
-    dut.ena.value = 1
-    dut.ui_in.value = 0x01
-    dut.uio_in.value = 0
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 20)
-    dut.rst_n.value = 1
-    await ClockCycles(dut.clk, 10)
+    await reset_dut(dut)
 
     await sid_write_freq(dut, 4291)
-    # Pulse width = 50% (2048 = 0x0800)
     await sid_write_pw(dut, 2048)
     await sid_write(dut, REG_ATTACK, 0x00)
     await sid_write(dut, REG_SUSTAIN, 0x0F)
-    # Pulse + gate: bit6=pulse, bit0=gate
-    await sid_write(dut, REG_WAVEFORM, 0x41)
+    await sid_write(dut, REG_WAVEFORM, 0x41)  # PULSE + GATE
 
     await ClockCycles(dut.clk, 200000)
     pdm_count = await count_pwm(dut, 100000)
@@ -193,22 +212,12 @@ async def test_pulse(dut):
 @cocotb.test()
 async def test_noise(dut):
     """Test noise waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
-    cocotb.start_soon(clock.start())
-
-    dut.ena.value = 1
-    dut.ui_in.value = 0x01
-    dut.uio_in.value = 0
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 20)
-    dut.rst_n.value = 1
-    await ClockCycles(dut.clk, 10)
+    await reset_dut(dut)
 
     await sid_write_freq(dut, 4291)
     await sid_write(dut, REG_ATTACK, 0x00)
     await sid_write(dut, REG_SUSTAIN, 0x0F)
-    # Noise + gate: bit7=noise, bit0=gate
-    await sid_write(dut, REG_WAVEFORM, 0x81)
+    await sid_write(dut, REG_WAVEFORM, 0x81)  # NOISE + GATE
 
     await ClockCycles(dut.clk, 200000)
     pdm_count = await count_pwm(dut, 100000)
@@ -219,33 +228,21 @@ async def test_noise(dut):
 @cocotb.test(skip=os.environ.get("GATES") == "yes")
 async def test_gate_release(dut):
     """Test that releasing the gate silences PWM output. Skipped in GL sim."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
-    cocotb.start_soon(clock.start())
-
-    dut.ena.value = 1
-    dut.ui_in.value = 0x01
-    dut.uio_in.value = 0
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 20)
-    dut.rst_n.value = 1
-    await ClockCycles(dut.clk, 10)
+    await reset_dut(dut)
 
     await sid_write_freq(dut, 4291)
     await sid_write(dut, REG_ATTACK, 0x00)
-    await sid_write(dut, REG_SUSTAIN, 0x0F)  # sustain=F, release=0 (fastest)
-    # Sawtooth + gate
-    await sid_write(dut, REG_WAVEFORM, 0x21)
+    await sid_write(dut, REG_SUSTAIN, 0x0F)
+    await sid_write(dut, REG_WAVEFORM, 0x21)  # SAW + GATE
 
-    # Let it play
     await ClockCycles(dut.clk, 200000)
 
-    # Release gate (clear bit 0)
+    # Release gate
     await sid_write(dut, REG_WAVEFORM, 0x20)
 
-    # Wait for release to fully complete (~2.6ms at rate 0 = 130k cycles at 50 MHz)
+    # Wait for release
     await ClockCycles(dut.clk, 300000)
 
-    # PWM should be silent
     pdm_count = await count_pwm(dut, 100000)
     dut._log.info(f"After release PWM count: {pdm_count}")
     assert pdm_count == 0, f"PWM should be silent after release, got {pdm_count}"
