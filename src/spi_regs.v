@@ -36,13 +36,17 @@ module spi_regs (
     output reg  [7:0]  sid_sustain,
     output reg  [7:0]  sid_waveform,
 
-    // Voice 2 (bass) register outputs
-    output reg  [7:0]  v2_attack,      // [7:4]=decay, [3:0]=attack
-    output reg  [7:0]  v2_gate_freq    // [7:1]=frequency, [0]=gate
+    // Voice 2 (bass) register outputs — directly driven, no SPI control
+    output wire [7:0]  v2_attack,      // [7:4]=decay, [3:0]=attack
+    output wire [7:0]  v2_gate_freq    // [7:1]=frequency, [0]=gate
 );
 
     // Write-only: MISO always low
     assign spi_miso = 1'b0;
+
+    // V2 not controllable via SPI — tie off (V2 silent in SPI mode)
+    assign v2_attack    = 8'd0;
+    assign v2_gate_freq = 8'd0;
 
     //==========================================================================
     // 2FF Synchronizers
@@ -100,8 +104,6 @@ module spi_regs (
             sid_attack    <= 8'd0;
             sid_sustain   <= 8'd0;
             sid_waveform  <= 8'd0;
-            v2_attack     <= 8'd0;
-            v2_gate_freq  <= 8'd0;
         end else if (!cs_active) begin
             // CS_n high — reset transaction state
             rx_shift     <= 16'd0;
@@ -119,8 +121,6 @@ module spi_regs (
                     3'd4: sid_attack           <= {rx_shift[6:0], spi_mosi_d2};
                     3'd5: sid_sustain          <= {rx_shift[6:0], spi_mosi_d2};
                     3'd6: sid_waveform         <= {rx_shift[6:0], spi_mosi_d2};
-                    3'd3: v2_attack           <= {rx_shift[6:0], spi_mosi_d2};
-                    3'd7: v2_gate_freq        <= {rx_shift[6:0], spi_mosi_d2};
                     default: ;
                 endcase
             end
