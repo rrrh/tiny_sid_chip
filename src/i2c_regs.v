@@ -81,47 +81,49 @@ module i2c_regs (
     wire i2c_stop  =  sda_d2 && !sda_d3 && scl_d2;  // SDA↑ while SCL high
 
     //==========================================================================
-    // State machine
+    // State machine — 3 states + 2-bit byte counter
     //==========================================================================
-    // Byte phases: ADDR(byte0), REG(byte1), DATA(byte2+)
-    // Within each byte: 8 data bits on SCL rise, then ACK on SCL fall/rise
-    localparam [2:0] ST_IDLE     = 3'd0,
-                     ST_ADDR     = 3'd1,  // receiving address byte bits
-                     ST_ADDR_ACK = 3'd2,  // ACK phase for address byte
-                     ST_REG      = 3'd3,  // receiving register address byte
-                     ST_REG_ACK  = 3'd4,
-                     ST_DATA     = 3'd5,  // receiving data byte
-                     ST_DATA_ACK = 3'd6;
+    // Merged FSM: one SHIFT state handles all byte reception,
+    // one ACK state handles all ACK phases. byte_num selects action.
+    localparam [1:0] ST_IDLE  = 2'd0,
+                     ST_SHIFT = 2'd1,
+                     ST_ACK   = 2'd2;
 
-    reg [2:0]  state;
+    localparam [1:0] BN_ADDR = 2'd0,  // byte 0: slave address
+                     BN_REG  = 2'd1,  // byte 1: register address
+                     BN_DATA = 2'd2;  // byte 2+: data
+
+    reg [1:0]  state;
+    reg [1:0]  byte_num;
     reg [7:0]  shift_reg;
-    reg [2:0]  bit_cnt;    // counts 0..7 for 8 data bits
+    reg [2:0]  bit_cnt;
     reg [2:0]  reg_addr;
-    reg        ack_phase;  // 0=waiting for SCL rise (master samples ACK), 1=done
+
+    // sda_oe doubles as ACK sub-phase indicator:
+    //   ACK state, sda_oe=0 → waiting for first SCL fall (assert ACK)
+    //   ACK state, sda_oe=1 → waiting for second SCL fall (release ACK)
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state         <= ST_IDLE;
+            byte_num      <= BN_ADDR;
             shift_reg     <= 8'd0;
             bit_cnt       <= 3'd0;
             reg_addr      <= 3'd0;
             sda_oe        <= 1'b0;
-            ack_phase     <= 1'b0;
             sid_frequency <= 16'd0;
             sid_duration  <= 8'd0;
             sid_attack    <= 8'd0;
             sid_sustain   <= 8'd0;
             sid_waveform  <= 8'd0;
         end else begin
-            // START always restarts the transaction
             if (i2c_start) begin
-                state     <= ST_ADDR;
+                state     <= ST_SHIFT;
+                byte_num  <= BN_ADDR;
                 bit_cnt   <= 3'd0;
                 shift_reg <= 8'd0;
                 sda_oe    <= 1'b0;
-                ack_phase <= 1'b0;
             end
-            // STOP always returns to idle
             else if (i2c_stop) begin
                 state  <= ST_IDLE;
                 sda_oe <= 1'b0;
@@ -129,23 +131,19 @@ module i2c_regs (
             else begin
                 case (state)
 
-                //--------------------------------------------------------------
-                // IDLE — wait for START
-                //--------------------------------------------------------------
                 ST_IDLE: begin
                     sda_oe <= 1'b0;
                 end
 
                 //--------------------------------------------------------------
-                // ADDR — shift in 8 bits (7-bit address + R/W) on SCL rise
+                // SHIFT — receive 8 bits on SCL rising edges (all byte types)
                 //--------------------------------------------------------------
-                ST_ADDR: begin
+                ST_SHIFT: begin
                     if (scl_rise) begin
                         shift_reg <= {shift_reg[6:0], sda_d2};
                         if (bit_cnt == 3'd7) begin
-                            state     <= ST_ADDR_ACK;
-                            bit_cnt   <= 3'd0;
-                            ack_phase <= 1'b0;
+                            state   <= ST_ACK;
+                            bit_cnt <= 3'd0;
                         end else begin
                             bit_cnt <= bit_cnt + 1'b1;
                         end
@@ -153,110 +151,45 @@ module i2c_regs (
                 end
 
                 //--------------------------------------------------------------
-                // ADDR_ACK — assert ACK on SCL fall, release on next SCL fall
+                // ACK — assert/release ACK, dispatch action by byte_num
                 //--------------------------------------------------------------
-                ST_ADDR_ACK: begin
-                    if (!ack_phase) begin
-                        // First SCL fall after last data bit: assert ACK
-                        if (scl_fall) begin
-                            if (shift_reg[7:1] == I2C_ADDR && shift_reg[0] == 1'b0) begin
-                                sda_oe    <= 1'b1;  // ACK (pull SDA low)
-                                ack_phase <= 1'b1;
-                            end else begin
-                                // NACK — wrong address or read mode
-                                sda_oe <= 1'b0;
-                                state  <= ST_IDLE;
-                            end
-                        end
-                    end else begin
-                        // Next SCL fall: release ACK, move to REG byte
-                        if (scl_fall) begin
-                            sda_oe    <= 1'b0;
-                            state     <= ST_REG;
-                            shift_reg <= 8'd0;
-                            ack_phase <= 1'b0;
-                        end
-                    end
-                end
-
-                //--------------------------------------------------------------
-                // REG — shift in register address byte
-                //--------------------------------------------------------------
-                ST_REG: begin
-                    if (scl_rise) begin
-                        shift_reg <= {shift_reg[6:0], sda_d2};
-                        if (bit_cnt == 3'd7) begin
-                            state     <= ST_REG_ACK;
-                            bit_cnt   <= 3'd0;
-                            ack_phase <= 1'b0;
-                        end else begin
-                            bit_cnt <= bit_cnt + 1'b1;
-                        end
-                    end
-                end
-
-                //--------------------------------------------------------------
-                // REG_ACK — ACK the register address byte
-                //--------------------------------------------------------------
-                ST_REG_ACK: begin
-                    if (!ack_phase) begin
-                        if (scl_fall) begin
-                            reg_addr  <= shift_reg[2:0];
-                            sda_oe    <= 1'b1;  // ACK
-                            ack_phase <= 1'b1;
-                        end
-                    end else begin
-                        if (scl_fall) begin
-                            sda_oe    <= 1'b0;
-                            state     <= ST_DATA;
-                            shift_reg <= 8'd0;
-                            ack_phase <= 1'b0;
-                        end
-                    end
-                end
-
-                //--------------------------------------------------------------
-                // DATA — shift in data byte
-                //--------------------------------------------------------------
-                ST_DATA: begin
-                    if (scl_rise) begin
-                        shift_reg <= {shift_reg[6:0], sda_d2};
-                        if (bit_cnt == 3'd7) begin
-                            state     <= ST_DATA_ACK;
-                            bit_cnt   <= 3'd0;
-                            ack_phase <= 1'b0;
-                        end else begin
-                            bit_cnt <= bit_cnt + 1'b1;
-                        end
-                    end
-                end
-
-                //--------------------------------------------------------------
-                // DATA_ACK — ACK data, write to register, auto-increment addr
-                //--------------------------------------------------------------
-                ST_DATA_ACK: begin
-                    if (!ack_phase) begin
-                        if (scl_fall) begin
-                            // Write the received byte to the addressed register
-                            case (reg_addr)
-                                3'd0: sid_frequency[7:0]  <= shift_reg;
-                                3'd1: sid_frequency[15:8] <= shift_reg;
-                                3'd2: sid_duration         <= shift_reg;
-                                3'd4: sid_attack           <= shift_reg;
-                                3'd5: sid_sustain          <= shift_reg;
-                                3'd6: sid_waveform         <= shift_reg;
-                                default: ;
+                ST_ACK: begin
+                    if (scl_fall) begin
+                        if (!sda_oe) begin
+                            // First SCL fall: perform action and assert ACK
+                            case (byte_num)
+                                BN_ADDR: begin
+                                    if (shift_reg[7:1] == I2C_ADDR && shift_reg[0] == 1'b0) begin
+                                        sda_oe <= 1'b1;
+                                    end else begin
+                                        state <= ST_IDLE;  // NACK
+                                    end
+                                end
+                                BN_REG: begin
+                                    reg_addr <= shift_reg[2:0];
+                                    sda_oe   <= 1'b1;
+                                end
+                                default: begin  // BN_DATA
+                                    case (reg_addr)
+                                        3'd0: sid_frequency[7:0]  <= shift_reg;
+                                        3'd1: sid_frequency[15:8] <= shift_reg;
+                                        3'd2: sid_duration         <= shift_reg;
+                                        3'd4: sid_attack           <= shift_reg;
+                                        3'd5: sid_sustain          <= shift_reg;
+                                        3'd6: sid_waveform         <= shift_reg;
+                                        default: ;
+                                    endcase
+                                    reg_addr <= reg_addr + 1'b1;
+                                    sda_oe   <= 1'b1;
+                                end
                             endcase
-                            reg_addr  <= reg_addr + 1'b1;
-                            sda_oe    <= 1'b1;  // ACK
-                            ack_phase <= 1'b1;
-                        end
-                    end else begin
-                        if (scl_fall) begin
+                        end else begin
+                            // Second SCL fall: release ACK, next byte
                             sda_oe    <= 1'b0;
-                            state     <= ST_DATA;
+                            state     <= ST_SHIFT;
                             shift_reg <= 8'd0;
-                            ack_phase <= 1'b0;
+                            if (byte_num != BN_DATA)
+                                byte_num <= byte_num + 1'b1;
                         end
                     end
                 end
