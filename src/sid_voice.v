@@ -22,6 +22,7 @@ module sid_voice #(
     input  wire [7:0]  sustain,
     input  wire [7:0]  waveform,
     input  wire        accumulator_msb_in,
+    input  wire [15:0] prescaler,
 
     output wire [7:0]  voice,
     output wire        accumulator_msb_out
@@ -57,6 +58,7 @@ module sid_voice #(
         .decay_rate    (attack[7:4]),
         .sustain_value (sustain[3:0]),
         .release_rate  (sustain[7:4]),
+        .prescaler     (prescaler),
         .adsr_value    (adsr_value)
     );
 

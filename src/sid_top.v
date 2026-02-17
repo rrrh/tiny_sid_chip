@@ -18,6 +18,15 @@ module sid_top (
     output wire [7:0]  audio_out
 );
 
+    // Shared prescaler for ADSR
+    reg [15:0] prescaler;
+    always @(posedge clk) begin
+        if (rst)
+            prescaler <= 16'd0;
+        else
+            prescaler <= prescaler + 1'b1;
+    end
+
     sid_voice #(.IS_8580(0)) u_voice (
         .clk                (clk),
         .rst                (rst),
@@ -27,6 +36,7 @@ module sid_top (
         .sustain            (sustain),
         .waveform           (waveform),
         .accumulator_msb_in (1'b0),
+        .prescaler          (prescaler),
         .voice              (audio_out),
         .accumulator_msb_out()
     );

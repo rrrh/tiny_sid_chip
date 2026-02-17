@@ -29,12 +29,16 @@ module spi_regs (
     input  wire        spi_mosi,
     output wire        spi_miso,
 
-    // SID register outputs
+    // SID register outputs (Voice 1)
     output reg  [15:0] sid_frequency,
     output reg  [7:0]  sid_duration,
     output reg  [7:0]  sid_attack,
     output reg  [7:0]  sid_sustain,
-    output reg  [7:0]  sid_waveform
+    output reg  [7:0]  sid_waveform,
+
+    // Voice 2 (noise-only) register outputs
+    output reg  [7:0]  v2_attack,      // [7:4]=decay, [3:0]=attack
+    output reg  [7:0]  v2_gate_freq    // [7:1]=lfsr_freq, [0]=gate
 );
 
     // Write-only: MISO always low
@@ -96,6 +100,8 @@ module spi_regs (
             sid_attack    <= 8'd0;
             sid_sustain   <= 8'd0;
             sid_waveform  <= 8'd0;
+            v2_attack     <= 8'd0;
+            v2_gate_freq  <= 8'd0;
         end else if (!cs_active) begin
             // CS_n high — reset transaction state
             rx_shift     <= 16'd0;
@@ -113,6 +119,8 @@ module spi_regs (
                     3'd4: sid_attack           <= {rx_shift[6:0], spi_mosi_d2};
                     3'd5: sid_sustain          <= {rx_shift[6:0], spi_mosi_d2};
                     3'd6: sid_waveform         <= {rx_shift[6:0], spi_mosi_d2};
+                    3'd3: v2_attack           <= {rx_shift[6:0], spi_mosi_d2};
+                    3'd7: v2_gate_freq        <= {rx_shift[6:0], spi_mosi_d2};
                     default: ;
                 endcase
             end

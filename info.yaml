@@ -19,6 +19,7 @@ project:
     - "tt_um_sid.v"
     - "spi_regs.v"
     - "sid_voice.v"
+    - "sid_noise_voice.v"
     - "sid_asdr_generator.v"
     - "pwm_audio.v"
     - "sid_sequencer.v"
