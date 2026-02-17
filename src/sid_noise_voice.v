@@ -1,15 +1,14 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// SID Voice 2 — Noise or Sawtooth with ADSR Envelope
+// SID Voice 2 — Sawtooth with ADSR Envelope
 //==============================================================================
-// Minimal second voice supporting two waveform modes:
-//   noise_en=1: LFSR noise (snare/hihat percussion)
-//   noise_en=0: sawtooth from accumulator (bassline)
-//
-//   - 24-bit accumulator (phase increment from 7-bit frequency)
-//   - 16-bit LFSR (same polynomial as sid_voice)
+// Minimal second voice for bassline:
+//   - 16-bit accumulator (prescaler-gated for low frequencies)
 //   - ADSR envelope with shared prescaler
 //   - Logarithmic barrel shifter (same as sid_voice)
+//
+// Frequency formula: f = freq × (clk/256) / 2^16 ≈ freq × 2.98 Hz @ 50 MHz
+//   freq=22 → 65.6 Hz (C2), freq=17 → 50.7 Hz (G1), freq=20 → 59.6 Hz (Bb1)
 //==============================================================================
 
 module sid_noise_voice (
@@ -21,31 +20,21 @@ module sid_noise_voice (
     input  wire [3:0]  sustain_value,
     input  wire [3:0]  release_rate,
     input  wire        gate,
-    input  wire        noise_en,       // 1=noise, 0=sawtooth
     input  wire [15:0] prescaler,      // shared with V1
     output wire [7:0]  voice
 );
 
     //==========================================================================
-    // 24-bit accumulator — provides saw waveform & clocks LFSR
+    // 16-bit accumulator — prescaler-gated for bass frequencies
+    // Increments every 256 clocks (when &prescaler[7:0])
     //==========================================================================
-    reg [23:0] accumulator;
-    reg [15:0] lfsr;
-    reg        lfsr_clk_prev;
+    reg [15:0] accumulator;
 
     always @(posedge clk) begin
-        if (rst) begin
-            accumulator   <= 24'd0;
-            lfsr          <= 16'h0001;
-            lfsr_clk_prev <= 1'b0;
-        end else begin
-            accumulator <= accumulator + {17'b0, frequency};
-
-            // LFSR clocked by accumulator[19] edge
-            lfsr_clk_prev <= accumulator[19];
-            if (lfsr_clk_prev != accumulator[19])
-                lfsr <= {lfsr[14:0], lfsr[15] ^ lfsr[13] ^ lfsr[12] ^ lfsr[10]};
-        end
+        if (rst)
+            accumulator <= 16'd0;
+        else if (&prescaler[7:0])
+            accumulator <= accumulator + {9'b0, frequency};
     end
 
     //==========================================================================
@@ -66,9 +55,9 @@ module sid_noise_voice (
     );
 
     //==========================================================================
-    // Waveform select: noise (LFSR) or sawtooth (accumulator)
+    // Sawtooth waveform from accumulator MSBs
     //==========================================================================
-    wire [7:0] wave_out = noise_en ? lfsr[15:8] : accumulator[23:16];
+    wire [7:0] wave_out = accumulator[15:8];
 
     //==========================================================================
     // Logarithmic barrel shifter — same as sid_voice

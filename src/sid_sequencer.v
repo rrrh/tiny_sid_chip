@@ -29,8 +29,7 @@ module sid_sequencer (
     output wire [7:0]  v2_attack,
     output wire [7:0]  v2_sustain,
     output wire        v2_gate,
-    output wire [6:0]  v2_frequency,
-    output wire        v2_noise_en
+    output wire [6:0]  v2_frequency
 );
 
     //==========================================================================
@@ -127,8 +126,6 @@ module sid_sequencer (
 
     assign v2_frequency = bass_freq;
     assign v2_gate      = v2_gate_on;
-    assign v2_noise_en  = 1'b0;                           // sawtooth for bass
-
     // Bass ADSR: instant attack, medium decay, moderate sustain, slow release
     assign v2_attack    = 8'h40;                           // decay=4, attack=0
     assign v2_sustain   = 8'h76;                           // release=7, sustain=6

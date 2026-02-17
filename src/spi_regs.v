@@ -36,9 +36,9 @@ module spi_regs (
     output reg  [7:0]  sid_sustain,
     output reg  [7:0]  sid_waveform,
 
-    // Voice 2 (noise-only) register outputs
+    // Voice 2 (bass) register outputs
     output reg  [7:0]  v2_attack,      // [7:4]=decay, [3:0]=attack
-    output reg  [7:0]  v2_gate_freq    // [7:1]=lfsr_freq, [0]=gate
+    output reg  [7:0]  v2_gate_freq    // [7:1]=frequency, [0]=gate
 );
 
     // Write-only: MISO always low

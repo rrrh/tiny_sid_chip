@@ -6,7 +6,7 @@
 //   - spi_regs:          SPI slave → write-only register bank (16-bit frames)
 //   - sid_sequencer:     Built-in drum+bass pattern (V1=drums, V2=bassline)
 //   - sid_voice:         V1 — full SID voice (saw/tri/pulse/noise + ADSR)
-//   - sid_noise_voice:   V2 — noise/saw voice (LFSR or saw + ADSR)
+//   - sid_noise_voice:   V2 — sawtooth bass voice (16-bit accum + ADSR)
 //   - pwm_audio:         8-bit PWM audio output (255-clock period, ~196 kHz)
 //
 // SPI Protocol (CPOL=0, CPHA=0, MSB first):
@@ -95,8 +95,6 @@ module tt_um_sid (
     wire [7:0]  seq_v2_sustain;
     wire        seq_v2_gate;
     wire [6:0]  seq_v2_frequency;
-    wire        seq_v2_noise_en;
-
     sid_sequencer u_seq (
         .clk          (clk),
         .rst          (rst),
@@ -109,8 +107,7 @@ module tt_um_sid (
         .v2_attack    (seq_v2_attack),
         .v2_sustain   (seq_v2_sustain),
         .v2_gate      (seq_v2_gate),
-        .v2_frequency (seq_v2_frequency),
-        .v2_noise_en  (seq_v2_noise_en)
+        .v2_frequency (seq_v2_frequency)
     );
 
     //==========================================================================
@@ -131,8 +128,6 @@ module tt_um_sid (
     wire [3:0]  v2_release_rate  = seq_enable ? seq_v2_sustain[7:4]    : 4'd1;
     wire        v2_gate          = seq_enable ? seq_v2_gate             : spi_v2_gate_freq[0];
     wire [6:0]  v2_frequency     = seq_enable ? seq_v2_frequency        : spi_v2_gate_freq[7:1];
-    wire        v2_noise_en      = seq_enable ? seq_v2_noise_en         : 1'b1;
-
     //==========================================================================
     // V1: SID Voice (full voice with shared prescaler)
     //==========================================================================
@@ -153,7 +148,7 @@ module tt_um_sid (
     );
 
     //==========================================================================
-    // V2: Noise Voice (noise-only with shared prescaler)
+    // V2: Bass Voice (sawtooth + ADSR, shared prescaler)
     //==========================================================================
     wire [7:0] v2_out;
 
@@ -166,7 +161,6 @@ module tt_um_sid (
         .sustain_value (v2_sustain_value),
         .release_rate  (v2_release_rate),
         .gate          (v2_gate),
-        .noise_en      (v2_noise_en),
         .prescaler     (prescaler),
         .voice         (v2_out)
     );
