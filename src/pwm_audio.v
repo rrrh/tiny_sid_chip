@@ -21,8 +21,8 @@ module pwm_audio (
 
     reg [7:0] count;
 
-    always @(posedge clk) begin
-        if (!rst_n) count <= 0;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin count <= 0; pwm <= 0; end
         else begin
             pwm <= count < sample;
             count <= count + 1;

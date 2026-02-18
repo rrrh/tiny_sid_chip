@@ -1,25 +1,30 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// TT10 Wrapper — SID Voice Synthesizer
+// TT10 Wrapper — Dual SID Voice Synthesizer
 //==============================================================================
 // Instantiates:
-//   - spi_regs:        SPI slave → write-only register bank (16-bit frames)
-//   - sid_voice:       SID waveform generator with ADSR envelope
+//   - Two sid_voice instances with independent register banks
 //   - pwm_audio:       8-bit PWM audio output (255-clock period, ~196 kHz)
 //
-// SPI Protocol (CPOL=0, CPHA=0, MSB first):
-//   16-bit write frame: [15:13]=addr[2:0]  [12:8]=reserved  [7:0]=data
-//   Registers: 0=freq_lo, 1=freq_hi, 2=pw_lo, 3=pw_hi,
-//              4=attack, 5=sustain, 6=waveform
-//
-// Pin Mapping:
-//   ui_in[0]    = spi_cs_n      ui_in[3:7] = unused
-//   ui_in[1]    = spi_clk
-//   ui_in[2]    = spi_mosi
-//   uo_out[0]   = spi_miso (tied low, write-only)
+// Flat Memory-Mapped Register Interface:
+//   ui_in[2:0]  = register address (3-bit)
+//   ui_in[3]    = voice select (0=voice1, 1=voice2)
+//   ui_in[7]    = write enable (active high, rising-edge triggered)
+//   ui_in[6:4]  = unused
+//   uio[7:0]    = data input (all inputs, directly driven by controller)
+//   uo_out[0]   = pwm_out (8-bit PWM audio output)
 //   uo_out[7:1] = 0
-//   uio[7]      = pwm_out (8-bit PWM audio output)
-//   uio[6:0]    = unused (input, no drive)
+//
+// Register Map (per voice):
+//   0: freq_lo  — frequency[7:0]
+//   1: freq_hi  — frequency[15:8]
+//   2: pw       — duration[7:0] (pulse width)
+//   3: (unused)
+//   4: attack   — attack[7:0]
+//   5: sustain  — sustain[7:0]
+//   6: waveform — waveform[7:0]
+//
+// Mixing: sum both 8-bit voice outputs to 9-bit, right-shift by 1.
 //==============================================================================
 
 module tt_um_sid (
@@ -36,52 +41,117 @@ module tt_um_sid (
     //==========================================================================
     // Input assignments
     //==========================================================================
-    wire spi_cs_n_in = ui_in[0];
-    wire spi_clk_in  = ui_in[1];
-    wire spi_mosi_in = ui_in[2];
+    wire [2:0] reg_addr  = ui_in[2:0];
+    wire       voice_sel = ui_in[3];
+    wire       wr_en     = ui_in[7];
+    wire [7:0] wr_data   = uio_in;
 
     wire rst = !rst_n;
 
     //==========================================================================
-    // SPI Register Bank (write-only)
+    // Write enable edge detection
     //==========================================================================
-    wire [15:0] sid_frequency;
-    wire [15:0] sid_duration;
-    wire [7:0]  sid_attack;
-    wire [7:0]  sid_sustain;
-    wire [7:0]  sid_waveform;
-
-    spi_regs u_spi_regs (
-        .clk           (clk),
-        .rst_n         (rst_n),
-        .spi_clk       (spi_clk_in),
-        .spi_cs_n      (spi_cs_n_in),
-        .spi_mosi      (spi_mosi_in),
-        .spi_miso      (uo_out[0]),
-        .sid_frequency (sid_frequency),
-        .sid_duration  (sid_duration),
-        .sid_attack    (sid_attack),
-        .sid_sustain   (sid_sustain),
-        .sid_waveform  (sid_waveform)
-    );
+    reg wr_en_d;
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n) wr_en_d <= 1'b0;
+        else        wr_en_d <= wr_en;
+    wire wr_en_rise = wr_en && !wr_en_d;
 
     //==========================================================================
-    // SID Voice
+    // Voice 1 register bank
     //==========================================================================
-    wire [7:0]  voice_out;
+    reg [15:0] v1_frequency;
+    reg [7:0]  v1_duration;
+    reg [7:0]  v1_attack, v1_sustain, v1_waveform;
 
-    sid_voice #(.IS_8580(0)) u_voice (
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            v1_frequency <= 0; v1_duration <= 0;
+            v1_attack <= 0; v1_sustain <= 0; v1_waveform <= 0;
+        end else if (wr_en_rise && !voice_sel) begin
+            case (reg_addr)
+                3'd0: v1_frequency[7:0]  <= wr_data;
+                3'd1: v1_frequency[15:8] <= wr_data;
+                3'd2: v1_duration         <= wr_data;
+                3'd4: v1_attack          <= wr_data;
+                3'd5: v1_sustain         <= wr_data;
+                3'd6: v1_waveform        <= wr_data;
+                default: ;
+            endcase
+        end
+    end
+
+    //==========================================================================
+    // Voice 2 register bank
+    //==========================================================================
+    reg [15:0] v2_frequency;
+    reg [7:0]  v2_duration;
+    reg [7:0]  v2_attack, v2_sustain, v2_waveform;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            v2_frequency <= 0; v2_duration <= 0;
+            v2_attack <= 0; v2_sustain <= 0; v2_waveform <= 0;
+        end else if (wr_en_rise && voice_sel) begin
+            case (reg_addr)
+                3'd0: v2_frequency[7:0]  <= wr_data;
+                3'd1: v2_frequency[15:8] <= wr_data;
+                3'd2: v2_duration         <= wr_data;
+                3'd4: v2_attack          <= wr_data;
+                3'd5: v2_sustain         <= wr_data;
+                3'd6: v2_waveform        <= wr_data;
+                default: ;
+            endcase
+        end
+    end
+
+    //==========================================================================
+    // Shared ADSR prescaler (free-running 23-bit counter)
+    //==========================================================================
+    reg [22:0] adsr_prescaler;
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n) adsr_prescaler <= 23'd0;
+        else        adsr_prescaler <= adsr_prescaler + 1'b1;
+
+    //==========================================================================
+    // SID Voice 1
+    //==========================================================================
+    wire [7:0] voice1_out;
+
+    sid_voice #(.IS_8580(0)) u_voice1 (
         .clk                (clk),
         .rst                (rst),
-        .frequency          (sid_frequency),
-        .duration           (sid_duration),
-        .attack             (sid_attack),
-        .sustain            (sid_sustain),
-        .waveform           (sid_waveform),
-        .accumulator_msb_in (1'b0),
-        .voice              (voice_out),
-        .accumulator_msb_out()
+        .frequency          (v1_frequency),
+        .duration           (v1_duration),
+        .attack             (v1_attack),
+        .sustain            (v1_sustain),
+        .waveform           (v1_waveform),
+        .prescaler          (adsr_prescaler),
+        .voice              (voice1_out)
     );
+
+    //==========================================================================
+    // SID Voice 2
+    //==========================================================================
+    wire [7:0] voice2_out;
+
+    sid_voice #(.IS_8580(0)) u_voice2 (
+        .clk                (clk),
+        .rst                (rst),
+        .frequency          (v2_frequency),
+        .duration           (v2_duration),
+        .attack             (v2_attack),
+        .sustain            (v2_sustain),
+        .waveform           (v2_waveform),
+        .prescaler          (adsr_prescaler),
+        .voice              (voice2_out)
+    );
+
+    //==========================================================================
+    // Mix: sum both voices to 9-bit, right-shift by 1
+    //==========================================================================
+    wire [8:0] mix = {1'b0, voice1_out} + {1'b0, voice2_out};
+    wire [7:0] mix_out = mix[8:1];
 
     //==========================================================================
     // PWM Audio Output (8-bit, ~196 kHz)
@@ -91,22 +161,18 @@ module tt_um_sid (
     pwm_audio u_pwm (
         .clk    (clk),
         .rst_n  (rst_n),
-        .sample (voice_out),
+        .sample (mix_out),
         .pwm    (pwm_out)
     );
 
     //==========================================================================
     // Output Pin Mapping
     //==========================================================================
-    // uo_out[0] = spi_miso (tied low by spi_regs)
-    assign uo_out[7:1] = 7'b0;
-
-    // uio[7] = pwm_out (8-bit PWM audio, output enabled)
-    // uio[6:0] = unused (inputs, no drive)
-    assign uio_out = {pwm_out, 7'b0};
-    assign uio_oe  = 8'h80;
+    assign uo_out  = {7'b0, pwm_out};
+    assign uio_out = 8'b0;
+    assign uio_oe  = 8'b0;  // all inputs
 
     // Suppress unused input warnings
-    wire _unused = &{ena, ui_in[7:3], uio_in, 1'b0};
+    wire _unused = &{ena, ui_in[6:4], 1'b0};
 
 endmodule

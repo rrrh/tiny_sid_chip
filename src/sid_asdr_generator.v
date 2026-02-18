@@ -15,14 +15,15 @@
 //==============================================================================
 
 module sid_asdr_generator (
-    input  wire       clk,
-    input  wire       rst,
-    input  wire       gate,
-    input  wire [3:0] attack_rate,
-    input  wire [3:0] decay_rate,
-    input  wire [3:0] sustain_value,
-    input  wire [3:0] release_rate,
-    output wire [7:0] adsr_value
+    input  wire        clk,
+    input  wire        rst,
+    input  wire        gate,
+    input  wire [3:0]  attack_rate,
+    input  wire [3:0]  decay_rate,
+    input  wire [3:0]  sustain_value,
+    input  wire [3:0]  release_rate,
+    input  wire [22:0] prescaler,
+    output wire [3:0]  adsr_value
 );
 
     //==========================================================================
@@ -37,9 +38,8 @@ module sid_asdr_generator (
     // Registers
     //==========================================================================
     reg [1:0]  state;
-    reg [7:0]  env_counter;
+    reg [3:0]  env_counter;
     reg        last_gate;
-    reg [22:0] prescaler;
 
     //==========================================================================
     // Rate selection — pick active rate based on state
@@ -80,7 +80,7 @@ module sid_asdr_generator (
         endcase
     end
 
-    wire [7:0] sustain_level = {sustain_value, 4'h0};
+    wire [3:0] sustain_level = sustain_value;
 
     //==========================================================================
     // State machine
@@ -88,16 +88,14 @@ module sid_asdr_generator (
     always @(posedge clk) begin
         if (rst) begin
             state       <= ENV_IDLE;
-            env_counter <= 8'd0;
+            env_counter <= 4'd0;
             last_gate   <= 1'b0;
-            prescaler   <= 23'd0;
         end else begin
-            prescaler <= prescaler + 1'b1;
             last_gate <= gate;
 
             case (state)
                 ENV_IDLE: begin
-                    env_counter <= 8'd0;
+                    env_counter <= 4'd0;
                     if (gate && !last_gate)
                         state <= ENV_ATTACK;
                 end
@@ -105,7 +103,7 @@ module sid_asdr_generator (
                 ENV_ATTACK: begin
                     if (!gate) begin
                         state <= ENV_RELEASE;
-                    end else if (env_counter == 8'hFF) begin
+                    end else if (env_counter == 4'hF) begin
                         state <= ENV_DECAY;
                     end else if (env_tick) begin
                         env_counter <= env_counter + 1'b1;
@@ -123,7 +121,7 @@ module sid_asdr_generator (
                 ENV_RELEASE: begin
                     if (gate && !last_gate) begin
                         state <= ENV_ATTACK;
-                    end else if (env_counter == 8'd0) begin
+                    end else if (env_counter == 4'd0) begin
                         state <= ENV_IDLE;
                     end else if (env_tick) begin
                         env_counter <= env_counter - 1'b1;
