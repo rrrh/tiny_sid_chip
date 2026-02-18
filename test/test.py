@@ -6,7 +6,7 @@ from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, RisingEdge
 
 
-# Register addresses (16-bit SPI, 8-bit data per register)
+# Register addresses
 REG_FREQ_LO  = 0
 REG_FREQ_HI  = 1
 REG_PW_LO    = 2
@@ -16,67 +16,39 @@ REG_SUSTAIN  = 5
 REG_WAVEFORM = 6
 
 
-async def spi_write(dut, addr, data):
-    """Write a 16-bit SPI transaction: {addr[2:0], 5'b0, data[7:0]}
-    CPOL=0, CPHA=0, MSB first.
-    ui_in[0] = spi_cs_n, ui_in[1] = spi_clk, ui_in[2] = spi_mosi
+async def sid_write(dut, reg_addr, data, voice=0):
+    """Write to a SID register via flat memory interface.
+    ui_in[2:0] = address, ui_in[3] = voice select, ui_in[7] = write enable,
+    uio_in = data.
     """
-    word = ((addr & 0x7) << 13) | (data & 0xFF)
-
-    # Assert CS low
-    ui = dut.ui_in.value.to_unsigned() if hasattr(dut.ui_in.value, 'to_unsigned') else 0
-    ui = ui & ~0x01  # CS low
-    ui = ui & ~0x02  # CLK low
+    ui = (reg_addr & 0x07) | ((voice & 1) << 3)
     dut.ui_in.value = ui
-    await ClockCycles(dut.clk, 5)
-
-    for i in range(15, -1, -1):
-        bit = (word >> i) & 1
-        # Set MOSI, CLK low
-        ui = (ui & ~0x04) | (bit << 2)
-        ui = ui & ~0x02  # CLK low
-        dut.ui_in.value = ui
-        await ClockCycles(dut.clk, 5)
-
-        # CLK high — data sampled
-        ui = ui | 0x02
-        dut.ui_in.value = ui
-        await ClockCycles(dut.clk, 5)
-
-    # CLK low, then deassert CS
-    ui = ui & ~0x02
-    dut.ui_in.value = ui
-    await ClockCycles(dut.clk, 5)
-
-    ui = ui | 0x01  # CS high
-    dut.ui_in.value = ui
-    await ClockCycles(dut.clk, 10)
+    dut.uio_in.value = data & 0xFF
+    await RisingEdge(dut.clk)
+    dut.ui_in.value = ui | 0x80  # assert WE
+    await RisingEdge(dut.clk)
+    dut.ui_in.value = ui & 0x7F  # deassert WE
+    await RisingEdge(dut.clk)
 
 
-async def sid_write(dut, reg_addr, data):
-    """Write to a SID register (0-6) via SPI. Data is 8-bit."""
-    await spi_write(dut, reg_addr, data)
-
-
-async def sid_write_freq(dut, freq16):
+async def sid_write_freq(dut, freq16, voice=0):
     """Write a 16-bit frequency as two byte registers."""
-    await sid_write(dut, REG_FREQ_LO, freq16 & 0xFF)
-    await sid_write(dut, REG_FREQ_HI, (freq16 >> 8) & 0xFF)
+    await sid_write(dut, REG_FREQ_LO, freq16 & 0xFF, voice)
+    await sid_write(dut, REG_FREQ_HI, (freq16 >> 8) & 0xFF, voice)
 
 
-async def sid_write_pw(dut, pw16):
-    """Write a 16-bit pulse width as two byte registers."""
-    await sid_write(dut, REG_PW_LO, pw16 & 0xFF)
-    await sid_write(dut, REG_PW_HI, (pw16 >> 8) & 0xFF)
+async def sid_write_pw(dut, pw8, voice=0):
+    """Write an 8-bit pulse width register."""
+    await sid_write(dut, REG_PW_LO, pw8 & 0xFF, voice)
 
 
 async def count_pwm(dut, cycles):
-    """Count PWM rising edges on uio_out[7] over a number of clock cycles."""
+    """Count PWM rising edges on uo_out[0] over a number of clock cycles."""
     count = 0
     last = 0
     for _ in range(cycles):
         await RisingEdge(dut.clk)
-        val = (dut.uio_out.value.to_unsigned() >> 7) & 1
+        val = (dut.uo_out.value.to_unsigned()) & 1
         if val == 1 and last == 0:
             count += 1
         last = val
@@ -90,17 +62,17 @@ async def test_reset(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x01  # CS high, CLK low
+    dut.ui_in.value = 0x00
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
 
     # During reset, PWM should be 0 (may be X/undefined which is acceptable)
-    val = dut.uio_out.value
+    val = dut.uo_out.value
     if not val.is_resolvable:
         pass  # X during reset is fine
     else:
-        assert (val.to_unsigned() & 0x80) == 0, "PWM should be 0 during reset"
+        assert (val.to_unsigned() & 0x01) == 0, "PWM should be 0 during reset"
 
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 10)
@@ -113,7 +85,7 @@ async def test_sawtooth(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x01  # CS high
+    dut.ui_in.value = 0x00
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
@@ -143,7 +115,7 @@ async def test_triangle(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x01
+    dut.ui_in.value = 0x00
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
@@ -169,7 +141,7 @@ async def test_pulse(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x01
+    dut.ui_in.value = 0x00
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
@@ -177,8 +149,8 @@ async def test_pulse(dut):
     await ClockCycles(dut.clk, 10)
 
     await sid_write_freq(dut, 4291)
-    # Pulse width = 50% (2048 = 0x0800)
-    await sid_write_pw(dut, 2048)
+    # Pulse width = 50% (128 = 0x80)
+    await sid_write_pw(dut, 0x80)
     await sid_write(dut, REG_ATTACK, 0x00)
     await sid_write(dut, REG_SUSTAIN, 0x0F)
     # Pulse + gate: bit6=pulse, bit0=gate
@@ -197,7 +169,7 @@ async def test_noise(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x01
+    dut.ui_in.value = 0x00
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
@@ -223,7 +195,7 @@ async def test_gate_release(dut):
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
-    dut.ui_in.value = 0x01
+    dut.ui_in.value = 0x00
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 20)
@@ -249,3 +221,35 @@ async def test_gate_release(dut):
     pdm_count = await count_pwm(dut, 100000)
     dut._log.info(f"After release PWM count: {pdm_count}")
     assert pdm_count == 0, f"PWM should be silent after release, got {pdm_count}"
+
+
+@cocotb.test()
+async def test_two_voices(dut):
+    """Test that both voices play simultaneously and produce PWM output."""
+    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    cocotb.start_soon(clock.start())
+
+    dut.ena.value = 1
+    dut.ui_in.value = 0x00
+    dut.uio_in.value = 0
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 20)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 10)
+
+    # Voice 1: Sawtooth C4
+    await sid_write_freq(dut, 4291, voice=0)
+    await sid_write(dut, REG_ATTACK, 0x00, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_WAVEFORM, 0x21, voice=0)  # SAW + GATE
+
+    # Voice 2: Triangle E4
+    await sid_write_freq(dut, 5404, voice=1)
+    await sid_write(dut, REG_ATTACK, 0x00, voice=1)
+    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=1)
+    await sid_write(dut, REG_WAVEFORM, 0x11, voice=1)  # TRI + GATE
+
+    await ClockCycles(dut.clk, 200000)
+    pdm_count = await count_pwm(dut, 100000)
+    dut._log.info(f"Two voices PWM count: {pdm_count}")
+    assert pdm_count > 0, f"Two voices should produce PWM pulses, got {pdm_count}"

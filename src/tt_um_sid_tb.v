@@ -2,12 +2,17 @@
 //==============================================================================
 // Comprehensive Testbench for tt_um_sid
 //==============================================================================
-// Tests the full TT top-level including SPI register interface, all waveform
-// types, ADSR envelope behavior, PDM output activity, and edge cases.
+// Tests the full TT top-level including flat memory register interface, all
+// waveform types, ADSR envelope behavior, PDM output activity, and edge cases.
 //
-// SPI Protocol: 16-bit frames, {addr[2:0], 5'b0, data[7:0]}
-// Registers: 0=freq_lo, 1=freq_hi, 2=pw_lo, 3=pw_hi,
-//            4=attack, 5=sustain, 6=waveform
+// Memory-Mapped Interface:
+//   ui_in[2:0]  = register address
+//   ui_in[3]    = voice select (0=voice1, 1=voice2)
+//   ui_in[7]    = write enable (rising-edge triggered)
+//   uio_in[7:0] = write data
+//
+// Registers (per voice): 0=freq_lo, 1=freq_hi, 2=pw_lo, 3=pw_hi,
+//                        4=attack, 5=sustain, 6=waveform
 //==============================================================================
 
 module tt_um_sid_tb;
@@ -44,7 +49,7 @@ module tt_um_sid_tb;
     //==========================================================================
     // Convenience aliases
     //==========================================================================
-    wire pdm_out = uio_out[7];
+    wire pdm_out = uo_out[0];
 
     //==========================================================================
     // PDM-to-PCM decimation filter (CIC order 1, integrate-and-dump)
@@ -109,7 +114,7 @@ module tt_um_sid_tb;
                       FREQ_G4 = 16'd6430,
                       FREQ_C5 = 16'd8583;
 
-    // Register addresses (16-bit SPI, 8-bit data)
+    // Register addresses
     localparam [2:0] REG_FREQ_LO = 3'd0,
                      REG_FREQ_HI = 3'd1,
                      REG_PW_LO   = 3'd2,
@@ -117,9 +122,6 @@ module tt_um_sid_tb;
                      REG_ATK     = 3'd4,
                      REG_SUS     = 3'd5,
                      REG_WAV     = 3'd6;
-
-    // SPI half-period: 100 ns → 5 MHz SPI clock
-    localparam SPI_HP = 100;
 
     //==========================================================================
     // VCD dump
@@ -130,48 +132,21 @@ module tt_um_sid_tb;
     end
 
     //==========================================================================
-    // SPI Master — bit-bang 16-bit write (CPOL=0, CPHA=0, MSB first)
-    //   Word: {addr[2:0], 5'b0, data[7:0]}
-    //==========================================================================
-    task spi_write;
-        input [2:0] addr;
-        input [7:0] data;
-        reg   [15:0] word;
-        integer i;
-        begin
-            word = {addr, 5'b00000, data};
-
-            // Assert CS_n low
-            ui_in[0] <= 1'b0;
-            #(SPI_HP);
-
-            for (i = 15; i >= 0; i = i - 1) begin
-                // Set MOSI while clock is low
-                ui_in[2] <= word[i];
-                #(SPI_HP);
-                // Rising edge — slave samples
-                ui_in[1] <= 1'b1;
-                #(SPI_HP);
-                // Falling edge
-                ui_in[1] <= 1'b0;
-            end
-
-            // Deassert CS_n
-            #(SPI_HP);
-            ui_in[0] <= 1'b1;
-            #(SPI_HP);
-        end
-    endtask
-
-    //==========================================================================
-    // Convenience: SPI register write + synchronizer settling
+    // Memory write task — set address + data, pulse write enable
     //==========================================================================
     task sid_write;
-        input [2:0] idx;
-        input [7:0] val;
+        input [2:0] addr;
+        input [7:0] data;
+        input       voice;
         begin
-            spi_write(idx, val);
-            repeat (10) @(posedge clk);
+            ui_in[2:0] <= addr;
+            ui_in[3]   <= voice;
+            uio_in     <= data;
+            @(posedge clk);
+            ui_in[7]   <= 1'b1;   // assert WE
+            @(posedge clk);
+            ui_in[7]   <= 1'b0;   // deassert WE
+            @(posedge clk);
         end
     endtask
 
@@ -180,20 +155,21 @@ module tt_um_sid_tb;
     //==========================================================================
     task sid_write_freq;
         input [15:0] freq;
+        input        voice;
         begin
-            sid_write(REG_FREQ_LO, freq[7:0]);
-            sid_write(REG_FREQ_HI, freq[15:8]);
+            sid_write(REG_FREQ_LO, freq[7:0], voice);
+            sid_write(REG_FREQ_HI, freq[15:8], voice);
         end
     endtask
 
     //==========================================================================
-    // Convenience: write a 16-bit pulse width as two byte registers
+    // Convenience: write an 8-bit pulse width
     //==========================================================================
     task sid_write_pw;
-        input [15:0] pw;
+        input [7:0] pw;
+        input       voice;
         begin
-            sid_write(REG_PW_LO, pw[7:0]);
-            sid_write(REG_PW_HI, pw[15:8]);
+            sid_write(REG_PW_LO, pw, voice);
         end
     endtask
 
@@ -245,7 +221,7 @@ module tt_um_sid_tb;
 
     initial begin
         // Initialise inputs
-        ui_in  = 8'b0000_0001;   // CS_n=1, CLK=0, MOSI=0
+        ui_in  = 8'b0;
         uio_in = 8'b0;
         ena    = 1'b1;
         rst_n  = 1'b1;
@@ -290,39 +266,38 @@ module tt_um_sid_tb;
         end
 
         // =============================================================
-        // 2. SPI register write — verify PDM becomes active
+        // 2. Register write — verify PDM becomes active
         // =============================================================
-        $display("\n===== 2. SPI register write =====");
-        sid_write_freq(FREQ_C4);
-        sid_write_pw(16'h0800);
-        sid_write(REG_ATK, 8'h00);   // attack=0(fast), decay=0(fast)
-        sid_write(REG_SUS, 8'h0F);   // sustain=F(max), release=0(fast)
-        sid_write(REG_WAV, SAW | GATE);
+        $display("\n===== 2. Register write =====");
+        sid_write_freq(FREQ_C4, 1'b0);
+        sid_write_pw(8'h80, 1'b0);
+        sid_write(REG_ATK, 8'h00, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_WAV, SAW | GATE, 1'b0);
 
-        // Wait for ADSR attack to complete (rate 0: ~131k clocks)
         repeat (150_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
         if (cnt1 > 10) begin
-            $display("[%0t] TEST %0d PASS: PDM active after SPI writes (count=%0d)", $time, test_num, cnt1);
+            $display("[%0t] TEST %0d PASS: PDM active after register writes (count=%0d)", $time, test_num, cnt1);
             pass_count = pass_count + 1;
         end else begin
-            $display("[%0t] TEST %0d FAIL: PDM inactive after SPI writes (count=%0d)", $time, test_num, cnt1);
+            $display("[%0t] TEST %0d FAIL: PDM inactive after register writes (count=%0d)", $time, test_num, cnt1);
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW);
+        sid_write(REG_WAV, SAW, 1'b0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 3. Sawtooth waveform
         // =============================================================
         $display("\n===== 3. Sawtooth waveform =====");
-        sid_write_freq(FREQ_C4);
-        sid_write_pw(16'h0800);
-        sid_write(REG_ATK, 8'h00);
-        sid_write(REG_SUS, 8'h0F);
-        sid_write(REG_WAV, SAW | GATE);
+        sid_write_freq(FREQ_C4, 1'b0);
+        sid_write_pw(8'h80, 1'b0);
+        sid_write(REG_ATK, 8'h00, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_WAV, SAW | GATE, 1'b0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -335,17 +310,17 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW);
+        sid_write(REG_WAV, SAW, 1'b0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 4. Triangle waveform
         // =============================================================
         $display("\n===== 4. Triangle waveform =====");
-        sid_write_freq(FREQ_C4);
-        sid_write(REG_ATK, 8'h00);
-        sid_write(REG_SUS, 8'h0F);
-        sid_write(REG_WAV, TRI | GATE);
+        sid_write_freq(FREQ_C4, 1'b0);
+        sid_write(REG_ATK, 8'h00, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_WAV, TRI | GATE, 1'b0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -358,18 +333,18 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, TRI);
+        sid_write(REG_WAV, TRI, 1'b0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 5. Pulse waveform
         // =============================================================
         $display("\n===== 5. Pulse waveform =====");
-        sid_write_freq(FREQ_E4);
-        sid_write_pw(16'h0800);   // 50% duty
-        sid_write(REG_ATK, 8'h00);
-        sid_write(REG_SUS, 8'h0F);
-        sid_write(REG_WAV, PULSE | GATE);
+        sid_write_freq(FREQ_E4, 1'b0);
+        sid_write_pw(8'h80, 1'b0);
+        sid_write(REG_ATK, 8'h00, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_WAV, PULSE | GATE, 1'b0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -382,17 +357,17 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, PULSE);
+        sid_write(REG_WAV, PULSE, 1'b0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 6. Noise waveform
         // =============================================================
         $display("\n===== 6. Noise waveform =====");
-        sid_write_freq(FREQ_C5);
-        sid_write(REG_ATK, 8'h00);
-        sid_write(REG_SUS, 8'h0F);
-        sid_write(REG_WAV, NOISE | GATE);
+        sid_write_freq(FREQ_C5, 1'b0);
+        sid_write(REG_ATK, 8'h00, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_WAV, NOISE | GATE, 1'b0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -405,26 +380,24 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, NOISE);
+        sid_write(REG_WAV, NOISE, 1'b0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
-        // 7. ADSR envelope — attack ramp (rate 4 ≈ 42 ms)
+        // 7. ADSR envelope — attack ramp (rate 8 ≈ slower for 4-bit env)
         // =============================================================
         $display("\n===== 7. ADSR attack ramp =====");
-        sid_write_freq(FREQ_C4);
-        sid_write_pw(16'h0800);
-        sid_write(REG_ATK, 8'h04);   // attack_rate=4, decay_rate=0
-        sid_write(REG_SUS, 8'h0F);   // sustain=F, release=0
-        sid_write(REG_WAV, SAW | GATE);
+        sid_write_freq(FREQ_C4, 1'b0);
+        sid_write_pw(8'h80, 1'b0);
+        sid_write(REG_ATK, 8'h08, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_WAV, SAW | GATE, 1'b0);
 
-        // Early window — envelope still low
-        repeat (100_000) @(posedge clk);
+        repeat (50_000) @(posedge clk);
         count_pdm(50_000, cnt1);
         $display("[%0t]   Early window PDM count = %0d", $time, cnt1);
 
-        // Late window — envelope has ramped higher
-        repeat (500_000) @(posedge clk);
+        repeat (2_000_000) @(posedge clk);
         count_pdm(50_000, cnt2);
         $display("[%0t]   Late  window PDM count = %0d", $time, cnt2);
 
@@ -437,25 +410,23 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW);
+        sid_write(REG_WAV, SAW, 1'b0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 8. Gate release — PDM goes quiet
         // =============================================================
         $display("\n===== 8. Gate release =====");
-        sid_write(REG_ATK, 8'h00);
-        sid_write(REG_SUS, 8'h0F);
-        sid_write(REG_WAV, SAW | GATE);
+        sid_write(REG_ATK, 8'h00, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_WAV, SAW | GATE, 1'b0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         $display("[%0t]   Before release: PDM count = %0d", $time, cnt1);
 
-        // Release gate
-        sid_write(REG_WAV, SAW);
+        sid_write(REG_WAV, SAW, 1'b0);
 
-        // Wait for envelope release (rate 0: ~131k clocks from max)
         repeat (200_000) @(posedge clk);
         count_pdm(10_000, cnt2);
         $display("[%0t]   After  release: PDM count = %0d", $time, cnt2);
@@ -469,7 +440,6 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        // Verify fully silent
         repeat (100_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
@@ -485,16 +455,15 @@ module tt_um_sid_tb;
         // 9. Test bit — oscillator freezes, PDM goes quiet
         // =============================================================
         $display("\n===== 9. Test bit =====");
-        sid_write(REG_ATK, 8'h00);
-        sid_write(REG_SUS, 8'h0F);
-        sid_write(REG_WAV, SAW | GATE);
+        sid_write(REG_ATK, 8'h00, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_WAV, SAW | GATE, 1'b0);
         repeat (150_000) @(posedge clk);
 
         count_pdm(10_000, cnt1);
         $display("[%0t]   Before test bit: PDM count = %0d", $time, cnt1);
 
-        // Set test bit — accumulator held at 0, waveform output = 0
-        sid_write(REG_WAV, SAW | GATE | TEST);
+        sid_write(REG_WAV, SAW | GATE | TEST, 1'b0);
         repeat (50_000) @(posedge clk);
 
         count_pdm(10_000, cnt2);
@@ -509,17 +478,17 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW);
+        sid_write(REG_WAV, SAW, 1'b0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 10. Waveform combining — SAW + TRI
         // =============================================================
         $display("\n===== 10. Waveform combining (SAW+TRI) =====");
-        sid_write_freq(FREQ_C4);
-        sid_write(REG_ATK, 8'h00);
-        sid_write(REG_SUS, 8'h0F);
-        sid_write(REG_WAV, SAW | TRI | GATE);
+        sid_write_freq(FREQ_C4, 1'b0);
+        sid_write(REG_ATK, 8'h00, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_WAV, SAW | TRI | GATE, 1'b0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -532,19 +501,18 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW | TRI);
+        sid_write(REG_WAV, SAW | TRI, 1'b0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 11. Multiple notes — play different frequencies
         // =============================================================
         $display("\n===== 11. Multiple notes =====");
-        sid_write(REG_ATK, 8'h00);
-        sid_write(REG_SUS, 8'h0F);
+        sid_write(REG_ATK, 8'h00, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
 
-        // C4
-        sid_write_freq(FREQ_C4);
-        sid_write(REG_WAV, SAW | GATE);
+        sid_write_freq(FREQ_C4, 1'b0);
+        sid_write(REG_WAV, SAW | GATE, 1'b0);
         repeat (150_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
@@ -556,8 +524,7 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        // E4
-        sid_write_freq(FREQ_E4);
+        sid_write_freq(FREQ_E4, 1'b0);
         repeat (50_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
@@ -569,8 +536,7 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        // G4
-        sid_write_freq(FREQ_G4);
+        sid_write_freq(FREQ_G4, 1'b0);
         repeat (50_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
@@ -582,8 +548,7 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        // C5
-        sid_write_freq(FREQ_C5);
+        sid_write_freq(FREQ_C5, 1'b0);
         repeat (50_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
@@ -595,7 +560,63 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW);
+        sid_write(REG_WAV, SAW, 1'b0);
+        repeat (150_000) @(posedge clk);
+
+        // =============================================================
+        // 12. Voice 2 sawtooth — independent PDM output
+        // =============================================================
+        $display("\n===== 12. Voice 2 sawtooth =====");
+        sid_write(REG_WAV, 8'h00, 1'b0);
+        repeat (200_000) @(posedge clk);
+
+        sid_write_freq(FREQ_C4, 1'b1);
+        sid_write_pw(8'h80, 1'b1);
+        sid_write(REG_ATK, 8'h00, 1'b1);
+        sid_write(REG_SUS, 8'h0F, 1'b1);
+        sid_write(REG_WAV, SAW | GATE, 1'b1);
+
+        repeat (150_000) @(posedge clk);
+        count_pdm(20_000, cnt1);
+        test_num = test_num + 1;
+        if (cnt1 > 50) begin
+            $display("[%0t] TEST %0d PASS: Voice 2 sawtooth PDM active (count=%0d)", $time, test_num, cnt1);
+            pass_count = pass_count + 1;
+        end else begin
+            $display("[%0t] TEST %0d FAIL: Voice 2 sawtooth PDM inactive (count=%0d)", $time, test_num, cnt1);
+            fail_count = fail_count + 1;
+        end
+
+        sid_write(REG_WAV, SAW, 1'b1);
+        repeat (150_000) @(posedge clk);
+
+        // =============================================================
+        // 13. Both voices playing simultaneously
+        // =============================================================
+        $display("\n===== 13. Both voices simultaneous =====");
+        sid_write_freq(FREQ_C4, 1'b0);
+        sid_write(REG_ATK, 8'h00, 1'b0);
+        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_WAV, SAW | GATE, 1'b0);
+
+        sid_write_freq(FREQ_E4, 1'b1);
+        sid_write(REG_ATK, 8'h00, 1'b1);
+        sid_write(REG_SUS, 8'h0F, 1'b1);
+        sid_write(REG_WAV, TRI | GATE, 1'b1);
+
+        repeat (150_000) @(posedge clk);
+        count_pdm(20_000, cnt1);
+        test_num = test_num + 1;
+        if (cnt1 > 50) begin
+            $display("[%0t] TEST %0d PASS: Both voices PDM active (count=%0d)", $time, test_num, cnt1);
+            pass_count = pass_count + 1;
+        end else begin
+            $display("[%0t] TEST %0d FAIL: Both voices PDM inactive (count=%0d)", $time, test_num, cnt1);
+            fail_count = fail_count + 1;
+        end
+
+        sid_write(REG_WAV, SAW, 1'b0);
+        sid_write(REG_WAV, TRI, 1'b1);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
@@ -612,7 +633,7 @@ module tt_um_sid_tb;
     // Timeout watchdog — 200 ms
     //==========================================================================
     initial begin
-        #200_000_000;
+        #400_000_000;
         $display("\nERROR: Simulation timeout!");
         $finish;
     end

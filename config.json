@@ -2,7 +2,6 @@
     "DESIGN_NAME": "tt_um_sid",
     "VERILOG_FILES": [
         "dir::src/tt_um_sid.v",
-        "dir::src/spi_regs.v",
         "dir::src/sid_voice.v",
         "dir::src/sid_asdr_generator.v",
         "dir::src/pwm_audio.v"
