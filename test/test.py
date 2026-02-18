@@ -18,10 +18,10 @@ REG_WAVEFORM = 6
 
 async def sid_write(dut, reg_addr, data, voice=0):
     """Write to a SID register via flat memory interface.
-    ui_in[2:0] = address, ui_in[3] = voice select, ui_in[7] = write enable,
+    ui_in[2:0] = address, ui_in[4:3] = voice select, ui_in[7] = write enable,
     uio_in = data.
     """
-    ui = (reg_addr & 0x07) | ((voice & 1) << 3)
+    ui = (reg_addr & 0x07) | ((voice & 0x3) << 3)
     dut.ui_in.value = ui
     dut.uio_in.value = data & 0xFF
     await RisingEdge(dut.clk)
@@ -253,3 +253,42 @@ async def test_two_voices(dut):
     pdm_count = await count_pwm(dut, 100000)
     dut._log.info(f"Two voices PWM count: {pdm_count}")
     assert pdm_count > 0, f"Two voices should produce PWM pulses, got {pdm_count}"
+
+
+@cocotb.test()
+async def test_three_voices(dut):
+    """Test that all three voices play simultaneously and produce PWM output."""
+    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    cocotb.start_soon(clock.start())
+
+    dut.ena.value = 1
+    dut.ui_in.value = 0x00
+    dut.uio_in.value = 0
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 20)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 10)
+
+    # Voice 1: Sawtooth C4
+    await sid_write_freq(dut, 4291, voice=0)
+    await sid_write(dut, REG_ATTACK, 0x00, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_WAVEFORM, 0x21, voice=0)  # SAW + GATE
+
+    # Voice 2: Triangle E4
+    await sid_write_freq(dut, 5404, voice=1)
+    await sid_write(dut, REG_ATTACK, 0x00, voice=1)
+    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=1)
+    await sid_write(dut, REG_WAVEFORM, 0x11, voice=1)  # TRI + GATE
+
+    # Voice 3: Pulse G4
+    await sid_write_freq(dut, 6430, voice=2)
+    await sid_write_pw(dut, 0x80, voice=2)
+    await sid_write(dut, REG_ATTACK, 0x00, voice=2)
+    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=2)
+    await sid_write(dut, REG_WAVEFORM, 0x41, voice=2)  # PULSE + GATE
+
+    await ClockCycles(dut.clk, 200000)
+    pdm_count = await count_pwm(dut, 100000)
+    dut._log.info(f"Three voices PWM count: {pdm_count}")
+    assert pdm_count > 0, f"Three voices should produce PWM pulses, got {pdm_count}"

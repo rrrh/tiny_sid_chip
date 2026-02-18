@@ -137,10 +137,10 @@ module tt_um_sid_tb;
     task sid_write;
         input [2:0] addr;
         input [7:0] data;
-        input       voice;
+        input [1:0] voice;
         begin
             ui_in[2:0] <= addr;
-            ui_in[3]   <= voice;
+            ui_in[4:3] <= voice;
             uio_in     <= data;
             @(posedge clk);
             ui_in[7]   <= 1'b1;   // assert WE
@@ -155,7 +155,7 @@ module tt_um_sid_tb;
     //==========================================================================
     task sid_write_freq;
         input [15:0] freq;
-        input        voice;
+        input [1:0]  voice;
         begin
             sid_write(REG_FREQ_LO, freq[7:0], voice);
             sid_write(REG_FREQ_HI, freq[15:8], voice);
@@ -167,7 +167,7 @@ module tt_um_sid_tb;
     //==========================================================================
     task sid_write_pw;
         input [7:0] pw;
-        input       voice;
+        input [1:0] voice;
         begin
             sid_write(REG_PW_LO, pw, voice);
         end
@@ -235,7 +235,7 @@ module tt_um_sid_tb;
         repeat (10) @(posedge clk);
 
         test_num = test_num + 1;
-        if (pdm_out == 1'b0) begin
+        if (pdm_out == 2'd0) begin
             $display("[%0t] TEST %0d PASS: PDM is 0 during reset", $time, test_num);
             pass_count = pass_count + 1;
         end else begin
@@ -269,11 +269,11 @@ module tt_um_sid_tb;
         // 2. Register write — verify PDM becomes active
         // =============================================================
         $display("\n===== 2. Register write =====");
-        sid_write_freq(FREQ_C4, 1'b0);
-        sid_write_pw(8'h80, 1'b0);
-        sid_write(REG_ATK, 8'h00, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
-        sid_write(REG_WAV, SAW | GATE, 1'b0);
+        sid_write_freq(FREQ_C4, 2'd0);
+        sid_write_pw(8'h80, 2'd0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, SAW | GATE, 2'd0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(10_000, cnt1);
@@ -286,18 +286,18 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW, 1'b0);
+        sid_write(REG_WAV, SAW, 2'd0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 3. Sawtooth waveform
         // =============================================================
         $display("\n===== 3. Sawtooth waveform =====");
-        sid_write_freq(FREQ_C4, 1'b0);
-        sid_write_pw(8'h80, 1'b0);
-        sid_write(REG_ATK, 8'h00, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
-        sid_write(REG_WAV, SAW | GATE, 1'b0);
+        sid_write_freq(FREQ_C4, 2'd0);
+        sid_write_pw(8'h80, 2'd0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, SAW | GATE, 2'd0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -310,17 +310,17 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW, 1'b0);
+        sid_write(REG_WAV, SAW, 2'd0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 4. Triangle waveform
         // =============================================================
         $display("\n===== 4. Triangle waveform =====");
-        sid_write_freq(FREQ_C4, 1'b0);
-        sid_write(REG_ATK, 8'h00, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
-        sid_write(REG_WAV, TRI | GATE, 1'b0);
+        sid_write_freq(FREQ_C4, 2'd0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, TRI | GATE, 2'd0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -333,18 +333,18 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, TRI, 1'b0);
+        sid_write(REG_WAV, TRI, 2'd0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 5. Pulse waveform
         // =============================================================
         $display("\n===== 5. Pulse waveform =====");
-        sid_write_freq(FREQ_E4, 1'b0);
-        sid_write_pw(8'h80, 1'b0);
-        sid_write(REG_ATK, 8'h00, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
-        sid_write(REG_WAV, PULSE | GATE, 1'b0);
+        sid_write_freq(FREQ_E4, 2'd0);
+        sid_write_pw(8'h80, 2'd0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, PULSE | GATE, 2'd0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -357,17 +357,17 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, PULSE, 1'b0);
+        sid_write(REG_WAV, PULSE, 2'd0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 6. Noise waveform
         // =============================================================
         $display("\n===== 6. Noise waveform =====");
-        sid_write_freq(FREQ_C5, 1'b0);
-        sid_write(REG_ATK, 8'h00, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
-        sid_write(REG_WAV, NOISE | GATE, 1'b0);
+        sid_write_freq(FREQ_C5, 2'd0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, NOISE | GATE, 2'd0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -380,18 +380,18 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, NOISE, 1'b0);
+        sid_write(REG_WAV, NOISE, 2'd0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 7. ADSR envelope — attack ramp (rate 8 ≈ slower for 4-bit env)
         // =============================================================
         $display("\n===== 7. ADSR attack ramp =====");
-        sid_write_freq(FREQ_C4, 1'b0);
-        sid_write_pw(8'h80, 1'b0);
-        sid_write(REG_ATK, 8'h08, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
-        sid_write(REG_WAV, SAW | GATE, 1'b0);
+        sid_write_freq(FREQ_C4, 2'd0);
+        sid_write_pw(8'h80, 2'd0);
+        sid_write(REG_ATK, 8'h08, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, SAW | GATE, 2'd0);
 
         repeat (50_000) @(posedge clk);
         count_pdm(50_000, cnt1);
@@ -410,22 +410,22 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW, 1'b0);
+        sid_write(REG_WAV, SAW, 2'd0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 8. Gate release — PDM goes quiet
         // =============================================================
         $display("\n===== 8. Gate release =====");
-        sid_write(REG_ATK, 8'h00, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
-        sid_write(REG_WAV, SAW | GATE, 1'b0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, SAW | GATE, 2'd0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         $display("[%0t]   Before release: PDM count = %0d", $time, cnt1);
 
-        sid_write(REG_WAV, SAW, 1'b0);
+        sid_write(REG_WAV, SAW, 2'd0);
 
         repeat (200_000) @(posedge clk);
         count_pdm(10_000, cnt2);
@@ -455,15 +455,15 @@ module tt_um_sid_tb;
         // 9. Test bit — oscillator freezes, PDM goes quiet
         // =============================================================
         $display("\n===== 9. Test bit =====");
-        sid_write(REG_ATK, 8'h00, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
-        sid_write(REG_WAV, SAW | GATE, 1'b0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, SAW | GATE, 2'd0);
         repeat (150_000) @(posedge clk);
 
         count_pdm(10_000, cnt1);
         $display("[%0t]   Before test bit: PDM count = %0d", $time, cnt1);
 
-        sid_write(REG_WAV, SAW | GATE | TEST, 1'b0);
+        sid_write(REG_WAV, SAW | GATE | TEST, 2'd0);
         repeat (50_000) @(posedge clk);
 
         count_pdm(10_000, cnt2);
@@ -478,17 +478,17 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW, 1'b0);
+        sid_write(REG_WAV, SAW, 2'd0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 10. Waveform combining — SAW + TRI
         // =============================================================
         $display("\n===== 10. Waveform combining (SAW+TRI) =====");
-        sid_write_freq(FREQ_C4, 1'b0);
-        sid_write(REG_ATK, 8'h00, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
-        sid_write(REG_WAV, SAW | TRI | GATE, 1'b0);
+        sid_write_freq(FREQ_C4, 2'd0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, SAW | TRI | GATE, 2'd0);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -501,18 +501,18 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW | TRI, 1'b0);
+        sid_write(REG_WAV, SAW | TRI, 2'd0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 11. Multiple notes — play different frequencies
         // =============================================================
         $display("\n===== 11. Multiple notes =====");
-        sid_write(REG_ATK, 8'h00, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
 
-        sid_write_freq(FREQ_C4, 1'b0);
-        sid_write(REG_WAV, SAW | GATE, 1'b0);
+        sid_write_freq(FREQ_C4, 2'd0);
+        sid_write(REG_WAV, SAW | GATE, 2'd0);
         repeat (150_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
@@ -524,7 +524,7 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write_freq(FREQ_E4, 1'b0);
+        sid_write_freq(FREQ_E4, 2'd0);
         repeat (50_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
@@ -536,7 +536,7 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write_freq(FREQ_G4, 1'b0);
+        sid_write_freq(FREQ_G4, 2'd0);
         repeat (50_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
@@ -548,7 +548,7 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write_freq(FREQ_C5, 1'b0);
+        sid_write_freq(FREQ_C5, 2'd0);
         repeat (50_000) @(posedge clk);
         count_pdm(10_000, cnt1);
         test_num = test_num + 1;
@@ -560,21 +560,21 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW, 1'b0);
+        sid_write(REG_WAV, SAW, 2'd0);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 12. Voice 2 sawtooth — independent PDM output
         // =============================================================
         $display("\n===== 12. Voice 2 sawtooth =====");
-        sid_write(REG_WAV, 8'h00, 1'b0);
+        sid_write(REG_WAV, 8'h00, 2'd0);
         repeat (200_000) @(posedge clk);
 
-        sid_write_freq(FREQ_C4, 1'b1);
-        sid_write_pw(8'h80, 1'b1);
-        sid_write(REG_ATK, 8'h00, 1'b1);
-        sid_write(REG_SUS, 8'h0F, 1'b1);
-        sid_write(REG_WAV, SAW | GATE, 1'b1);
+        sid_write_freq(FREQ_C4, 2'd1);
+        sid_write_pw(8'h80, 2'd1);
+        sid_write(REG_ATK, 8'h00, 2'd1);
+        sid_write(REG_SUS, 8'h0F, 2'd1);
+        sid_write(REG_WAV, SAW | GATE, 2'd1);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -587,22 +587,22 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW, 1'b1);
+        sid_write(REG_WAV, SAW, 2'd1);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
         // 13. Both voices playing simultaneously
         // =============================================================
         $display("\n===== 13. Both voices simultaneous =====");
-        sid_write_freq(FREQ_C4, 1'b0);
-        sid_write(REG_ATK, 8'h00, 1'b0);
-        sid_write(REG_SUS, 8'h0F, 1'b0);
-        sid_write(REG_WAV, SAW | GATE, 1'b0);
+        sid_write_freq(FREQ_C4, 2'd0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, SAW | GATE, 2'd0);
 
-        sid_write_freq(FREQ_E4, 1'b1);
-        sid_write(REG_ATK, 8'h00, 1'b1);
-        sid_write(REG_SUS, 8'h0F, 1'b1);
-        sid_write(REG_WAV, TRI | GATE, 1'b1);
+        sid_write_freq(FREQ_E4, 2'd1);
+        sid_write(REG_ATK, 8'h00, 2'd1);
+        sid_write(REG_SUS, 8'h0F, 2'd1);
+        sid_write(REG_WAV, TRI | GATE, 2'd1);
 
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
@@ -615,8 +615,71 @@ module tt_um_sid_tb;
             fail_count = fail_count + 1;
         end
 
-        sid_write(REG_WAV, SAW, 1'b0);
-        sid_write(REG_WAV, TRI, 1'b1);
+        sid_write(REG_WAV, SAW, 2'd0);
+        sid_write(REG_WAV, TRI, 2'd1);
+        repeat (150_000) @(posedge clk);
+
+        // =============================================================
+        // 14. Voice 3 sawtooth — independent PDM output
+        // =============================================================
+        $display("\n===== 14. Voice 3 sawtooth =====");
+        sid_write(REG_WAV, 8'h00, 2'd0);
+        sid_write(REG_WAV, 8'h00, 2'd1);
+        repeat (200_000) @(posedge clk);
+
+        sid_write_freq(FREQ_G4, 2'd2);
+        sid_write_pw(8'h80, 2'd2);
+        sid_write(REG_ATK, 8'h00, 2'd2);
+        sid_write(REG_SUS, 8'h0F, 2'd2);
+        sid_write(REG_WAV, SAW | GATE, 2'd2);
+
+        repeat (150_000) @(posedge clk);
+        count_pdm(20_000, cnt1);
+        test_num = test_num + 1;
+        if (cnt1 > 50) begin
+            $display("[%0t] TEST %0d PASS: Voice 3 sawtooth PDM active (count=%0d)", $time, test_num, cnt1);
+            pass_count = pass_count + 1;
+        end else begin
+            $display("[%0t] TEST %0d FAIL: Voice 3 sawtooth PDM inactive (count=%0d)", $time, test_num, cnt1);
+            fail_count = fail_count + 1;
+        end
+
+        sid_write(REG_WAV, SAW, 2'd2);
+        repeat (150_000) @(posedge clk);
+
+        // =============================================================
+        // 15. All three voices playing simultaneously
+        // =============================================================
+        $display("\n===== 15. All three voices simultaneous =====");
+        sid_write_freq(FREQ_C4, 2'd0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, SAW | GATE, 2'd0);
+
+        sid_write_freq(FREQ_E4, 2'd1);
+        sid_write(REG_ATK, 8'h00, 2'd1);
+        sid_write(REG_SUS, 8'h0F, 2'd1);
+        sid_write(REG_WAV, TRI | GATE, 2'd1);
+
+        sid_write_freq(FREQ_G4, 2'd2);
+        sid_write(REG_ATK, 8'h00, 2'd2);
+        sid_write(REG_SUS, 8'h0F, 2'd2);
+        sid_write(REG_WAV, PULSE | GATE, 2'd2);
+
+        repeat (150_000) @(posedge clk);
+        count_pdm(20_000, cnt1);
+        test_num = test_num + 1;
+        if (cnt1 > 50) begin
+            $display("[%0t] TEST %0d PASS: All three voices PDM active (count=%0d)", $time, test_num, cnt1);
+            pass_count = pass_count + 1;
+        end else begin
+            $display("[%0t] TEST %0d FAIL: All three voices PDM inactive (count=%0d)", $time, test_num, cnt1);
+            fail_count = fail_count + 1;
+        end
+
+        sid_write(REG_WAV, SAW, 2'd0);
+        sid_write(REG_WAV, TRI, 2'd1);
+        sid_write(REG_WAV, PULSE, 2'd2);
         repeat (150_000) @(posedge clk);
 
         // =============================================================
@@ -633,7 +696,7 @@ module tt_um_sid_tb;
     // Timeout watchdog — 200 ms
     //==========================================================================
     initial begin
-        #400_000_000;
+        #500_000_000;
         $display("\nERROR: Simulation timeout!");
         $finish;
     end
