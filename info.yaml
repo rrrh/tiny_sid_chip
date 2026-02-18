@@ -17,8 +17,6 @@ project:
   # Source files must be in ./src and you must list each source file separately, one per line.
   source_files:
     - "tt_um_sid.v"
-    - "sid_voice.v"
-    - "sid_asdr_generator.v"
     - "pwm_audio.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.

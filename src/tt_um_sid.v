@@ -1,10 +1,9 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// TT10 Wrapper — Triple SID Voice Synthesizer
+// TT10 Wrapper — Triple SID Voice Synthesizer (Time-Multiplexed)
 //==============================================================================
-// Instantiates:
-//   - Three sid_voice instances with independent register banks
-//   - pwm_audio:       8-bit PWM audio output (255-clock period, ~196 kHz)
+// Uses one shared compute pipeline cycling through 3 voices each clock.
+// Each voice is updated every 3rd clock cycle.
 //
 // Flat Memory-Mapped Register Interface:
 //   ui_in[2:0]  = register address (3-bit)
@@ -24,7 +23,7 @@
 //   5: sustain  — sustain[7:0]
 //   6: waveform — waveform[7:0]
 //
-// Mixing: sum three 8-bit voice outputs to 10-bit, right-shift by 2.
+// Mixing: accumulate 3 voice outputs over 3 clocks, shift right by 2.
 //==============================================================================
 
 module tt_um_sid (
@@ -138,61 +137,259 @@ module tt_um_sid (
         else        adsr_prescaler <= adsr_prescaler + 1'b1;
 
     //==========================================================================
-    // SID Voice 1
+    // Voice round-robin counter: 0 → 1 → 2 → 0 → ...
     //==========================================================================
-    wire [7:0] voice1_out;
-
-    sid_voice #(.IS_8580(0)) u_voice1 (
-        .clk                (clk),
-        .rst                (rst),
-        .frequency          (v1_frequency),
-        .duration           (v1_duration),
-        .attack             (v1_attack),
-        .sustain            (v1_sustain),
-        .waveform           (v1_waveform),
-        .prescaler          (adsr_prescaler),
-        .voice              (voice1_out)
-    );
+    reg [1:0] vidx;
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n)          vidx <= 2'd0;
+        else if (vidx == 2'd2) vidx <= 2'd0;
+        else                 vidx <= vidx + 1'b1;
 
     //==========================================================================
-    // SID Voice 2
+    // Mux current voice registers based on vidx
     //==========================================================================
-    wire [7:0] voice2_out;
+    reg [15:0] cur_frequency;
+    reg [7:0]  cur_duration, cur_attack, cur_sustain, cur_waveform;
 
-    sid_voice #(.IS_8580(0)) u_voice2 (
-        .clk                (clk),
-        .rst                (rst),
-        .frequency          (v2_frequency),
-        .duration           (v2_duration),
-        .attack             (v2_attack),
-        .sustain            (v2_sustain),
-        .waveform           (v2_waveform),
-        .prescaler          (adsr_prescaler),
-        .voice              (voice2_out)
-    );
-
-    //==========================================================================
-    // SID Voice 3
-    //==========================================================================
-    wire [7:0] voice3_out;
-
-    sid_voice #(.IS_8580(0)) u_voice3 (
-        .clk                (clk),
-        .rst                (rst),
-        .frequency          (v3_frequency),
-        .duration           (v3_duration),
-        .attack             (v3_attack),
-        .sustain            (v3_sustain),
-        .waveform           (v3_waveform),
-        .prescaler          (adsr_prescaler),
-        .voice              (voice3_out)
-    );
+    always @(*) begin
+        case (vidx)
+            2'd0: begin
+                cur_frequency = v1_frequency; cur_duration = v1_duration;
+                cur_attack = v1_attack; cur_sustain = v1_sustain;
+                cur_waveform = v1_waveform;
+            end
+            2'd1: begin
+                cur_frequency = v2_frequency; cur_duration = v2_duration;
+                cur_attack = v2_attack; cur_sustain = v2_sustain;
+                cur_waveform = v2_waveform;
+            end
+            default: begin
+                cur_frequency = v3_frequency; cur_duration = v3_duration;
+                cur_attack = v3_attack; cur_sustain = v3_sustain;
+                cur_waveform = v3_waveform;
+            end
+        endcase
+    end
 
     //==========================================================================
-    // Mix: sum three voices to 10-bit, right-shift by 2
+    // Waveform control bit aliases (from current voice)
     //==========================================================================
-    wire [9:0] mix = {2'b0, voice1_out} + {2'b0, voice2_out} + {2'b0, voice3_out};
-    wire [7:0] mix_out = mix[9:2];
+    wire cur_test        = cur_waveform[3];
+    wire cur_gate        = cur_waveform[0];
+    wire cur_triangle_en = cur_waveform[4];
+    wire cur_sawtooth_en = cur_waveform[5];
+    wire cur_pulse_en    = cur_waveform[6];
+    wire cur_noise_en    = cur_waveform[7];
+
+    //==========================================================================
+    // Per-voice state banks
+    //==========================================================================
+    // Phase accumulator + LFSR
+    reg [15:0] v_acc_0,  v_acc_1,  v_acc_2;
+    reg [7:0]  v_lfsr_0, v_lfsr_1, v_lfsr_2;
+
+    // ADSR state: env_counter (4-bit), state (2-bit), last_gate (1-bit)
+    reg [3:0]  v_env_0,  v_env_1,  v_env_2;
+    reg [1:0]  v_ast_0,  v_ast_1,  v_ast_2;
+    reg        v_lg_0,   v_lg_1,   v_lg_2;
+
+    //==========================================================================
+    // Mux current voice state based on vidx
+    //==========================================================================
+    reg [15:0] cur_acc;
+    reg [7:0]  cur_lfsr;
+    reg [3:0]  cur_env;
+    reg [1:0]  cur_ast;
+    reg        cur_lg;
+
+    always @(*) begin
+        case (vidx)
+            2'd0: begin
+                cur_acc = v_acc_0; cur_lfsr = v_lfsr_0;
+                cur_env = v_env_0; cur_ast = v_ast_0; cur_lg = v_lg_0;
+            end
+            2'd1: begin
+                cur_acc = v_acc_1; cur_lfsr = v_lfsr_1;
+                cur_env = v_env_1; cur_ast = v_ast_1; cur_lg = v_lg_1;
+            end
+            default: begin
+                cur_acc = v_acc_2; cur_lfsr = v_lfsr_2;
+                cur_env = v_env_2; cur_ast = v_ast_2; cur_lg = v_lg_2;
+            end
+        endcase
+    end
+
+    //==========================================================================
+    // Shared combinational: waveform generation
+    //==========================================================================
+    wire [7:0] saw_out = cur_acc[15:8];
+    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[15]}};
+    wire [7:0] tri_out = cur_acc[14:7] ^ tri_tmp;
+    wire       pulse_out = cur_acc[15:8] > cur_duration;
+
+    //==========================================================================
+    // Shared combinational: ADSR envelope tick + next state
+    //==========================================================================
+    localparam [1:0] ENV_IDLE    = 2'd0,
+                     ENV_ATTACK  = 2'd1,
+                     ENV_DECAY   = 2'd2,
+                     ENV_RELEASE = 2'd3;
+
+    // Rate selection
+    reg [3:0] active_rate;
+    always @(*) begin
+        case (cur_ast)
+            ENV_ATTACK:  active_rate = cur_attack[3:0];
+            ENV_DECAY:   active_rate = cur_attack[7:4];
+            ENV_RELEASE: active_rate = cur_sustain[7:4];
+            default:     active_rate = 4'd0;
+        endcase
+    end
+
+    // Envelope tick from prescaler
+    reg env_tick;
+    always @(*) begin
+        case (active_rate)
+            4'd0:  env_tick = &adsr_prescaler[8:0];
+            4'd1:  env_tick = &adsr_prescaler[9:0];
+            4'd2:  env_tick = &adsr_prescaler[10:0];
+            4'd3:  env_tick = &adsr_prescaler[11:0];
+            4'd4:  env_tick = &adsr_prescaler[12:0];
+            4'd5:  env_tick = &adsr_prescaler[13:0];
+            4'd6:  env_tick = &adsr_prescaler[14:0];
+            4'd7:  env_tick = &adsr_prescaler[15:0];
+            4'd8:  env_tick = &adsr_prescaler[16:0];
+            4'd9:  env_tick = &adsr_prescaler[17:0];
+            4'd10: env_tick = &adsr_prescaler[18:0];
+            4'd11: env_tick = &adsr_prescaler[19:0];
+            4'd12: env_tick = &adsr_prescaler[20:0];
+            4'd13: env_tick = &adsr_prescaler[21:0];
+            4'd14: env_tick = &adsr_prescaler[22:0];
+            default: env_tick = &adsr_prescaler[22:0];
+        endcase
+    end
+
+    wire [3:0] sustain_level = cur_sustain[3:0];
+
+    // Compute next ADSR state + env_counter
+    reg [1:0] nxt_ast;
+    reg [3:0] nxt_env;
+
+    always @(*) begin
+        nxt_ast = cur_ast;
+        nxt_env = cur_env;
+
+        case (cur_ast)
+            ENV_IDLE: begin
+                nxt_env = 4'd0;
+                if (cur_gate && !cur_lg)
+                    nxt_ast = ENV_ATTACK;
+            end
+            ENV_ATTACK: begin
+                if (!cur_gate) begin
+                    nxt_ast = ENV_RELEASE;
+                end else if (cur_env == 4'hF) begin
+                    nxt_ast = ENV_DECAY;
+                end else if (env_tick) begin
+                    nxt_env = cur_env + 1'b1;
+                end
+            end
+            ENV_DECAY: begin
+                if (!cur_gate) begin
+                    nxt_ast = ENV_RELEASE;
+                end else if (cur_env > sustain_level && env_tick) begin
+                    nxt_env = cur_env - 1'b1;
+                end
+            end
+            ENV_RELEASE: begin
+                if (cur_gate && !cur_lg) begin
+                    nxt_ast = ENV_ATTACK;
+                end else if (cur_env == 4'd0) begin
+                    nxt_ast = ENV_IDLE;
+                end else if (env_tick) begin
+                    nxt_env = cur_env - 1'b1;
+                end
+            end
+        endcase
+    end
+
+    //==========================================================================
+    // Shared combinational: waveform mux + envelope scaling
+    //==========================================================================
+    reg [7:0]  voice_mux;
+    reg [11:0] voice_out;
+
+    always @(*) begin
+        voice_mux = 8'h00;
+        if (cur_triangle_en) voice_mux = voice_mux | tri_out;
+        if (cur_sawtooth_en) voice_mux = voice_mux | saw_out;
+        if (cur_pulse_en)    voice_mux = voice_mux | {8{pulse_out}};
+        if (cur_noise_en)    voice_mux = voice_mux | cur_lfsr;
+
+        voice_out = voice_mux * cur_env;
+
+        if (rst) voice_out = 12'b0;
+    end
+
+    //==========================================================================
+    // Next accumulator + LFSR
+    //==========================================================================
+    wire [15:0] nxt_acc  = cur_test ? 16'd0 : (cur_acc + cur_frequency);
+    wire [7:0]  nxt_lfsr = cur_test ? 8'b00000001 :
+                           {cur_lfsr[6:0], cur_lfsr[3] ^ cur_lfsr[7]};
+
+    //==========================================================================
+    // Sequential: update state banks for current voice
+    //==========================================================================
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            v_acc_0 <= 16'd0; v_acc_1 <= 16'd0; v_acc_2 <= 16'd0;
+            v_lfsr_0 <= 8'd1; v_lfsr_1 <= 8'd1; v_lfsr_2 <= 8'd1;
+            v_env_0 <= 4'd0; v_env_1 <= 4'd0; v_env_2 <= 4'd0;
+            v_ast_0 <= ENV_IDLE; v_ast_1 <= ENV_IDLE; v_ast_2 <= ENV_IDLE;
+            v_lg_0 <= 1'b0; v_lg_1 <= 1'b0; v_lg_2 <= 1'b0;
+        end else begin
+            case (vidx)
+                2'd0: begin
+                    v_acc_0  <= nxt_acc;  v_lfsr_0 <= nxt_lfsr;
+                    v_env_0  <= nxt_env;  v_ast_0  <= nxt_ast;
+                    v_lg_0   <= cur_gate;
+                end
+                2'd1: begin
+                    v_acc_1  <= nxt_acc;  v_lfsr_1 <= nxt_lfsr;
+                    v_env_1  <= nxt_env;  v_ast_1  <= nxt_ast;
+                    v_lg_1   <= cur_gate;
+                end
+                default: begin
+                    v_acc_2  <= nxt_acc;  v_lfsr_2 <= nxt_lfsr;
+                    v_env_2  <= nxt_env;  v_ast_2  <= nxt_ast;
+                    v_lg_2   <= cur_gate;
+                end
+            endcase
+        end
+    end
+
+    //==========================================================================
+    // Mix: accumulate voice outputs over 3 cycles, latch every 3rd
+    //==========================================================================
+    reg [9:0] mix_acc;
+    reg [7:0] mix_out;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            mix_acc <= 10'd0;
+            mix_out <= 8'd0;
+        end else begin
+            if (vidx == 2'd0) begin
+                // Latch previous cycle's accumulated mix
+                mix_out <= mix_acc[9:2];
+                // Start new accumulation with current voice
+                mix_acc <= {2'b0, voice_out[11:4]};
+            end else begin
+                mix_acc <= mix_acc + {2'b0, voice_out[11:4]};
+            end
+        end
+    end
 
     //==========================================================================
     // PWM Audio Output (8-bit, ~196 kHz)
