@@ -58,7 +58,7 @@ async def count_pwm(dut, cycles):
 @cocotb.test()
 async def test_reset(dut):
     """Test that reset clears outputs."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -81,7 +81,7 @@ async def test_reset(dut):
 @cocotb.test()
 async def test_sawtooth(dut):
     """Test sawtooth waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -111,7 +111,7 @@ async def test_sawtooth(dut):
 @cocotb.test()
 async def test_triangle(dut):
     """Test triangle waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -137,7 +137,7 @@ async def test_triangle(dut):
 @cocotb.test()
 async def test_pulse(dut):
     """Test pulse waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -165,7 +165,7 @@ async def test_pulse(dut):
 @cocotb.test()
 async def test_noise(dut):
     """Test noise waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -191,7 +191,7 @@ async def test_noise(dut):
 @cocotb.test(skip=os.environ.get("GATES") == "yes")
 async def test_gate_release(dut):
     """Test that releasing the gate silences PWM output. Skipped in GL sim."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -226,7 +226,7 @@ async def test_gate_release(dut):
 @cocotb.test()
 async def test_two_voices(dut):
     """Test that both voices play simultaneously and produce PWM output."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -258,7 +258,7 @@ async def test_two_voices(dut):
 @cocotb.test()
 async def test_three_voices(dut):
     """Test that all three voices play simultaneously and produce PWM output."""
-    clock = Clock(dut.clk, 20, units="ns")  # 50 MHz
+    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
