@@ -19,8 +19,8 @@
 //   1: freq_hi  — frequency[15:8]
 //   2: pw       — duration[7:0] (pulse width)
 //   3: (unused)
-//   4: attack   — attack[7:0]
-//   5: sustain  — sustain[7:0]
+//   4: attack   — attack[7:0]  (lo=attack_rate, hi=decay_rate)
+//   5: sustain  — sustain[7:0] (lo=sustain_level, hi=release_rate)
 //   6: waveform — waveform[7:0]
 //
 // Mixing: accumulate 3 voice outputs over 3 clocks, shift right by 2.
@@ -129,7 +129,7 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared ADSR prescaler (free-running 23-bit counter)
+    // Shared ADSR prescaler (free-running 20-bit counter)
     //==========================================================================
     reg [19:0] adsr_prescaler;
     always @(posedge clk or negedge rst_n)
@@ -184,9 +184,9 @@ module tt_um_sid (
     //==========================================================================
     // Per-voice state banks
     //==========================================================================
-    // Phase accumulator + LFSR
+    // Phase accumulator + LFSR (4-bit)
     reg [15:0] v_acc_0,  v_acc_1,  v_acc_2;
-    reg [7:0]  v_lfsr_0, v_lfsr_1, v_lfsr_2;
+    reg [3:0]  v_lfsr_0, v_lfsr_1, v_lfsr_2;
 
     // ADSR state: env_counter (4-bit), state (2-bit), last_gate (1-bit)
     reg [3:0]  v_env_0,  v_env_1,  v_env_2;
@@ -197,7 +197,7 @@ module tt_um_sid (
     // Mux current voice state based on vidx
     //==========================================================================
     reg [15:0] cur_acc;
-    reg [7:0]  cur_lfsr;
+    reg [3:0]  cur_lfsr;
     reg [3:0]  cur_env;
     reg [1:0]  cur_ast;
     reg        cur_lg;
@@ -324,7 +324,7 @@ module tt_um_sid (
         if (cur_triangle_en) voice_mux = voice_mux | tri_out;
         if (cur_sawtooth_en) voice_mux = voice_mux | saw_out;
         if (cur_pulse_en)    voice_mux = voice_mux | {8{pulse_out}};
-        if (cur_noise_en)    voice_mux = voice_mux | cur_lfsr;
+        if (cur_noise_en)    voice_mux = voice_mux | {cur_lfsr, cur_lfsr};
 
         voice_out = voice_mux * cur_env;
 
@@ -335,8 +335,8 @@ module tt_um_sid (
     // Next accumulator + LFSR
     //==========================================================================
     wire [15:0] nxt_acc  = cur_test ? 16'd0 : (cur_acc + cur_frequency);
-    wire [7:0]  nxt_lfsr = cur_test ? 8'b00000001 :
-                           {cur_lfsr[6:0], cur_lfsr[3] ^ cur_lfsr[7]};
+    wire [3:0]  nxt_lfsr = cur_test ? 4'b0001 :
+                           {cur_lfsr[2:0], cur_lfsr[1] ^ cur_lfsr[3]};
 
     //==========================================================================
     // Sequential: update state banks for current voice
@@ -344,7 +344,7 @@ module tt_um_sid (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v_acc_0 <= 16'd0; v_acc_1 <= 16'd0; v_acc_2 <= 16'd0;
-            v_lfsr_0 <= 8'd1; v_lfsr_1 <= 8'd1; v_lfsr_2 <= 8'd1;
+            v_lfsr_0 <= 4'd1; v_lfsr_1 <= 4'd1; v_lfsr_2 <= 4'd1;
             v_env_0 <= 4'd0; v_env_1 <= 4'd0; v_env_2 <= 4'd0;
             v_ast_0 <= ENV_IDLE; v_ast_1 <= ENV_IDLE; v_ast_2 <= ENV_IDLE;
             v_lg_0 <= 1'b0; v_lg_1 <= 1'b0; v_lg_2 <= 1'b0;
@@ -381,9 +381,7 @@ module tt_um_sid (
             mix_out <= 8'd0;
         end else begin
             if (vidx == 2'd0) begin
-                // Latch previous cycle's accumulated mix
                 mix_out <= mix_acc[9:2];
-                // Start new accumulation with current voice
                 mix_acc <= {2'b0, voice_out[11:4]};
             end else begin
                 mix_acc <= mix_acc + {2'b0, voice_out[11:4]};
