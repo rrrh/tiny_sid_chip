@@ -131,9 +131,9 @@ module tt_um_sid (
     //==========================================================================
     // Shared ADSR prescaler (free-running 23-bit counter)
     //==========================================================================
-    reg [22:0] adsr_prescaler;
+    reg [19:0] adsr_prescaler;
     always @(posedge clk or negedge rst_n)
-        if (!rst_n) adsr_prescaler <= 23'd0;
+        if (!rst_n) adsr_prescaler <= 20'd0;
         else        adsr_prescaler <= adsr_prescaler + 1'b1;
 
     //==========================================================================
@@ -250,22 +250,22 @@ module tt_um_sid (
     reg env_tick;
     always @(*) begin
         case (active_rate)
-            4'd0:  env_tick = &adsr_prescaler[8:0];
-            4'd1:  env_tick = &adsr_prescaler[9:0];
-            4'd2:  env_tick = &adsr_prescaler[10:0];
-            4'd3:  env_tick = &adsr_prescaler[11:0];
-            4'd4:  env_tick = &adsr_prescaler[12:0];
-            4'd5:  env_tick = &adsr_prescaler[13:0];
-            4'd6:  env_tick = &adsr_prescaler[14:0];
-            4'd7:  env_tick = &adsr_prescaler[15:0];
-            4'd8:  env_tick = &adsr_prescaler[16:0];
-            4'd9:  env_tick = &adsr_prescaler[17:0];
-            4'd10: env_tick = &adsr_prescaler[18:0];
-            4'd11: env_tick = &adsr_prescaler[19:0];
-            4'd12: env_tick = &adsr_prescaler[20:0];
-            4'd13: env_tick = &adsr_prescaler[21:0];
-            4'd14: env_tick = &adsr_prescaler[22:0];
-            default: env_tick = &adsr_prescaler[22:0];
+            4'd0:  env_tick = &adsr_prescaler[5:0];
+            4'd1:  env_tick = &adsr_prescaler[6:0];
+            4'd2:  env_tick = &adsr_prescaler[7:0];
+            4'd3:  env_tick = &adsr_prescaler[8:0];
+            4'd4:  env_tick = &adsr_prescaler[9:0];
+            4'd5:  env_tick = &adsr_prescaler[10:0];
+            4'd6:  env_tick = &adsr_prescaler[11:0];
+            4'd7:  env_tick = &adsr_prescaler[12:0];
+            4'd8:  env_tick = &adsr_prescaler[13:0];
+            4'd9:  env_tick = &adsr_prescaler[14:0];
+            4'd10: env_tick = &adsr_prescaler[15:0];
+            4'd11: env_tick = &adsr_prescaler[16:0];
+            4'd12: env_tick = &adsr_prescaler[17:0];
+            4'd13: env_tick = &adsr_prescaler[18:0];
+            4'd14: env_tick = &adsr_prescaler[19:0];
+            default: env_tick = &adsr_prescaler[19:0];
         endcase
     end
 
