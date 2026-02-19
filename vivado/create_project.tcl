@@ -18,10 +18,7 @@ create_project $project_name "$project_dir/$project_name" -part xc7a100tcsg324-1
 add_files -norecurse [list \
     "$project_dir/arty_top.v" \
     "$src_dir/tt_um_sid.v" \
-    "$src_dir/spi_regs.v" \
-    "$src_dir/sid_voice.v" \
-    "$src_dir/sid_asdr_generator.v" \
-    "$src_dir/delta_sigma_dac.v" \
+    "$src_dir/pwm_audio.v" \
 ]
 
 # --------------------------------------------------------------------------

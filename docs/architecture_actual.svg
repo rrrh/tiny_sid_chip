@@ -1,0 +1,301 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 920" font-family="monospace" font-size="11">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#333"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#2266aa"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#aa3333"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="600" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#222">tt_um_sid — Triple SID Voice Synthesizer (Time-Multiplexed)</text>
+  <text x="600" y="42" text-anchor="middle" font-size="11" fill="#666">Based on actual RTL (tt_um_sid.v + pwm_audio.v) — only instantiated submodule is pwm_audio</text>
+
+  <!-- Module boundary -->
+  <rect x="100" y="55" width="1000" height="830" rx="6" fill="none" stroke="#999" stroke-width="2" stroke-dasharray="8,4"/>
+  <text x="110" y="72" font-size="10" fill="#999">tt_um_sid</text>
+
+  <!-- ================================================================ -->
+  <!-- INPUT PINS (left side) -->
+  <!-- ================================================================ -->
+  <rect x="10" y="80" width="80" height="120" rx="4" fill="#e8f0fe" stroke="#4a86c8"/>
+  <text x="50" y="96" text-anchor="middle" font-size="10" font-weight="bold" fill="#2a56a8">INPUT</text>
+  <text x="50" y="96" text-anchor="middle" font-size="10" font-weight="bold" fill="#2a56a8">PINS</text>
+  <text x="50" y="114" text-anchor="middle" font-size="9" fill="#444">ui_in[2:0]</text>
+  <text x="50" y="126" text-anchor="middle" font-size="9" fill="#444">ui_in[4:3]</text>
+  <text x="50" y="138" text-anchor="middle" font-size="9" fill="#444">ui_in[7]</text>
+  <text x="50" y="154" text-anchor="middle" font-size="9" fill="#444">uio_in[7:0]</text>
+  <text x="50" y="170" text-anchor="middle" font-size="9" fill="#444">clk, rst_n</text>
+
+  <!-- Labels for input signals -->
+  <text x="95" y="114" font-size="8" fill="#777">reg_addr</text>
+  <text x="95" y="126" font-size="8" fill="#777">voice_sel</text>
+  <text x="95" y="138" font-size="8" fill="#777">wr_en</text>
+  <text x="95" y="154" font-size="8" fill="#777">wr_data</text>
+
+  <!-- ================================================================ -->
+  <!-- WRITE ENABLE EDGE DETECT -->
+  <!-- ================================================================ -->
+  <rect x="160" y="80" width="120" height="44" rx="4" fill="#fff3e0" stroke="#e6a23c"/>
+  <text x="220" y="97" text-anchor="middle" font-size="10" font-weight="bold" fill="#b47a1e">WR Edge Detect</text>
+  <text x="220" y="112" text-anchor="middle" font-size="9" fill="#666">wr_en_rise =</text>
+  <text x="220" y="122" text-anchor="middle" font-size="9" fill="#666">wr_en &amp; !wr_en_d</text>
+
+  <line x1="90" y1="100" x2="158" y2="100" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- ================================================================ -->
+  <!-- SHARED REGISTERS -->
+  <!-- ================================================================ -->
+  <rect x="310" y="80" width="160" height="50" rx="4" fill="#e8f5e9" stroke="#66bb6a"/>
+  <text x="390" y="97" text-anchor="middle" font-size="10" font-weight="bold" fill="#2e7d32">Shared Registers</text>
+  <text x="390" y="112" text-anchor="middle" font-size="9" fill="#444">shared_attack[7:0]  (addr 4)</text>
+  <text x="390" y="124" text-anchor="middle" font-size="9" fill="#444">shared_sustain[7:0] (addr 5)</text>
+
+  <line x1="280" y1="100" x2="308" y2="100" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- ================================================================ -->
+  <!-- VOICE REGISTER BANKS -->
+  <!-- ================================================================ -->
+  <!-- Voice 1 -->
+  <rect x="310" y="142" width="160" height="62" rx="4" fill="#e3f2fd" stroke="#42a5f5"/>
+  <text x="390" y="158" text-anchor="middle" font-size="10" font-weight="bold" fill="#1565c0">Voice 1 Regs</text>
+  <text x="390" y="172" text-anchor="middle" font-size="9" fill="#444">v1_frequency[15:0]</text>
+  <text x="390" y="184" text-anchor="middle" font-size="9" fill="#444">v1_duration[7:0]</text>
+  <text x="390" y="196" text-anchor="middle" font-size="9" fill="#444">v1_waveform[7:0]</text>
+
+  <!-- Voice 2 -->
+  <rect x="310" y="212" width="160" height="62" rx="4" fill="#e3f2fd" stroke="#42a5f5"/>
+  <text x="390" y="228" text-anchor="middle" font-size="10" font-weight="bold" fill="#1565c0">Voice 2 Regs</text>
+  <text x="390" y="242" text-anchor="middle" font-size="9" fill="#444">v2_frequency[15:0]</text>
+  <text x="390" y="254" text-anchor="middle" font-size="9" fill="#444">v2_duration[7:0]</text>
+  <text x="390" y="266" text-anchor="middle" font-size="9" fill="#444">v2_waveform[7:0]</text>
+
+  <!-- Voice 3 -->
+  <rect x="310" y="282" width="160" height="62" rx="4" fill="#e3f2fd" stroke="#42a5f5"/>
+  <text x="390" y="298" text-anchor="middle" font-size="10" font-weight="bold" fill="#1565c0">Voice 3 Regs</text>
+  <text x="390" y="312" text-anchor="middle" font-size="9" fill="#444">v3_frequency[15:0]</text>
+  <text x="390" y="324" text-anchor="middle" font-size="9" fill="#444">v3_duration[7:0]</text>
+  <text x="390" y="336" text-anchor="middle" font-size="9" fill="#444">v3_waveform[7:0]</text>
+
+  <!-- wr_en_rise + voice_sel arrows to register banks -->
+  <path d="M280,106 L295,106 L295,175 L308,175" fill="none" stroke="#333" stroke-width="1" marker-end="url(#arrow)"/>
+  <path d="M295,175 L295,245 L308,245" fill="none" stroke="#333" stroke-width="1" marker-end="url(#arrow)"/>
+  <path d="M295,245 L295,315 L308,315" fill="none" stroke="#333" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- Data input arrow -->
+  <line x1="90" y1="154" x2="160" y2="154" stroke="#333" stroke-width="1"/>
+  <path d="M160,154 L295,154 L295,175" fill="none" stroke="#333" stroke-width="1"/>
+
+  <!-- ================================================================ -->
+  <!-- VIDX COUNTER -->
+  <!-- ================================================================ -->
+  <rect x="510" y="80" width="100" height="50" rx="4" fill="#fce4ec" stroke="#ef5350"/>
+  <text x="560" y="97" text-anchor="middle" font-size="10" font-weight="bold" fill="#c62828">vidx[1:0]</text>
+  <text x="560" y="112" text-anchor="middle" font-size="9" fill="#666">0 → 1 → 2 → 0</text>
+  <text x="560" y="124" text-anchor="middle" font-size="9" fill="#666">round-robin</text>
+
+  <!-- ================================================================ -->
+  <!-- REGISTER MUX -->
+  <!-- ================================================================ -->
+  <rect x="510" y="155" width="100" height="60" rx="4" fill="#f3e5f5" stroke="#ab47bc"/>
+  <text x="560" y="172" text-anchor="middle" font-size="10" font-weight="bold" fill="#7b1fa2">Reg Mux</text>
+  <text x="560" y="186" text-anchor="middle" font-size="9" fill="#555">cur_frequency</text>
+  <text x="560" y="198" text-anchor="middle" font-size="9" fill="#555">cur_duration</text>
+  <text x="560" y="210" text-anchor="middle" font-size="9" fill="#555">cur_waveform</text>
+
+  <!-- vidx to reg mux -->
+  <line x1="560" y1="130" x2="560" y2="153" stroke="#c62828" stroke-width="1.2" marker-end="url(#arrow-red)"/>
+
+  <!-- Voice regs to reg mux -->
+  <line x1="470" y1="185" x2="508" y2="185" stroke="#42a5f5" stroke-width="1.2" marker-end="url(#arrow-blue)"/>
+
+  <!-- ================================================================ -->
+  <!-- PER-VOICE STATE BANKS -->
+  <!-- ================================================================ -->
+  <rect x="510" y="240" width="200" height="115" rx="4" fill="#fff8e1" stroke="#ffa726"/>
+  <text x="610" y="257" text-anchor="middle" font-size="10" font-weight="bold" fill="#e65100">Per-Voice State Banks (×3)</text>
+  <text x="610" y="275" text-anchor="middle" font-size="9" fill="#555">v_acc_N[15:0]   — phase accumulator</text>
+  <text x="610" y="289" text-anchor="middle" font-size="9" fill="#555">v_lfsr_N[3:0]   — noise LFSR</text>
+  <text x="610" y="303" text-anchor="middle" font-size="9" fill="#555">v_env_N[3:0]    — envelope counter</text>
+  <text x="610" y="317" text-anchor="middle" font-size="9" fill="#555">v_ast_N[1:0]    — ADSR state</text>
+  <text x="610" y="331" text-anchor="middle" font-size="9" fill="#555">v_lg_N          — last gate</text>
+  <text x="610" y="349" text-anchor="middle" font-size="8" fill="#888">N = {0, 1, 2}, selected by vidx</text>
+
+  <!-- vidx to state bank mux -->
+  <path d="M595,130 L595,138 L720,138 L720,290 L712,290" fill="none" stroke="#c62828" stroke-width="1.2" marker-end="url(#arrow-red)"/>
+
+  <!-- ================================================================ -->
+  <!-- ADSR PRESCALER -->
+  <!-- ================================================================ -->
+  <rect x="160" y="420" width="140" height="44" rx="4" fill="#e0f2f1" stroke="#26a69a"/>
+  <text x="230" y="437" text-anchor="middle" font-size="10" font-weight="bold" fill="#00695c">ADSR Prescaler</text>
+  <text x="230" y="453" text-anchor="middle" font-size="9" fill="#555">adsr_prescaler[19:0]</text>
+  <text x="230" y="462" text-anchor="middle" font-size="8" fill="#888">free-running +1</text>
+
+  <!-- ================================================================ -->
+  <!-- WAVEFORM GENERATION (combinational) -->
+  <!-- ================================================================ -->
+  <rect x="310" y="390" width="220" height="130" rx="4" fill="#e8eaf6" stroke="#5c6bc0"/>
+  <text x="420" y="408" text-anchor="middle" font-size="10" font-weight="bold" fill="#283593">Waveform Generation</text>
+  <text x="420" y="408" text-anchor="middle" font-size="10" font-weight="bold" fill="#283593">Waveform Gen (combinational)</text>
+
+  <text x="320" y="428" font-size="9" fill="#444">SAW: cur_acc[15:8]</text>
+  <text x="320" y="444" font-size="9" fill="#444">TRI: acc[14:7] ^ {8{acc[15]}}</text>
+  <text x="320" y="456" font-size="9" fill="#444">     (zeroed if saw_en → OR = saw)</text>
+  <text x="320" y="472" font-size="9" fill="#444">PUL: acc[15:8] > duration → {8{b}}</text>
+  <text x="320" y="488" font-size="9" fill="#444">NOI: {cur_lfsr, cur_lfsr}</text>
+
+  <text x="320" y="508" font-size="9" font-weight="bold" fill="#283593">voice_mux = OR of enabled waves</text>
+
+  <!-- cur_* from reg mux to waveform gen -->
+  <path d="M560,215 L560,230 L540,230 L540,388" fill="none" stroke="#7b1fa2" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- cur state from state bank to waveform gen -->
+  <path d="M560,355 L560,375 L530,375 L530,388" fill="none" stroke="#e65100" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- ================================================================ -->
+  <!-- ADSR NEXT STATE LOGIC -->
+  <!-- ================================================================ -->
+  <rect x="560" y="390" width="220" height="130" rx="4" fill="#e0f7fa" stroke="#00acc1"/>
+  <text x="670" y="408" text-anchor="middle" font-size="10" font-weight="bold" fill="#006064">ADSR Next-State (combinational)</text>
+
+  <text x="570" y="428" font-size="9" fill="#444">Rate select by cur_ast:</text>
+  <text x="570" y="442" font-size="9" fill="#444">  ATK→attack[3:0]</text>
+  <text x="570" y="454" font-size="9" fill="#444">  DEC→attack[7:4]</text>
+  <text x="570" y="466" font-size="9" fill="#444">  REL→sustain[7:4]</text>
+
+  <text x="570" y="486" font-size="9" fill="#444">env_tick = &amp;prescaler[rate+5:0]</text>
+  <text x="570" y="500" font-size="9" fill="#444">  (rate 0→[5:0], rate 14→[19:0])</text>
+
+  <text x="570" y="516" font-size="9" font-weight="bold" fill="#006064">→ nxt_ast[1:0], nxt_env[3:0]</text>
+
+  <!-- prescaler to ADSR -->
+  <path d="M300,455 L350,455 L350,380 L600,380 L600,388" fill="none" stroke="#26a69a" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- shared_attack/sustain to ADSR -->
+  <path d="M390,130 L390,135 L500,135 L500,375 L660,375 L660,388" fill="none" stroke="#2e7d32" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- cur state to ADSR next-state -->
+  <path d="M680,355 L680,370 L690,370 L690,388" fill="none" stroke="#e65100" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- ================================================================ -->
+  <!-- ENVELOPE SCALING -->
+  <!-- ================================================================ -->
+  <rect x="340" y="545" width="190" height="55" rx="4" fill="#fce4ec" stroke="#e91e63"/>
+  <text x="435" y="562" text-anchor="middle" font-size="10" font-weight="bold" fill="#880e4f">Envelope Scaling</text>
+  <text x="435" y="578" text-anchor="middle" font-size="9" fill="#444">voice_out[11:0] =</text>
+  <text x="435" y="592" text-anchor="middle" font-size="9" fill="#444">voice_mux[7:0] × cur_env[3:0]</text>
+
+  <!-- waveform gen to scaling -->
+  <line x1="420" y1="520" x2="420" y2="543" stroke="#283593" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- ADSR env to scaling -->
+  <path d="M670,520 L670,535 L532,535 L532,560 L530,560" fill="none" stroke="#006064" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- ================================================================ -->
+  <!-- NEXT ACC / LFSR -->
+  <!-- ================================================================ -->
+  <rect x="600" y="545" width="180" height="55" rx="4" fill="#f1f8e9" stroke="#8bc34a"/>
+  <text x="690" y="562" text-anchor="middle" font-size="10" font-weight="bold" fill="#33691e">Next Acc / LFSR</text>
+  <text x="690" y="578" text-anchor="middle" font-size="9" fill="#444">nxt_acc = acc + frequency</text>
+  <text x="690" y="592" text-anchor="middle" font-size="9" fill="#444">nxt_lfsr = {[2:0], [1]^[3]}</text>
+
+  <!-- ================================================================ -->
+  <!-- WRITEBACK arrow (state banks update) -->
+  <!-- ================================================================ -->
+  <path d="M780,572 L830,572 L830,300 L712,300" fill="none" stroke="#e65100" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow)"/>
+  <text x="838" y="440" font-size="9" fill="#e65100" transform="rotate(90,838,440)">writeback (posedge clk)</text>
+
+  <!-- ADSR nxt_ast/nxt_env writeback -->
+  <path d="M780,470 L840,470 L840,310 L712,310" fill="none" stroke="#006064" stroke-width="1.2" stroke-dasharray="5,3" marker-end="url(#arrow)"/>
+
+  <!-- ================================================================ -->
+  <!-- MIX ACCUMULATOR -->
+  <!-- ================================================================ -->
+  <rect x="310" y="630" width="220" height="75" rx="4" fill="#ede7f6" stroke="#7e57c2"/>
+  <text x="420" y="648" text-anchor="middle" font-size="10" font-weight="bold" fill="#4527a0">Mix Accumulator</text>
+  <text x="420" y="666" text-anchor="middle" font-size="9" fill="#444">mix_acc[9:0] += voice_out[11:4]</text>
+  <text x="420" y="680" text-anchor="middle" font-size="9" fill="#444">When vidx==0:</text>
+  <text x="420" y="694" text-anchor="middle" font-size="9" fill="#444">  mix_out = mix_acc[9:2] (÷4)</text>
+  <text x="420" y="700" text-anchor="middle" font-size="8" fill="#888">  then reset acc with voice 0</text>
+
+  <!-- voice_out to mix -->
+  <line x1="420" y1="600" x2="420" y2="628" stroke="#880e4f" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- vidx to mix -->
+  <path d="M510,115 L498,115 L498,660 L308,660" fill="none" stroke="#c62828" stroke-width="1" marker-end="url(#arrow-red)"/>
+
+  <!-- ================================================================ -->
+  <!-- PWM AUDIO -->
+  <!-- ================================================================ -->
+  <rect x="580" y="645" width="170" height="55" rx="4" fill="#fff3e0" stroke="#ff9800"/>
+  <text x="665" y="663" text-anchor="middle" font-size="10" font-weight="bold" fill="#e65100">pwm_audio</text>
+  <text x="665" y="678" text-anchor="middle" font-size="9" fill="#444">8-bit counter, period=255</text>
+  <text x="665" y="692" text-anchor="middle" font-size="9" fill="#444">pwm = (count &lt; sample)</text>
+
+  <text x="665" y="718" text-anchor="middle" font-size="8" fill="#888">(only instantiated submodule)</text>
+
+  <!-- mix_out to PWM -->
+  <path d="M530,672 L578,672" fill="none" stroke="#4527a0" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="545" y="666" font-size="8" fill="#666">mix_out</text>
+
+  <!-- ================================================================ -->
+  <!-- OUTPUT PINS -->
+  <!-- ================================================================ -->
+  <rect x="800" y="645" width="90" height="55" rx="4" fill="#e8f0fe" stroke="#4a86c8"/>
+  <text x="845" y="663" text-anchor="middle" font-size="10" font-weight="bold" fill="#2a56a8">OUTPUT</text>
+  <text x="845" y="678" text-anchor="middle" font-size="9" fill="#444">uo_out[0]</text>
+  <text x="845" y="690" text-anchor="middle" font-size="9" fill="#444">= pwm_out</text>
+
+  <!-- PWM to output -->
+  <line x1="750" y1="672" x2="798" y2="672" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- ================================================================ -->
+  <!-- LEGEND -->
+  <!-- ================================================================ -->
+  <rect x="830" y="80" width="250" height="220" rx="6" fill="#fafafa" stroke="#ccc"/>
+  <text x="955" y="100" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">Legend</text>
+
+  <rect x="842" y="112" width="14" height="10" fill="#e3f2fd" stroke="#42a5f5"/>
+  <text x="864" y="121" font-size="9" fill="#444">Per-voice registers (×3)</text>
+
+  <rect x="842" y="130" width="14" height="10" fill="#e8f5e9" stroke="#66bb6a"/>
+  <text x="864" y="139" font-size="9" fill="#444">Shared regs (all voices same)</text>
+
+  <rect x="842" y="148" width="14" height="10" fill="#fff8e1" stroke="#ffa726"/>
+  <text x="864" y="157" font-size="9" fill="#444">Per-voice state (muxed by vidx)</text>
+
+  <rect x="842" y="166" width="14" height="10" fill="#e8eaf6" stroke="#5c6bc0"/>
+  <text x="864" y="175" font-size="9" fill="#444">Combinational waveform logic</text>
+
+  <rect x="842" y="184" width="14" height="10" fill="#e0f7fa" stroke="#00acc1"/>
+  <text x="864" y="193" font-size="9" fill="#444">Combinational ADSR logic</text>
+
+  <rect x="842" y="202" width="14" height="10" fill="#fce4ec" stroke="#e91e63"/>
+  <text x="864" y="211" font-size="9" fill="#444">Envelope × waveform multiply</text>
+
+  <rect x="842" y="220" width="14" height="10" fill="#fff3e0" stroke="#ff9800"/>
+  <text x="864" y="229" font-size="9" fill="#444">pwm_audio (only submodule)</text>
+
+  <line x1="842" y1="245" x2="856" y2="245" stroke="#c62828" stroke-width="1.5"/>
+  <text x="864" y="249" font-size="9" fill="#444">vidx select / control</text>
+
+  <line x1="842" y1="263" x2="856" y2="263" stroke="#e65100" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="864" y="267" font-size="9" fill="#444">State writeback (clocked)</text>
+
+  <!-- ================================================================ -->
+  <!-- TIMING NOTE -->
+  <!-- ================================================================ -->
+  <rect x="120" y="760" width="870" height="110" rx="6" fill="#f5f5f5" stroke="#bbb"/>
+  <text x="555" y="780" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">Timing &amp; Key Details</text>
+
+  <text x="135" y="800" font-size="9" fill="#444">Clock: 50 MHz | vidx cycles 0→1→2→0 (each voice updates every 3rd clock)</text>
+  <text x="135" y="816" font-size="9" fill="#444">ADSR prescaler: 20-bit free-running | env_tick = &amp;prescaler[rate+5 : 0] | rate 0 ≈ 1.3μs, rate 14 ≈ 21ms (×15 steps = envelope phase time)</text>
+  <text x="135" y="832" font-size="9" fill="#444">PWM: period=255 clocks → ~196 kHz | mix_out = sum(3 voices) &gt;&gt; 2</text>
+  <text x="135" y="848" font-size="9" fill="#444">LFSR: 4-bit, taps [1]^[3], max period=15 | Waveform mux: bitwise OR (not sum) | voice_out = waveform[7:0] × env[3:0] → 12-bit, use [11:4]</text>
+  <text x="135" y="864" font-size="9" fill="#c62828">NOTE: shared_attack and shared_sustain are global — all 3 voices have identical ADSR rates and sustain level</text>
+</svg>
