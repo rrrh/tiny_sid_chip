@@ -62,9 +62,9 @@ module gen_wav_tb;
             rst_n = 1;
             repeat (10) @(posedge clk);
 
-            // Configure voice
-            sid_write(0, 8'hC3, voice); // freq_lo = 0xC3 (4291 = C4)
-            sid_write(1, 8'h10, voice); // freq_hi = 0x10
+            // Configure voice: C4 (262 Hz), freq_reg = 262*65536/(50e6/3/16) ≈ 16
+            sid_write(0, 8'h10, voice); // freq_lo = 0x10 (16 ≈ C4)
+            sid_write(1, 8'h00, voice); // freq_hi = 0x00
             sid_write(2, 8'h80, voice); // pulse width = 50%
             sid_write(4, 8'h00, voice); // attack=0 (fastest), decay=0
             sid_write(5, 8'h0F, voice); // sustain=F, release=0

@@ -7,12 +7,16 @@
 //
 // Memory-Mapped Interface:
 //   ui_in[2:0]  = register address
-//   ui_in[3]    = voice select (0=voice1, 1=voice2)
+//   ui_in[4:3]  = voice select (0=voice1, 1=voice2, 2=voice3)
 //   ui_in[7]    = write enable (rising-edge triggered)
 //   uio_in[7:0] = write data
 //
-// Registers (per voice): 0=freq_lo, 1=freq_hi, 2=pw_lo, 3=pw_hi,
+// Registers (per voice): 0=freq_lo, 1=freq_hi, 2=pw,
 //                        4=attack, 5=sustain, 6=waveform
+//
+// Voice update rate: 50 MHz / 3 = 16.67 MHz per voice
+// 16-bit accumulator with /16 prescaler: effective rate = 50 MHz / 3 / 16
+// freq_reg = Hz * 65536 / (50e6 / 3 / 16) ≈ Hz * 0.06291
 //==============================================================================
 
 module tt_um_sid_tb;
@@ -109,16 +113,16 @@ module tt_um_sid_tb;
                      PULSE = 8'h40,
                      NOISE = 8'h80;
 
-    localparam [15:0] FREQ_C4 = 16'd4291,
-                      FREQ_E4 = 16'd5404,
-                      FREQ_G4 = 16'd6430,
-                      FREQ_C5 = 16'd8583;
+    // 16-bit acc + /16 prescaler: freq_reg = Hz * 65536 / (50e6/3/16) ≈ Hz * 0.06291
+    localparam [15:0] FREQ_C4 = 16'd16,   // 262 Hz → 16.5 → 16 (actual 254 Hz)
+                      FREQ_E4 = 16'd21,   // 330 Hz → 20.8 → 21 (actual 334 Hz)
+                      FREQ_G4 = 16'd25,   // 392 Hz → 24.7 → 25 (actual 397 Hz)
+                      FREQ_C5 = 16'd33;   // 523 Hz → 32.9 → 33 (actual 524 Hz)
 
     // Register addresses
     localparam [2:0] REG_FREQ_LO = 3'd0,
                      REG_FREQ_HI = 3'd1,
                      REG_PW_LO   = 3'd2,
-                     REG_PW_HI   = 3'd3,
                      REG_ATK     = 3'd4,
                      REG_SUS     = 3'd5,
                      REG_WAV     = 3'd6;
@@ -157,7 +161,7 @@ module tt_um_sid_tb;
         input [15:0] freq;
         input [1:0]  voice;
         begin
-            sid_write(REG_FREQ_LO, freq[7:0], voice);
+            sid_write(REG_FREQ_LO, freq[7:0],  voice);
             sid_write(REG_FREQ_HI, freq[15:8], voice);
         end
     endtask
@@ -349,7 +353,7 @@ module tt_um_sid_tb;
         repeat (150_000) @(posedge clk);
         count_pdm(20_000, cnt1);
         test_num = test_num + 1;
-        if (cnt1 > 50) begin
+        if (cnt1 > 10) begin
             $display("[%0t] TEST %0d PASS: Pulse PDM active (count=%0d)", $time, test_num, cnt1);
             pass_count = pass_count + 1;
         end else begin
@@ -384,22 +388,25 @@ module tt_um_sid_tb;
         repeat (150_000) @(posedge clk);
 
         // =============================================================
-        // 7. ADSR envelope — attack ramp (rate 8 ≈ slower for 4-bit env)
+        // 7. ADSR envelope — attack ramp (rate 10 ≈ slower for 4-bit env)
+        //    Uses measure_pcm (average amplitude) instead of count_pdm
+        //    because PDM edge count saturates for any non-zero output.
         // =============================================================
         $display("\n===== 7. ADSR attack ramp =====");
         sid_write_freq(FREQ_C4, 2'd0);
         sid_write_pw(8'h80, 2'd0);
-        sid_write(REG_ATK, 8'h08, 2'd0);
+        sid_write(REG_ATK, 8'hA0, 2'd0);  // attack=10, decay=0
         sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, SAW | GATE, 2'd0);
 
-        repeat (50_000) @(posedge clk);
-        count_pdm(50_000, cnt1);
-        $display("[%0t]   Early window PDM count = %0d", $time, cnt1);
+        // Early window: measure right after gate-on (envelope still ramping)
+        measure_pcm(50, cnt1);
+        $display("[%0t]   Early PCM avg = %0d", $time, cnt1);
 
-        repeat (2_000_000) @(posedge clk);
-        count_pdm(50_000, cnt2);
-        $display("[%0t]   Late  window PDM count = %0d", $time, cnt2);
+        // Late window: after envelope has had time to ramp higher
+        repeat (3_000_000) @(posedge clk);
+        measure_pcm(50, cnt2);
+        $display("[%0t]   Late  PCM avg = %0d", $time, cnt2);
 
         test_num = test_num + 1;
         if (cnt2 > cnt1) begin

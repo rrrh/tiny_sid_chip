@@ -3,7 +3,13 @@
 // TT10 Wrapper — Triple SID Voice Synthesizer (Time-Multiplexed)
 //==============================================================================
 // Uses one shared compute pipeline cycling through 3 voices each clock.
-// Each voice is updated every 3rd clock cycle.
+// Each voice is updated every 3rd clock cycle at 50 MHz = 16.67 MHz/voice.
+//
+// Frequency resolution is improved with a shared 4-bit accumulator
+// prescaler that divides the voice update rate by 16:
+//   Effective rate = 50 MHz / 3 / 16 = 1.042 MHz per voice
+//   Resolution = 1.042 MHz / 65536 ≈ 15.9 Hz per step
+//   freq_reg = desired_Hz * 65536 / 1041667 ≈ desired_Hz * 0.06291
 //
 // Flat Memory-Mapped Register Interface:
 //   ui_in[2:0]  = register address (3-bit)
@@ -17,8 +23,8 @@
 // Register Map (per voice):
 //   0: freq_lo  — frequency[7:0]
 //   1: freq_hi  — frequency[15:8]
-//   2: pw       — duration[7:0] (pulse width)
-//   3: (unused)
+//   2: pw       — pulse width[7:0]
+//   3: (reserved)
 //   4: attack   — attack[7:0]  (lo=attack_rate, hi=decay_rate)
 //   5: sustain  — sustain[7:0] (lo=sustain_level, hi=release_rate)
 //   6: waveform — waveform[7:0]
@@ -87,7 +93,7 @@ module tt_um_sid (
             case (reg_addr)
                 3'd0: v1_frequency[7:0]  <= wr_data;
                 3'd1: v1_frequency[15:8] <= wr_data;
-                3'd2: v1_duration         <= wr_data;
+                3'd2: v1_duration        <= wr_data;
                 3'd6: v1_waveform        <= wr_data;
                 default: ;
             endcase
@@ -108,7 +114,7 @@ module tt_um_sid (
             case (reg_addr)
                 3'd0: v2_frequency[7:0]  <= wr_data;
                 3'd1: v2_frequency[15:8] <= wr_data;
-                3'd2: v2_duration         <= wr_data;
+                3'd2: v2_duration        <= wr_data;
                 3'd6: v2_waveform        <= wr_data;
                 default: ;
             endcase
@@ -129,7 +135,7 @@ module tt_um_sid (
             case (reg_addr)
                 3'd0: v3_frequency[7:0]  <= wr_data;
                 3'd1: v3_frequency[15:8] <= wr_data;
-                3'd2: v3_duration         <= wr_data;
+                3'd2: v3_duration        <= wr_data;
                 3'd6: v3_waveform        <= wr_data;
                 default: ;
             endcase
@@ -137,11 +143,11 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared ADSR prescaler (free-running 20-bit counter)
+    // Shared ADSR prescaler (free-running 18-bit counter)
     //==========================================================================
-    reg [19:0] adsr_prescaler;
+    reg [17:0] adsr_prescaler;
     always @(posedge clk or negedge rst_n)
-        if (!rst_n) adsr_prescaler <= 20'd0;
+        if (!rst_n) adsr_prescaler <= 18'd0;
         else        adsr_prescaler <= adsr_prescaler + 1'b1;
 
     //==========================================================================
@@ -191,9 +197,9 @@ module tt_um_sid (
     //==========================================================================
     // Per-voice state banks
     //==========================================================================
-    // Phase accumulator + LFSR (4-bit)
+    // Phase accumulator (16-bit) per voice + shared LFSR (4-bit)
     reg [15:0] v_acc_0,  v_acc_1,  v_acc_2;
-    reg [3:0]  v_lfsr_0, v_lfsr_1, v_lfsr_2;
+    reg [3:0]  shared_lfsr;
 
     // ADSR state: env_counter (4-bit), state (2-bit), last_gate (1-bit)
     reg [3:0]  v_env_0,  v_env_1,  v_env_2;
@@ -204,7 +210,7 @@ module tt_um_sid (
     // Mux current voice state based on vidx
     //==========================================================================
     reg [15:0] cur_acc;
-    reg [3:0]  cur_lfsr;
+    wire [3:0] cur_lfsr = shared_lfsr;
     reg [3:0]  cur_env;
     reg [1:0]  cur_ast;
     reg        cur_lg;
@@ -212,22 +218,22 @@ module tt_um_sid (
     always @(*) begin
         case (vidx)
             2'd0: begin
-                cur_acc = v_acc_0; cur_lfsr = v_lfsr_0;
+                cur_acc = v_acc_0;
                 cur_env = v_env_0; cur_ast = v_ast_0; cur_lg = v_lg_0;
             end
             2'd1: begin
-                cur_acc = v_acc_1; cur_lfsr = v_lfsr_1;
+                cur_acc = v_acc_1;
                 cur_env = v_env_1; cur_ast = v_ast_1; cur_lg = v_lg_1;
             end
             default: begin
-                cur_acc = v_acc_2; cur_lfsr = v_lfsr_2;
+                cur_acc = v_acc_2;
                 cur_env = v_env_2; cur_ast = v_ast_2; cur_lg = v_lg_2;
             end
         endcase
     end
 
     //==========================================================================
-    // Shared combinational: waveform generation
+    // Shared combinational: waveform generation (16-bit accumulator)
     //==========================================================================
     wire [7:0] saw_out = cur_acc[15:8];
     wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[15]}};
@@ -270,9 +276,9 @@ module tt_um_sid (
             4'd10: env_tick = &adsr_prescaler[15:0];
             4'd11: env_tick = &adsr_prescaler[16:0];
             4'd12: env_tick = &adsr_prescaler[17:0];
-            4'd13: env_tick = &adsr_prescaler[18:0];
-            4'd14: env_tick = &adsr_prescaler[19:0];
-            default: env_tick = &adsr_prescaler[19:0];
+            4'd13: env_tick = &adsr_prescaler[17:0];
+            4'd14: env_tick = &adsr_prescaler[17:0];
+            default: env_tick = &adsr_prescaler[17:0];
         endcase
     end
 
@@ -339,36 +345,51 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Next accumulator + LFSR
+    // Accumulator prescaler: divide voice update rate by 16
+    //--------------------------------------------------------------------------
+    // Increments once per complete voice cycle (every 3 clocks, when vidx==2).
+    // Accumulator only advances when prescaler == 0, giving an effective
+    // update rate of 50 MHz / 3 / 16 = 1.042 MHz per voice.
     //==========================================================================
-    wire [15:0] nxt_acc  = cur_test ? 16'd0 : (cur_acc + cur_frequency);
-    wire [3:0]  nxt_lfsr = cur_test ? 4'b0001 :
-                           {cur_lfsr[2:0], cur_lfsr[1] ^ cur_lfsr[3]};
+    reg [3:0] acc_prescaler;
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n)            acc_prescaler <= 4'd0;
+        else if (vidx == 2'd2) acc_prescaler <= acc_prescaler + 1'b1;
+
+    wire acc_update = (acc_prescaler == 4'd0);
 
     //==========================================================================
-    // Sequential: update state banks for current voice
+    // Next accumulator + LFSR
+    //==========================================================================
+    wire [15:0] nxt_acc  = cur_test ? 16'd0 :
+                           (cur_acc + (acc_update ? cur_frequency : 16'd0));
+    wire [3:0]  nxt_lfsr = {shared_lfsr[2:0], shared_lfsr[1] ^ shared_lfsr[3]};
+
+    //==========================================================================
+    // Sequential: update state banks for current voice + shared LFSR
     //==========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v_acc_0 <= 16'd0; v_acc_1 <= 16'd0; v_acc_2 <= 16'd0;
-            v_lfsr_0 <= 4'd1; v_lfsr_1 <= 4'd1; v_lfsr_2 <= 4'd1;
+            shared_lfsr <= 4'd1;
             v_env_0 <= 4'd0; v_env_1 <= 4'd0; v_env_2 <= 4'd0;
             v_ast_0 <= ENV_IDLE; v_ast_1 <= ENV_IDLE; v_ast_2 <= ENV_IDLE;
             v_lg_0 <= 1'b0; v_lg_1 <= 1'b0; v_lg_2 <= 1'b0;
         end else begin
+            shared_lfsr <= nxt_lfsr;
             case (vidx)
                 2'd0: begin
-                    v_acc_0  <= nxt_acc;  v_lfsr_0 <= nxt_lfsr;
+                    v_acc_0  <= nxt_acc;
                     v_env_0  <= nxt_env;  v_ast_0  <= nxt_ast;
                     v_lg_0   <= cur_gate;
                 end
                 2'd1: begin
-                    v_acc_1  <= nxt_acc;  v_lfsr_1 <= nxt_lfsr;
+                    v_acc_1  <= nxt_acc;
                     v_env_1  <= nxt_env;  v_ast_1  <= nxt_ast;
                     v_lg_1   <= cur_gate;
                 end
                 default: begin
-                    v_acc_2  <= nxt_acc;  v_lfsr_2 <= nxt_lfsr;
+                    v_acc_2  <= nxt_acc;
                     v_env_2  <= nxt_env;  v_ast_2  <= nxt_ast;
                     v_lg_2   <= cur_gate;
                 end

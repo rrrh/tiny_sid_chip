@@ -9,8 +9,7 @@ from cocotb.triggers import ClockCycles, RisingEdge
 # Register addresses
 REG_FREQ_LO  = 0
 REG_FREQ_HI  = 1
-REG_PW_LO    = 2
-REG_PW_HI    = 3
+REG_PW       = 2
 REG_ATTACK   = 4
 REG_SUSTAIN  = 5
 REG_WAVEFORM = 6
@@ -39,7 +38,15 @@ async def sid_write_freq(dut, freq16, voice=0):
 
 async def sid_write_pw(dut, pw8, voice=0):
     """Write an 8-bit pulse width register."""
-    await sid_write(dut, REG_PW_LO, pw8 & 0xFF, voice)
+    await sid_write(dut, REG_PW, pw8 & 0xFF, voice)
+
+
+def hz_to_freq(hz):
+    """Convert Hz to 16-bit frequency register value.
+    16-bit accumulator with /16 prescaler. Effective rate = 50 MHz / 3 / 16.
+    freq_reg = hz * 65536 / (50e6 / 3 / 16) ≈ hz * 0.06291
+    """
+    return round(hz * 65536 / (50e6 / 3 / 16))
 
 
 async def count_pwm(dut, cycles):
@@ -92,8 +99,8 @@ async def test_sawtooth(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 10)
 
-    # Frequency: C4 (~262 Hz at 50 MHz) = 4291 = 0x10C3
-    await sid_write_freq(dut, 4291)
+    # Frequency: C4 (~262 Hz)
+    await sid_write_freq(dut, hz_to_freq(262))
     # Attack=0 (fastest), Decay=0
     await sid_write(dut, REG_ATTACK, 0x00)
     # Sustain=F (full), Release=0
@@ -122,7 +129,7 @@ async def test_triangle(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 10)
 
-    await sid_write_freq(dut, 4291)
+    await sid_write_freq(dut, hz_to_freq(262))
     await sid_write(dut, REG_ATTACK, 0x00)
     await sid_write(dut, REG_SUSTAIN, 0x0F)
     # Triangle + gate: bit4=tri, bit0=gate
@@ -148,7 +155,7 @@ async def test_pulse(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 10)
 
-    await sid_write_freq(dut, 4291)
+    await sid_write_freq(dut, hz_to_freq(262))
     # Pulse width = 50% (128 = 0x80)
     await sid_write_pw(dut, 0x80)
     await sid_write(dut, REG_ATTACK, 0x00)
@@ -176,7 +183,7 @@ async def test_noise(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 10)
 
-    await sid_write_freq(dut, 4291)
+    await sid_write_freq(dut, hz_to_freq(262))
     await sid_write(dut, REG_ATTACK, 0x00)
     await sid_write(dut, REG_SUSTAIN, 0x0F)
     # Noise + gate: bit7=noise, bit0=gate
@@ -202,7 +209,7 @@ async def test_gate_release(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 10)
 
-    await sid_write_freq(dut, 4291)
+    await sid_write_freq(dut, hz_to_freq(262))
     await sid_write(dut, REG_ATTACK, 0x00)
     await sid_write(dut, REG_SUSTAIN, 0x0F)  # sustain=F, release=0 (fastest)
     # Sawtooth + gate
@@ -238,13 +245,13 @@ async def test_two_voices(dut):
     await ClockCycles(dut.clk, 10)
 
     # Voice 1: Sawtooth C4
-    await sid_write_freq(dut, 4291, voice=0)
+    await sid_write_freq(dut, hz_to_freq(262), voice=0)
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
     await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
     await sid_write(dut, REG_WAVEFORM, 0x21, voice=0)  # SAW + GATE
 
     # Voice 2: Triangle E4
-    await sid_write_freq(dut, 5404, voice=1)
+    await sid_write_freq(dut, hz_to_freq(330), voice=1)
     await sid_write(dut, REG_ATTACK, 0x00, voice=1)
     await sid_write(dut, REG_SUSTAIN, 0x0F, voice=1)
     await sid_write(dut, REG_WAVEFORM, 0x11, voice=1)  # TRI + GATE
@@ -270,19 +277,19 @@ async def test_three_voices(dut):
     await ClockCycles(dut.clk, 10)
 
     # Voice 1: Sawtooth C4
-    await sid_write_freq(dut, 4291, voice=0)
+    await sid_write_freq(dut, hz_to_freq(262), voice=0)
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
     await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
     await sid_write(dut, REG_WAVEFORM, 0x21, voice=0)  # SAW + GATE
 
     # Voice 2: Triangle E4
-    await sid_write_freq(dut, 5404, voice=1)
+    await sid_write_freq(dut, hz_to_freq(330), voice=1)
     await sid_write(dut, REG_ATTACK, 0x00, voice=1)
     await sid_write(dut, REG_SUSTAIN, 0x0F, voice=1)
     await sid_write(dut, REG_WAVEFORM, 0x11, voice=1)  # TRI + GATE
 
     # Voice 3: Pulse G4
-    await sid_write_freq(dut, 6430, voice=2)
+    await sid_write_freq(dut, hz_to_freq(392), voice=2)
     await sid_write_pw(dut, 0x80, voice=2)
     await sid_write(dut, REG_ATTACK, 0x00, voice=2)
     await sid_write(dut, REG_SUSTAIN, 0x0F, voice=2)
