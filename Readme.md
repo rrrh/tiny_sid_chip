@@ -1,8 +1,8 @@
-# SID Voice Synthesizer (TT-IHP)
+# Triple SID Voice Synthesizer (TT-IHP)
 
-Single SID voice with ADSR envelope, controlled via SPI, with an 8-bit PWM
-audio output. Designed for a Tiny Tapeout 1x1 tile on the IHP SG13G2 130nm
-process at 50 MHz.
+Three time-multiplexed SID voices with ADSR envelopes, controlled via a
+flat parallel register interface, with 8-bit PWM audio output. Designed
+for a Tiny Tapeout 1x1 tile on the IHP SG13G2 130nm process at 50 MHz.
 
 [View the GDS layout](https://rrrh.github.io/tiny_sid_chip/)
 
@@ -13,53 +13,49 @@ process at 50 MHz.
 1. [Overview](#overview)
 2. [Architecture](#architecture)
 3. [Pin Mapping](#pin-mapping)
-4. [Module Descriptions](#module-descriptions)
-5. [Register Reference](#register-reference)
-6. [SPI Protocol](#spi-protocol)
-7. [Audio Output and PWM](#audio-output-and-pwm)
-8. [Audio Recovery Filter](#audio-recovery-filter)
-9. [Usage Guide](#usage-guide)
-10. [Design Constraints](#design-constraints)
-11. [Physical Implementation (LibreLane PnR)](#physical-implementation-librelane-pnr)
+4. [Register Reference](#register-reference)
+5. [Write Interface Protocol](#write-interface-protocol)
+6. [Audio Output and PWM](#audio-output-and-pwm)
+7. [Audio Recovery Filter](#audio-recovery-filter)
+8. [Usage Guide](#usage-guide)
+9. [Design Constraints](#design-constraints)
 
 ---
 
 ## Overview
 
-This design implements a single-voice sound synthesizer inspired by the
-MOS 6581/8580 SID chip, the legendary audio IC from the Commodore 64. It
-provides four classic waveform types (sawtooth, triangle, pulse, noise), a
-full ADSR amplitude envelope, and ring modulation / hard sync control bits,
-all packed into a Tiny Tapeout 1x1 tile.
+This design implements a triple-voice sound synthesizer inspired by the
+MOS 6581/8580 SID chip from the Commodore 64. Three independent voices
+share a single compute pipeline via time-multiplexing, each providing
+four classic waveform types (sawtooth, triangle, pulse, noise), a full
+ADSR amplitude envelope, and waveform OR-combining -- all packed into a
+Tiny Tapeout 1x1 tile.
 
-A host microcontroller (Arduino, RP2040, ESP32, etc.) writes seven
-SID-style control registers over a simple 3-wire SPI bus using compact
-16-bit frames. The synthesized audio is output as an 8-bit PWM signal on
-`uio[7]` with a ~196 kHz PWM frequency that only requires a passive
-second-order RC low-pass filter to produce an analog signal suitable for
-headphones or a line-level amplifier input.
+A host microcontroller (Arduino, RP2040, ESP32, etc.) writes per-voice
+control registers through a simple flat parallel interface using 8-bit
+data and a rising-edge write strobe. The three voice outputs are mixed
+and output as an 8-bit PWM signal on `uo_out[0]` at ~196 kHz, requiring
+only a passive second-order RC low-pass filter to produce analog audio.
 
 ### Key Features
 
-- Four waveforms: sawtooth, triangle, pulse (variable width), noise (LFSR)
+- Three independent voices, time-multiplexed through one shared pipeline
+- Four waveforms per voice: sawtooth, triangle, pulse (variable width), noise
 - OR-combining of simultaneous waveforms (matches real SID behavior)
-- Ring modulation and hard sync control bits
-- Full ADSR envelope with independent attack, decay, sustain, and release
-- Linear envelope with power-of-2 rate scaling (16 rate settings per phase)
-- 8-bit voice output, 8-bit envelope depth (16-bit product)
-- 8-bit PWM audio output (~196 kHz PWM frequency at 50 MHz)
-- 3-wire write-only SPI control interface (CPOL=0, CPHA=0, 16-bit frames)
-- Single 50 MHz clock domain
-- Fits in a Tiny Tapeout 1x1 tile (~19,500 um^2 logic area on IHP SG13G2)
+- 4-bit linear ADSR envelope per voice (16 amplitude levels)
+- 13 envelope rate settings from ~1.3 ms to ~3.4 s full traverse
+- 16-bit frequency registers with /16 prescaler (~15.9 Hz resolution)
+- 3-voice mixer with automatic level scaling
+- 8-bit PWM audio output (~196 kHz carrier at 50 MHz)
+- Flat parallel write interface (no SPI/I2C overhead)
+- Single 50 MHz clock domain, no PLLs or clock enables
+- Fits in a Tiny Tapeout 1x1 tile on IHP SG13G2 130nm
 
 ### Source Files
 
 | File | Description |
 |------|-------------|
-| `src/tt_um_sid.v` | Top-level TT wrapper: pin mapping and module instantiation |
-| `src/spi_regs.v` | SPI slave with 2FF synchronizers and write-only register bank |
-| `src/sid_voice.v` | SID waveform generator: oscillator, waveform mux, envelope scaling |
-| `src/sid_asdr_generator.v` | Simplified linear ADSR envelope state machine |
+| `src/tt_um_sid.v` | All-in-one top-level: register banks, voice pipeline, mixer, pin mapping |
 | `src/pwm_audio.v` | 8-bit PWM audio output (255-clock period) |
 
 ---
@@ -71,34 +67,48 @@ headphones or a line-level amplifier input.
 <details><summary>ASCII fallback</summary>
 
 ```
-                         +-----------+     +-----------+     +-----------+
-  ui_in[0] spi_cs_n --->|           |     |           |     |           |
-  ui_in[1] spi_clk  --->| spi_regs  |---->| sid_voice |---->| pwm_audio |---> uio[7] pwm_out
-  ui_in[2] spi_mosi --->|           |     |           |     |           |
-                         +-----------+     +-----------+     +-----------+
-                          7 registers       8-bit voice       8-bit PWM
-                          (write-only)      output            (~196 kHz)
+                 ┌─────────────────────────────────────────────────────────────┐
+ ui_in[2:0] ──┐  │              Shared Voice Pipeline (×3 TDM)                │
+ ui_in[4:3] ──┤  │  ┌─────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐  │
+ ui_in[7]   ──┤  │  │ Phase   │  │ Waveform  │  │  ADSR    │  │ Envelope │  │
+              ├──┤  │ Acc     │──│ Gen       │──│ Envelope │──│ Scaling  │──┤
+ uio_in ──────┤  │  │ (16-bit)│  │(saw/tri/  │  │(4-bit    │  │ (8×4=12) │  │  ┌───────┐  ┌─────────┐
+              │  │  │ +/16    │  │ pulse/    │  │ per      │  │          │  ├──│ Mixer │──│pwm_audio│── uo_out[0]
+ Register     │  │  │ prescale│  │ noise)    │  │ voice)   │  │          │  │  │ (>>2) │  │ (8-bit) │
+ Banks        │  │  └─────────┘  └──────────┘  └──────────┘  └──────────┘  │  └───────┘  └─────────┘
+ (per-voice   │  │                                                          │
+  freq/PW/    │  │  vidx: 0→1→2→0→… @ 50 MHz                              │
+  waveform +  │  └─────────────────────────────────────────────────────────────┘
+  shared ADSR)│
+              │
 ```
 
 </details>
 
 **Signal flow:**
 
-1. The host sends 16-bit SPI write transactions to `spi_regs`, which
-   synchronizes the SPI signals into the 50 MHz clock domain and latches
-   the 8-bit data into one of seven byte-addressed control registers.
+1. The host writes per-voice registers (frequency, pulse width, waveform)
+   and shared ADSR registers (attack/decay, sustain/release) via the
+   flat parallel interface. A rising edge on `ui_in[7]` latches the data.
 
-2. `sid_voice` reads those registers every clock cycle. A 24-bit phase
-   accumulator generates the master oscillator, from which the four
-   waveform generators derive their outputs. The selected waveform(s) are
-   OR-combined into an 8-bit waveform value, then multiplied by the 8-bit
-   ADSR envelope to produce a 16-bit product. The top 8 bits become the
-   voice output.
+2. A 2-bit round-robin counter (`vidx`) cycles 0→1→2→0 every clock at
+   50 MHz, selecting which voice's state is processed. Each voice is
+   updated every 3 clocks (16.67 MHz effective per voice).
 
-3. `pwm_audio` converts the 8-bit voice sample into a PWM signal with a
-   255-clock period (~196 kHz at 50 MHz). The output duty cycle is
-   proportional to the sample value. Externally, a second-order RC
-   low-pass filter recovers the analog audio.
+3. A shared 4-bit accumulator prescaler divides the phase update rate
+   by 16, so each voice's 16-bit accumulator advances at ~1.042 MHz.
+   This provides ~15.9 Hz frequency resolution with 16-bit registers.
+
+4. The waveform generator derives sawtooth, triangle, pulse, and noise
+   outputs from the accumulator state and a shared 4-bit LFSR. Selected
+   waveforms are OR-combined into an 8-bit value, then multiplied by
+   the 4-bit ADSR envelope to produce a 12-bit voice output.
+
+5. The mixer accumulates three voice outputs over 3 clocks, shifts right
+   by 2, and outputs an 8-bit mix sample to the PWM module.
+
+6. `pwm_audio` converts the 8-bit mix sample into a PWM signal at
+   ~196 kHz. An external RC low-pass filter recovers analog audio.
 
 ---
 
@@ -108,230 +118,116 @@ headphones or a line-level amplifier input.
 
 | Pin | Signal | Description |
 |-----|--------|-------------|
-| `ui_in[0]` | `spi_cs_n` | SPI chip select, active low. Pull high when idle. |
-| `ui_in[1]` | `spi_clk` | SPI clock (CPOL=0, CPHA=0). Max frequency depends on system clock; must be < clk/4 for reliable synchronization. |
-| `ui_in[2]` | `spi_mosi` | SPI data input (master out, slave in). MSB first. |
-| `ui_in[7:3]` | -- | Unused. Active low internally. |
+| `ui_in[2:0]` | `reg_addr` | Register address (0--6) |
+| `ui_in[4:3]` | `voice_sel` | Voice select: 0=voice 1, 1=voice 2, 2=voice 3 |
+| `ui_in[6:5]` | -- | Unused |
+| `ui_in[7]` | `wr_en` | Write enable (rising-edge triggered) |
+
+### Data Input Pins (`uio_in`)
+
+| Pin | Signal | Description |
+|-----|--------|-------------|
+| `uio_in[7:0]` | `wr_data` | 8-bit write data. All 8 pins are inputs. |
 
 ### Output Pins (`uo_out`)
 
 | Pin | Signal | Description |
 |-----|--------|-------------|
-| `uo_out[0]` | `spi_miso` | Tied low. SPI is write-only; no read-back. |
+| `uo_out[0]` | `pwm_out` | PWM audio output. Connect to RC filter. |
 | `uo_out[7:1]` | -- | Tied low. |
 
-### Bidirectional Pins (`uio`)
+### Bidirectional Pin Direction
 
-| Pin | Signal | Description |
-|-----|--------|-------------|
-| `uio[7]` | `pwm_out` | PWM audio output. Connect to reconstruction filter. Output enabled. |
-| `uio[6:0]` | -- | Unused. Configured as inputs (no drive). |
-
----
-
-## Module Descriptions
-
-### `tt_um_sid` (Top Level)
-
-The Tiny Tapeout wrapper. Connects the SPI bus pins to `spi_regs`, wires
-the seven register outputs to `sid_voice`, feeds the 8-bit voice output
-into `pwm_audio`, and maps `pwm_out` to `uio[7]`. All unused pins are tied
-to safe defaults (outputs low, bidirectional pins set as inputs). Only
-`uio[7]` is output-enabled (`uio_oe = 0x80`).
-
-### `spi_regs` (SPI Register Bank)
-
-A write-only SPI slave that accepts 16-bit transactions. The frame format
-is `{addr[2:0], 5'b0, data[7:0]}`. All three SPI signals (`spi_clk`,
-`spi_cs_n`, `spi_mosi`) pass through 2-stage flip-flop synchronizers
-before processing, making the interface safe across clock domains. Rising
-edges of `spi_clk` are detected in the system clock domain via a 3-stage
-pipeline and edge comparator.
-
-16-bit frequency and pulse width values are split into low/high byte
-register pairs (addresses 0/1 and 2/3 respectively).
-
-Transaction state resets whenever `spi_cs_n` goes high (inactive), so
-partial or corrupted transactions are safely discarded.
-
-### `sid_voice` (Waveform Generator)
-
-Implements the core SID voice:
-
-- **24-bit phase accumulator**: Increments by `frequency` every clock cycle.
-  The upper bits drive the waveform generators.
-- **Sawtooth**: Top 8 bits of the accumulator (`accumulator[23:16]`).
-- **Triangle**: Bits `[22:15]` XORed with a mask derived from `accumulator[23]`
-  (or `accumulator_msb_in` when ring modulation is active).
-- **Pulse**: Comparator output -- high when `accumulator[23:16] > duration[7:0]`.
-  The `duration` register sets the pulse width (duty cycle).
-- **Noise**: 23-bit LFSR (taps at bits 17 and 22) clocked by `accumulator[19]`.
-  Outputs bits `[22:15]` of the LFSR as an 8-bit pseudo-random value.
-- **Waveform mux**: Selected waveforms are OR-combined (matching real SID
-  behavior where enabling multiple waveforms simultaneously produces the
-  bitwise OR of their outputs).
-- **Envelope scaling**: The 8-bit waveform value is multiplied by the 8-bit
-  ADSR envelope value, producing a 16-bit result. The top 8 bits
-  (`[15:8]`) are output as the voice signal.
-
-The `IS_8580` parameter is provided for future use (currently hardcoded to 0
-for 6581 behavior).
-
-### `sid_asdr_generator` (ADSR Envelope)
-
-A simplified linear ADSR envelope generator with four states:
-
-![ADSR State Machine](docs/adsr_fsm.svg)
-
-<details><summary>ASCII fallback</summary>
-
-```
-IDLE --[gate rising edge]--> ATTACK --[env=0xFF]--> DECAY --[gate low]--> RELEASE --[env=0]--> IDLE
-                                 |                    |                       ^
-                                 +--[gate low]--------+                       |
-                                                                              |
-                                                      +--[gate rising edge]---+
-```
-
-</details>
-
-**Timing mechanism:** A free-running 23-bit prescaler increments every
-clock cycle. The 4-bit rate value selects which prescaler bits to check:
-rate N fires an envelope tick when all of `prescaler[N+8:0]` are 1, i.e.,
-every 2^(N+9) clock cycles. This gives a range from ~2.6 ms (rate 0) to
-~86 s (rate 15) for a full 256-step envelope traverse at 50 MHz.
-
-- **ATTACK**: Increments `env_counter` from 0 to 255 at the attack rate.
-- **DECAY**: Decrements `env_counter` toward the sustain level at the decay rate.
-  Holds at the sustain level while gate remains high (sustain phase).
-- **RELEASE**: Decrements `env_counter` from current value to 0 at the release rate.
-
-The sustain level is the upper 4 bits of the sustain register value,
-zero-extended to 8 bits (`{sustain_value, 4'h0}`), giving 16 sustain
-levels in steps of 16 (0, 16, 32, ..., 240).
-
-### `pwm_audio` (PWM Audio Output)
-
-An 8-bit PWM modulator with a 255-clock period. The entire operation is:
-
-```verilog
-pwm <= count < sample;
-count <= count + 1;
-if (count == 8'hfe) count <= 0;
-```
-
-On each clock cycle, the 8-bit counter is compared against the input
-sample. The output is high when the counter is less than the sample value,
-producing a pulse whose width is proportional to the input amplitude.
-
-| Parameter | Value |
-|-----------|-------|
-| Input resolution | 8 bits (unsigned, 0--255) |
-| PWM period | 255 clocks |
-| PWM frequency @ 50 MHz | ~196 kHz (50 MHz / 255) |
-| Output duty cycle | sample / 255 (0% to 100%) |
+All `uio` pins are configured as inputs (`uio_oe = 0x00`).
 
 ---
 
 ## Register Reference
 
-The seven registers are written via SPI using a 3-bit address (0--6).
-All registers are 8-bit. The 16-bit frequency and pulse width values are
-split into low/high byte pairs.
+Six registers per voice (address 3 is reserved). The 16-bit frequency
+value is split into low/high byte pairs at addresses 0 and 1.
+Attack/sustain registers are shared across all voices.
 
-### Register 0: Frequency Low Byte (8-bit)
+### Register 0: Frequency Low Byte
 
 ```
 Bit:   7    6    5    4    3    2    1    0
      [              frequency[7:0]            ]
 ```
 
-### Register 1: Frequency High Byte (8-bit)
+### Register 1: Frequency High Byte
 
 ```
 Bit:   7    6    5    4    3    2    1    0
      [             frequency[15:8]            ]
 ```
 
-The combined 16-bit frequency is the phase accumulator increment. Added
-to the 24-bit accumulator every clock cycle, so the oscillator frequency is:
+The combined 16-bit frequency is the phase accumulator increment. The
+accumulator advances at an effective rate of 50 MHz / 3 voices / 16
+(prescaler) = 1.042 MHz per voice. The oscillator frequency is:
 
 ```
-f_out = frequency * f_clk / 2^24
+f_out = frequency_reg * 1041667 / 65536
 ```
 
-At 50 MHz:
+**Frequency calculation:**
+
+```
+frequency_reg = round(desired_Hz * 65536 / 1041667)
+              ≈ desired_Hz * 0.06291
+```
 
 | Frequency Register | Output Frequency | Note |
 |---------------------|-----------------|------|
 | 0x0000 | 0 Hz | Silence |
-| 0x0112 | ~16.35 Hz | C0 |
-| 0x10C3 | ~261.6 Hz | C4 |
-| 0x1CD6 | ~440 Hz | A4 (concert pitch) |
-| 0xFFFF | ~3051.76 Hz | Maximum fundamental |
+| 0x0004 | ~63.6 Hz | C2 (approx) |
+| 0x0010 | ~254.3 Hz | ~C4 |
+| 0x001C | ~444.9 Hz | ~A4 |
+| 0xFFFF | ~1.04 MHz | Maximum (ultrasonic) |
 
-**Frequency calculation:**
-```
-frequency_reg = round(f_desired * 2^24 / 50000000)
-```
-
-To write e.g. 4291 (0x10C3): write 0xC3 to register 0, then 0x10 to register 1.
-
-### Register 2: Pulse Width Low Byte (8-bit)
+### Register 2: Pulse Width (8-bit)
 
 ```
 Bit:   7    6    5    4    3    2    1    0
-     [              duration[7:0]             ]
+     [             pulse_width[7:0]           ]
 ```
 
-### Register 3: Pulse Width High Byte (8-bit)
+Sets the pulse waveform duty cycle by comparison with the accumulator
+upper byte (`acc[15:8] > pulse_width`):
 
-```
-Bit:   7    6    5    4    3    2    1    0
-     [             duration[15:8]             ]
-```
+- `pw = 0x00`: Pulse always low (silent)
+- `pw = 0x80`: 50% duty cycle (square wave)
+- `pw = 0xFF`: Pulse almost always high (near DC)
 
-Only bits `[7:0]` of the combined 16-bit value are used. Sets the pulse
-waveform duty cycle by comparison with `accumulator[23:16]`:
-
-- `duration = 0x00`: Pulse is always low (0% duty cycle, silent)
-- `duration = 0x80`: 50% duty cycle (classic square wave)
-- `duration = 0xFF`: Pulse is almost always high (~100% duty, nearly DC)
-
-To write e.g. 2048 (0x0800): write 0x00 to register 2, then 0x08 to register 3.
-
-### Register 4: Attack / Decay Rates (8-bit)
+### Register 4: Attack / Decay Rates (8-bit, shared)
 
 ```
 Bit:   7    6    5    4    3    2    1    0
-     [  decay_rate[3:0]  ][attack_rate[3:0] ]
+     [  decay_rate[3:0]  ][ attack_rate[3:0] ]
 ```
 
 | Field | Bits | Description |
 |-------|------|-------------|
-| `attack_rate` | `[3:0]` | Controls how fast the envelope rises from 0 to 255 |
-| `decay_rate` | `[7:4]` | Controls how fast the envelope falls from 255 to the sustain level |
+| `attack_rate` | `[3:0]` | How fast the envelope rises from 0 to 15 |
+| `decay_rate` | `[7:4]` | How fast the envelope falls from 15 to sustain level |
 
-Both fields use the same 4-bit rate encoding (see [Envelope Rate Table](#envelope-rate-table)).
+This register is shared across all three voices.
 
-### Register 5: Sustain Level / Release Rate (8-bit)
+### Register 5: Sustain Level / Release Rate (8-bit, shared)
 
 ```
 Bit:   7    6    5    4    3    2    1    0
-     [ release_rate[3:0] ][sustain_value[3:0]]
+     [ release_rate[3:0] ][sustain_level[3:0]]
 ```
 
 | Field | Bits | Description |
 |-------|------|-------------|
-| `sustain_value` | `[3:0]` | Sustain amplitude level (0--15). Mapped to 8-bit as `{value, 4'h0}`: 0=0, 1=16, ..., 15=240. |
-| `release_rate` | `[7:4]` | Controls how fast the envelope falls from the current level to 0 after gate off. |
+| `sustain_level` | `[3:0]` | Sustain amplitude (0--15). The envelope holds at this level during sustain. |
+| `release_rate` | `[7:4]` | How fast the envelope falls to 0 after gate off |
 
-The sustain level is the amplitude the envelope holds at after the decay
-phase completes, for as long as the gate remains high. Setting sustain to
-15 (0xF) means the envelope stays near maximum after attack; setting it to
-0 means the sound decays to silence even while the gate is held.
+This register is shared across all three voices.
 
-### Register 6: Waveform Control (8-bit)
+### Register 6: Waveform Control (8-bit, per-voice)
 
 ```
 Bit:   7      6      5        4        3     2     1     0
@@ -340,98 +236,96 @@ Bit:   7      6      5        4        3     2     1     0
 
 | Bit | Name | Description |
 |-----|------|-------------|
-| 0 | `gate` | **Gate control.** Set to 1 to start a note (triggers attack phase). Clear to 0 to release (triggers release phase). The attack phase begins on the rising edge of gate. |
-| 1 | `sync` | **Hard sync.** When enabled, the oscillator accumulator resets on the falling edge of `accumulator_msb_in` (from another voice). In this single-voice design, `accumulator_msb_in` is tied to 0, so sync has no effect. |
-| 2 | `ring` | **Ring modulation.** Modifies the triangle waveform by XORing with `accumulator_msb_in` instead of the local oscillator MSB. In this single-voice design, `accumulator_msb_in` is tied to 0, so ring mod inverts the triangle waveform. |
-| 3 | `test` | **Test bit.** Forces the oscillator accumulator and LFSR to reset. While held high, the oscillator is frozen at 0 and noise output is reset. Useful for synchronizing or silencing. |
-| 4 | `triangle` | **Enable triangle waveform.** Produces a triangle wave from the phase accumulator. |
-| 5 | `sawtooth` | **Enable sawtooth waveform.** Produces a ramp (sawtooth) wave from the accumulator upper bits. |
-| 6 | `pulse` | **Enable pulse waveform.** Produces a pulse/square wave; duty cycle set by registers 2/3. |
-| 7 | `noise` | **Enable noise waveform.** Produces pseudo-random noise from a 23-bit LFSR. |
+| 0 | `gate` | Set to 1 to start a note (attack). Clear to 0 to release. |
+| 1 | `sync` | Reserved (no effect in current design). |
+| 2 | `ring` | Reserved (no effect in current design). |
+| 3 | `test` | Forces oscillator accumulator to 0 while held. |
+| 4 | `triangle` | Enable triangle waveform. |
+| 5 | `sawtooth` | Enable sawtooth waveform. |
+| 6 | `pulse` | Enable pulse waveform (duty cycle set by reg 2). |
+| 7 | `noise` | Enable noise waveform (shared 4-bit LFSR). |
 
-**Waveform combining:** When multiple waveform bits are set simultaneously,
-their 8-bit outputs are bitwise OR-combined. This matches the real SID
-chip behavior and produces distinctive (often harsh) timbres. Common useful
-combinations:
-
-- Single waveform (triangle, sawtooth, pulse, or noise) -- clean tones
-- Triangle + sawtooth -- produces a characteristic SID "combined" timbre
-- Pulse alone with varying width -- the most versatile SID sound
+When multiple waveform bits are set, their outputs are bitwise
+OR-combined (matching real SID behavior).
 
 ### Envelope Rate Table
 
-All rate fields (attack, decay, release) use this mapping. The time listed
-is the duration for a full 256-step traverse of the envelope at 50 MHz.
+The ADSR uses an 18-bit free-running prescaler. Each rate value selects
+which prescaler bits must all be 1 for an envelope tick. The 4-bit
+envelope counter steps by 1 per tick, so a full 0→15 traverse takes
+16 ticks.
 
-| Rate Value | Prescaler Period | Envelope Time (256 steps) | Typical Use |
-|------------|------------------|---------------------------|-------------|
-| 0 | 2^9 = 512 clocks | ~2.6 ms | Instantaneous percussive attack |
-| 1 | 2^10 = 1024 | ~5.2 ms | Very fast |
-| 2 | 2^11 = 2048 | ~10.5 ms | Fast |
-| 3 | 2^12 = 4096 | ~21 ms | Quick pluck |
-| 4 | 2^13 = 8192 | ~42 ms | Medium-fast |
-| 5 | 2^14 = 16384 | ~84 ms | Medium |
-| 6 | 2^15 = 32768 | ~168 ms | Moderate |
-| 7 | 2^16 = 65536 | ~336 ms | Slow attack |
-| 8 | 2^17 = 131072 | ~671 ms | Slow |
-| 9 | 2^18 = 262144 | ~1.3 s | Very slow |
-| 10 | 2^19 = 524288 | ~2.7 s | Pad-style |
-| 11 | 2^20 = 1048576 | ~5.4 s | Long pad |
-| 12 | 2^21 = 2097152 | ~10.7 s | Very long |
-| 13 | 2^22 = 4194304 | ~21.5 s | Extreme |
-| 14 | 2^23 = 8388608 | ~43 s | Ultra slow |
-| 15 | 2^23 = 8388608 | ~43 s | Same as 14 (clamped) |
+| Rate | Prescaler Period | Full Traverse (16 steps) |
+|------|------------------|--------------------------|
+| 0 | 2^6 = 64 clocks | ~20.5 us |
+| 1 | 2^7 = 128 | ~41 us |
+| 2 | 2^8 = 256 | ~82 us |
+| 3 | 2^9 = 512 | ~164 us |
+| 4 | 2^10 = 1024 | ~328 us |
+| 5 | 2^11 = 2048 | ~655 us |
+| 6 | 2^12 = 4096 | ~1.3 ms |
+| 7 | 2^13 = 8192 | ~2.6 ms |
+| 8 | 2^14 = 16384 | ~5.2 ms |
+| 9 | 2^15 = 32768 | ~10.5 ms |
+| 10 | 2^16 = 65536 | ~21 ms |
+| 11 | 2^17 = 131072 | ~42 ms |
+| 12--15 | 2^18 = 262144 | ~84 ms |
 
-Formula: `envelope_time = 256 * 2^(rate+9) / 50000000` seconds.
+Formula: `traverse_time = 16 * 2^(rate+6) / 50000000` seconds.
 
 ---
 
-## SPI Protocol
+## Write Interface Protocol
 
-### Physical Layer
+The register interface uses a simple parallel bus with rising-edge write
+strobe. No SPI or I2C protocol is needed.
 
-- **Mode:** CPOL=0, CPHA=0 (SPI Mode 0). Clock idle low; data sampled on rising edge.
-- **Bit order:** MSB first.
-- **Bus signals:** `spi_clk` (clock), `spi_cs_n` (chip select, active low), `spi_mosi` (data in).
-- **MISO:** Permanently tied low. No read-back capability.
-- **Clock speed:** The SPI clock must be slower than `clk/4` (< 12.5 MHz at 50 MHz system clock) due to the 2FF synchronizer and edge detection pipeline. Speeds up to 10 MHz are recommended for reliable operation.
+### Write Sequence
 
-### Transaction Format
+To write one register:
 
-Each write is a 16-bit (2-byte) transaction with `spi_cs_n` held low for
-the entire transfer:
+1. Set `ui_in[2:0]` = register address (0--6)
+2. Set `ui_in[4:3]` = voice select (0, 1, or 2)
+3. Set `uio_in[7:0]` = data byte
+4. Pulse `ui_in[7]` high for at least one clock cycle
+5. Return `ui_in[7]` low before the next write
 
-```
-         Byte 0                 Byte 1
-  CS_n  __|                                   |__
-         |                                     |
-  MOSI  [A2][A1][A0][x][x][x][x][x] [D7][D6]...[D0]
-         ^                                     ^
-       bit 15                                bit 0
-```
-
-| Byte | Bits | Field | Description |
-|------|------|-------|-------------|
-| 0 | `[7:5]` | A | Register address (0--6). |
-| 0 | `[4:0]` | -- | Reserved (ignored). |
-| 1 | `[7:0]` | D | 8-bit register data. |
-
-**Important:** The register write takes effect on the 16th rising edge of
-`spi_clk`. After the transaction, deassert `spi_cs_n` (drive high) before
-starting the next transaction. The internal state machine resets on
-`spi_cs_n` going high.
+The register latches on the rising edge of `ui_in[7]`. The minimum write
+cycle is 3 clock cycles (60 ns at 50 MHz): one to set up address/data,
+one with WE high, one with WE low.
 
 ### Timing Diagram
 
 ```
-spi_cs_n  ‾‾‾\___________________________/‾‾‾‾
-                                           ^
-spi_clk   ____/‾\_/‾\_/ ... \_/‾\_/‾\____
-              1   2         15  16
-                                 ^
-                                 register written
+            ┌───────┐                         ┌───────┐
+  ui_in[7]  │       │                         │       │
+ ───────────┘       └─────────────────────────┘       └─────
+                ^                                 ^
+          write latched                     write latched
 
-spi_mosi  ----<A2><A1><A0><x><x><x><x><x><D7><D6>...<D1><D0>----
+  ui_in[4:0]  <  voice | addr  >             < voice | addr  >
+
+  uio_in      <    data byte   >             <  data byte    >
+```
+
+### Write Function (C / Arduino)
+
+```c
+// Write an 8-bit value to a SID register
+// addr: 0-6, voice: 0-2, data: 0-255
+void sid_write(uint8_t addr, uint8_t data, uint8_t voice) {
+    uint8_t ui = (addr & 0x07) | ((voice & 0x03) << 3);
+    set_ui_in(ui);           // address + voice, WE=0
+    set_uio_in(data);        // data byte
+    set_ui_in(ui | 0x80);    // assert WE (rising edge triggers write)
+    set_ui_in(ui);           // deassert WE
+}
+
+// Write a 16-bit frequency
+void sid_write_freq(uint16_t freq, uint8_t voice) {
+    sid_write(0, freq & 0xFF, voice);
+    sid_write(1, (freq >> 8) & 0xFF, voice);
+}
 ```
 
 ---
@@ -440,139 +334,52 @@ spi_mosi  ----<A2><A1><A0><x><x><x><x><x><D7><D6>...<D1><D0>----
 
 ### How It Works
 
-The PWM audio module converts the 8-bit voice output into a pulse-width
-modulated signal. A free-running 8-bit counter cycles from 0 to 254
-(period = 255 clocks). On each clock, the output is high when the counter
-is less than the input sample value:
+The `pwm_audio` module converts the 8-bit mixer output into a
+pulse-width modulated signal. A free-running 8-bit counter cycles from
+0 to 254 (period = 255 clocks). The output is high when the counter is
+less than the sample value:
 
 ```
 pwm_out = (count < sample) ? 1 : 0
 ```
-
-When the sample value is large, the output pulse is wider (higher duty
-cycle). When the sample is small, the pulse is narrow. The time-averaged
-voltage is proportional to the input amplitude.
 
 ### Signal Characteristics
 
 | Parameter | Value |
 |-----------|-------|
 | Input resolution | 8 bits (unsigned, 0--255) |
-| Output | 1-bit PWM on `uio[7]` |
+| Output | 1-bit PWM on `uo_out[0]` |
 | PWM period | 255 clocks |
 | PWM frequency @ 50 MHz | ~196 kHz |
 | Duty cycle range | 0% (sample=0) to 100% (sample=255) |
 | Audio bandwidth | Full 20 kHz+ (Nyquist ~98 kHz) |
 
-### Comparison with Delta-Sigma DAC
-
-The previous design used a first-order delta-sigma DAC running at 50 MHz,
-which pushed quantization noise to ultrasonic frequencies and allowed a
-simple single-pole RC filter for reconstruction. The PWM approach trades
-the higher oversampling ratio for implementation simplicity (no accumulator
-overflow logic). With the 8-bit PWM at ~196 kHz, the carrier is far above
-the audio band, so even a simple second-order RC filter provides excellent
-suppression.
-
 ---
 
 ## Audio Recovery Filter
 
-The PWM output on `uio[7]` is a digital signal swinging between 0 and VDD.
-To recover a clean analog audio signal, a second-order (two-stage) passive
-RC low-pass filter is recommended. This provides -40 dB/decade rolloff,
-which easily suppresses the 196 kHz PWM carrier while passing the full
-audio band.
+The PWM output on `uo_out[0]` swings between 0 and VDD. A second-order
+passive RC low-pass filter recovers the analog audio signal.
 
 ### Recommended Circuit
 
 ```
-uio[7] ---[R1]---+---[R2]---+---[Cac]---> Audio Out
-                  |          |
-                 [C1]       [C2]
-                  |          |
-                 GND        GND
+uo_out[0] ---[R1]---+---[R2]---+---[Cac]---> Audio Out
+                     |          |
+                    [C1]       [C2]
+                     |          |
+                    GND        GND
 ```
 
 ### Component Values
 
-Each stage has a per-stage cutoff of 1/(2*pi*R*C). However, in a passive
-RC ladder the second stage loads the first, pulling the overall -3 dB
-point significantly lower than the per-stage value.
+| R (per stage) | C (per stage) | Per-stage fc | Actual -3 dB | @ 196 kHz |
+|---------------|---------------|-------------|-------------|-----------|
+| 3.3 kOhm | 1 nF | 48.2 kHz | ~18 kHz | -28 dB |
 
-| R (per stage) | C (per stage) | Per-stage fc | Actual -3 dB | @ 98 kHz | @ 196 kHz |
-|---------------|---------------|-------------|-------------|-----------|-----------|
-| 4.7 kOhm | 1 nF | 33.9 kHz | ~12.6 kHz | -22 dB | -34 dB |
-| 3.3 kOhm | 1 nF | 48.2 kHz | ~18 kHz | -17 dB | -28 dB |
-| 1.5 kOhm | 1 nF | 106 kHz | ~40 kHz | -9 dB | -18 dB |
-
-The recommended 3.3 kOhm / 1 nF values give a -3 dB point around 18 kHz
-with excellent suppression of the 196 kHz PWM carrier (-28 dB).
-
-**Cac** = 1 uF ceramic — DC blocking capacitor in series after the filter.
-
-![2nd-order RC filter Bode plot](docs/pwm_rc_filter_bode.png)
-
-A SPICE netlist for the filter is provided at `vivado/rc_filter.spice`.
-
-### Design Notes
-
-- **Why second-order?** A single-pole RC filter only provides -20 dB/decade
-  rolloff. Two cascaded stages double the rolloff to -40 dB/decade, giving
-  excellent suppression of the 196 kHz PWM carrier with the recommended values.
-
-- **Stage interaction:** The second RC stage loads the first, shifting the
-  overall -3 dB point well below the individual per-stage cutoff. With
-  3.3 kOhm / 1 nF (48.2 kHz per stage), the actual -3 dB point is
-  ~18 kHz. The Bode plot above shows both the actual ladder response
-  (solid) and the ideal non-interacting response (dashed) for comparison.
-
-- **AC coupling:** The voice output is unsigned (centered at ~VDD/2), so
-  a 1 uF DC blocking capacitor (Cac) is included in series after the filter
-  to remove the DC offset when connecting to an amplifier input. With a
-  10 kOhm load this forms a high-pass at ~16 Hz; with a 47 kOhm load
-  the corner drops to ~3.4 Hz. The Bode plot above shows the effect for
-  different load impedances.
-
-- **Output impedance:** The two-stage filter has a combined output
-  impedance of R1+R2. For driving low-impedance loads (headphones), follow
-  the filter with a unity-gain op-amp buffer, or reduce the resistor values
-  (e.g., 1 kOhm each) and increase the capacitors proportionally.
-
-- **Active alternative:** For better performance, replace the passive
-  filter with a second-order Sallen-Key active filter using a single
-  op-amp. This eliminates stage interaction and provides a buffered
-  low-impedance output.
-
-### Simulation Testbench
-
-A Verilog testbench (`vivado/pwm_audio_tb.v`) is provided that generates a
-440 Hz sine wave, feeds it through the `pwm_audio` module, simulates
-two-stage RC filter recovery using a digital IIR model, and writes the
-result as a 16-bit 44.1 kHz mono WAV file (`pwm_440hz.wav`).
-
-![PWM testbench output waveform](docs/pwm_testbench_output.png)
-
-A frequency sweep testbench (`vivado/pwm_audio_sweep_tb.v`) sweeps a sine
-wave from 0 to 15 kHz over 3 seconds, producing a Bode plot of the
-end-to-end PWM + filter frequency response:
-
-![PWM frequency response (Bode plot)](docs/pwm_bode_plot.png)
-
-The response is flat across the full audio band, with the PWM Nyquist limit
-at ~98 kHz well above the audible range. This confirms the 8-bit PWM output
-provides full 20 kHz+ audio bandwidth.
-
-```bash
-# Icarus Verilog — 440 Hz tone test
-iverilog -o pwm_audio_tb vivado/pwm_audio_tb.v src/pwm_audio.v && vvp pwm_audio_tb
-
-# Icarus Verilog — frequency sweep
-iverilog -o pwm_audio_sweep_tb vivado/pwm_audio_sweep_tb.v src/pwm_audio.v && vvp pwm_audio_sweep_tb
-
-# Vivado — 440 Hz tone test
-xvlog vivado/pwm_audio_tb.v src/pwm_audio.v && xelab pwm_audio_tb && xsim pwm_audio_tb -R
-```
+- **Cac** = 1 uF ceramic -- DC blocking capacitor after the filter.
+- For driving low-impedance loads (headphones), add a unity-gain op-amp
+  buffer after the filter.
 
 ---
 
@@ -583,168 +390,113 @@ xvlog vivado/pwm_audio_tb.v src/pwm_audio.v && xelab pwm_audio_tb && xsim pwm_au
 ```
 MCU                    TT Chip                   Audio
 -----------           ----------------          -------
-GPIO (CS)   --------> ui_in[0] spi_cs_n
-GPIO (SCK)  --------> ui_in[1] spi_clk
-GPIO (MOSI) --------> ui_in[2] spi_mosi
-                       uio[7] pwm_out ----[3.3k]---+---[3.3k]---+---[1uF]---> amp / headphones
-                                                    |            |
-                                                  [1nF]        [1nF]
-                                                    |            |
-                                                   GND          GND
+GPIO (D0)   --------> ui_in[0]  addr[0]
+GPIO (D1)   --------> ui_in[1]  addr[1]
+GPIO (D2)   --------> ui_in[2]  addr[2]
+GPIO (D3)   --------> ui_in[3]  voice[0]
+GPIO (D4)   --------> ui_in[4]  voice[1]
+GPIO (WE)   --------> ui_in[7]  write enable
+GPIO (D5-12)--------> uio_in[7:0]  data bus
+                       uo_out[0] ----[3.3k]---+---[3.3k]---+---[1uF]---> amp
+                                               |            |
+                                             [1nF]        [1nF]
+                                               |            |
+                                              GND          GND
 ```
 
-**TT Demo Board RP2040 GPIO mapping:**
-
-| TT Pin | Function | RP2040 GPIO |
-|--------|----------|-------------|
-| ui_in[0] | spi_cs_n | GPIO17 (SPI0.CS) |
-| ui_in[1] | spi_clk | GPIO18 (SPI0.SCK) |
-| ui_in[2] | spi_mosi | GPIO19 |
-| uio[7] | pwm_out | GPIO28 |
-
-No pull-up or pull-down resistors are needed on the SPI lines. The chip's
-internal synchronizers handle signal conditioning.
-
-### SPI Write Function (C / Arduino Example)
+### Playing a Note (Voice 0, Sawtooth 440 Hz)
 
 ```c
-// Write an 8-bit value to a SID register (address 0-6)
-void sid_write(uint8_t addr, uint8_t data) {
-    uint16_t word = ((addr & 0x07) << 13) | data;
-    uint8_t byte0 = (word >> 8) & 0xFF;
-    uint8_t byte1 = word & 0xFF;
+// freq_reg = 440 * 0.06291 ≈ 28
+sid_write(0, 28, 0);     // freq_lo = 28
+sid_write(1, 0, 0);      // freq_hi = 0
+sid_write(4, 0x00, 0);   // attack=0 (fastest), decay=0
+sid_write(5, 0x0F, 0);   // sustain=15 (max), release=0
+sid_write(6, 0x21, 0);   // sawtooth + gate ON
 
-    digitalWrite(CS_PIN, LOW);
-    SPI.transfer(byte0);
-    SPI.transfer(byte1);
-    digitalWrite(CS_PIN, HIGH);
-}
+delay(500);              // hold note for 500 ms
 
-// Write a 16-bit frequency as two byte registers
-void sid_write_freq(uint16_t freq) {
-    sid_write(0, freq & 0xFF);        // freq_lo
-    sid_write(1, (freq >> 8) & 0xFF); // freq_hi
-}
-
-// Write a 16-bit pulse width as two byte registers
-void sid_write_pw(uint16_t pw) {
-    sid_write(2, pw & 0xFF);          // pw_lo
-    sid_write(3, (pw >> 8) & 0xFF);   // pw_hi
-}
+sid_write(6, 0x20, 0);   // gate OFF (release begins)
 ```
 
-Ensure SPI is configured for Mode 0, MSB first, at <= 10 MHz.
-
-### Playing a Note
-
-To play a single note, configure the voice registers and then set the gate
-bit. To stop the note, clear the gate bit to trigger the release phase.
+### Three-Voice Chord (C Major)
 
 ```c
-// Configure a 440 Hz sawtooth note with moderate ADSR
-sid_write_freq(0x0241);  // Frequency = 440 Hz
-sid_write_pw(0x0800);    // Pulse width = 50% (unused for sawtooth)
-sid_write(4, 0x22);      // Attack=2 (~10ms), Decay=2 (~10ms)
-sid_write(5, 0x2A);      // Sustain=10 (160/255), Release=2 (~10ms)
-sid_write(6, 0x21);      // Sawtooth + gate ON
+// C4 ≈ 262 Hz → freq_reg ≈ 16
+sid_write(0, 16, 0);  sid_write(1, 0, 0);
+sid_write(4, 0x00, 0); sid_write(5, 0x0F, 0);
+sid_write(6, 0x21, 0);  // Voice 0: sawtooth C4
 
-delay(500);              // Hold note for 500 ms
+// E4 ≈ 330 Hz → freq_reg ≈ 21
+sid_write(0, 21, 1);  sid_write(1, 0, 1);
+sid_write(6, 0x11, 1);  // Voice 1: triangle E4
 
-sid_write(6, 0x20);      // Sawtooth + gate OFF (release begins)
+// G4 ≈ 392 Hz → freq_reg ≈ 25
+sid_write(0, 25, 2);  sid_write(1, 0, 2);
+sid_write(2, 0x80, 2);  // pulse width = 50%
+sid_write(6, 0x41, 2);  // Voice 2: pulse G4
 ```
 
 ### Sound Recipes
 
-Below are some starting-point register settings for common sounds.
-
 #### Simple Square Wave (8-bit Game Style)
 
 ```c
-sid_write_freq(freq);    // Desired frequency
-sid_write_pw(0x0800);    // 50% duty cycle
-sid_write(4, 0x00);      // Attack=0 (instant), Decay=0 (instant)
-sid_write(5, 0x0F);      // Sustain=15 (max), Release=0 (instant)
-sid_write(6, 0x41);      // Pulse waveform + gate ON
+sid_write(0, freq_lo, v); sid_write(1, freq_hi, v);
+sid_write(2, 0x80, v);    // 50% duty cycle
+sid_write(4, 0x00, v);    // instant attack/decay
+sid_write(5, 0x0F, v);    // max sustain, instant release
+sid_write(6, 0x41, v);    // pulse + gate
 ```
 
-#### Bass (Pulse with Slow Attack)
+#### Drum Hit (Noise with Fast Decay)
 
 ```c
-sid_write_freq(0x0056);  // ~65 Hz (low C)
-sid_write_pw(0x0400);    // 25% duty cycle (nasal/thin bass)
-sid_write(4, 0x53);      // Attack=3 (~21ms), Decay=5 (~84ms)
-sid_write(5, 0x38);      // Sustain=8 (128/255), Release=3 (~21ms)
-sid_write(6, 0x41);      // Pulse + gate ON
+sid_write(0, 0xFF, v); sid_write(1, 0xFF, v);  // high freq noise
+sid_write(4, 0xA0, v);    // instant attack, rate-10 decay
+sid_write(5, 0xA0, v);    // sustain=0, rate-10 release
+sid_write(6, 0x81, v);    // noise + gate
+// Naturally decays to silence
 ```
 
-#### Pad (Triangle with Long Attack/Release)
+#### Pad (Triangle with Slow Envelope)
 
 ```c
-sid_write_freq(freq);    // Desired frequency
-sid_write(4, 0x47);      // Attack=7 (~336ms), Decay=4 (~42ms)
-sid_write(5, 0x6C);      // Sustain=12 (192/255), Release=6 (~168ms)
-sid_write(6, 0x11);      // Triangle + gate ON
+sid_write(0, freq_lo, v); sid_write(1, freq_hi, v);
+sid_write(4, 0x8A, v);    // attack=10 (~21ms), decay=8 (~5ms)
+sid_write(5, 0x8C, v);    // sustain=12, release=8
+sid_write(6, 0x11, v);    // triangle + gate
 ```
 
-#### Drum / Percussion Hit (Noise with Fast Decay)
+### Frequency Table (Equal Temperament, A4=440 Hz)
 
-```c
-sid_write_freq(0x4000);  // High frequency for dense noise texture
-sid_write(4, 0x30);      // Attack=0 (instant), Decay=3 (~21ms)
-sid_write(5, 0x20);      // Sustain=0 (full decay to silence), Release=2
-sid_write(6, 0x81);      // Noise + gate ON
-// After ~30ms the sound naturally decays to silence
-sid_write(6, 0x80);      // Gate OFF
+```
+freq_reg = round(Hz * 65536 / 1041667)
 ```
 
-#### SID-Style Lead (Pulse with PWM Sweep)
-
-For the classic SID "PWM lead" sound, sweep the pulse width register over
-time from your host MCU:
-
-```c
-sid_write_freq(freq);
-sid_write(4, 0x22);      // Attack=2, Decay=2
-sid_write(5, 0x2B);      // Sustain=11, Release=2
-sid_write(6, 0x41);      // Pulse + gate ON
-
-// Sweep pulse width in a loop
-for (uint16_t pw = 0x200; pw < 0xE00; pw += 0x10) {
-    sid_write_pw(pw);
-    delay(5);            // ~5ms per step
-}
-```
-
-### Frequency Table (Equal Temperament at A4=440 Hz)
-
-Register values for standard musical notes at 50 MHz system clock:
-
-| Note | Oct 2 | Oct 3 | Oct 4 | Oct 5 | Oct 6 |
-|------|-------|-------|-------|-------|-------|
-| C | 0x0056 | 0x00AB | 0x0156 | 0x02AC | 0x0558 |
-| C# | 0x005B | 0x00B5 | 0x016A | 0x02D5 | 0x05AA |
-| D | 0x0060 | 0x00C0 | 0x0180 | 0x0300 | 0x0601 |
-| D# | 0x0066 | 0x00CC | 0x0198 | 0x032F | 0x065E |
-| E | 0x006C | 0x00D8 | 0x01B0 | 0x0361 | 0x06C2 |
-| F | 0x0073 | 0x00E5 | 0x01CA | 0x0395 | 0x072A |
-| F# | 0x0079 | 0x00F3 | 0x01E6 | 0x03CC | 0x0799 |
-| G | 0x0080 | 0x0101 | 0x0203 | 0x0406 | 0x080C |
-| G# | 0x0088 | 0x0110 | 0x0221 | 0x0443 | 0x0886 |
-| A | 0x0090 | 0x0121 | 0x0241 | 0x0483 | 0x0906 |
-| A# | 0x0099 | 0x0132 | 0x0264 | 0x04C8 | 0x098F |
-| B | 0x00A2 | 0x0144 | 0x0288 | 0x0510 | 0x0A20 |
+| Note | Hz | freq_reg | hex |
+|------|----|----------|-----|
+| C2 | 65.4 | 4 | 0x0004 |
+| C3 | 130.8 | 8 | 0x0008 |
+| C4 | 261.6 | 16 | 0x0010 |
+| E4 | 329.6 | 21 | 0x0015 |
+| G4 | 392.0 | 25 | 0x0019 |
+| A4 | 440.0 | 28 | 0x001C |
+| C5 | 523.3 | 33 | 0x0021 |
+| C6 | 1046.5 | 66 | 0x0042 |
+| C7 | 2093.0 | 132 | 0x0084 |
+| C8 | 4186.0 | 263 | 0x0107 |
 
 ### Reset and Initialization
 
 After power-on or chip reset (`rst_n` asserted low), all registers are
-cleared to zero. The voice is silent (gate=0, frequency=0, all waveforms
-disabled). No initialization sequence is required beyond configuring the
-desired sound parameters.
+cleared to zero. All voices are silent. No initialization sequence is
+required.
 
-To silence the output at any time, either:
-- Clear the gate bit: `sid_write(6, waveform & 0xFE)`
-- Set frequency to 0: `sid_write_freq(0x0000)`
-- Set the test bit to freeze the oscillator: `sid_write(6, 0x08)`
+To silence the output at any time:
+- Clear the gate bit: `sid_write(6, waveform & 0xFE, voice)`
+- Set frequency to 0: `sid_write(0, 0, v); sid_write(1, 0, v)`
+- Set the test bit: `sid_write(6, 0x08, v)`
 
 ---
 
@@ -753,88 +505,14 @@ To silence the output at any time, either:
 | Parameter | Value |
 |-----------|-------|
 | Target technology | IHP SG13G2 130nm SiGe BiCMOS |
-| Tile size | Tiny Tapeout 1x1 (~167 x 108 um) |
+| Tile size | Tiny Tapeout 1x1 |
 | Core supply (VDD) | 1.2V |
 | I/O supply (VDDIO) | 3.3V |
 | System clock | 50 MHz (20 ns period) |
-| Logic area | ~19,524 um^2 (Yosys, IHP SG13G2 stdcell) |
-| Core utilization | 74.0% |
-| Flip-flop count | 190 |
-| SPI max clock | < 12.5 MHz (clk/4); 10 MHz recommended |
+| Core utilization | ~82% |
+| Voice count | 3 (time-multiplexed) |
+| Frequency resolution | ~15.9 Hz (16-bit acc + /16 prescaler) |
+| Envelope depth | 4-bit (16 levels) |
 | PWM output frequency | ~196 kHz |
-| Audio bandwidth | Full 20 kHz+ (Nyquist ~98 kHz) |
-
----
-
-## Physical Implementation (LibreLane PnR)
-
-Post place-and-route results from LibreLane 3.0.0.dev50, targeting the
-TT-IHP 1x1 tile on IHP SG13G2 130nm.
-
-### Die / Floorplan
-
-| Parameter | Value |
-|-----------|-------|
-| Die area | 202.08 x 154.98 um (31,318 um^2) |
-| Core area | 196.32 x 147.42 um (28,941 um^2) |
-| Logic area | 19,524 um^2 |
-| Core utilization | 74.0% |
-| PDK | IHP SG13G2 (sg13g2_stdcell) |
-| Routing layers | Metal1 -- Metal5 |
-
-### Cell Count (after fill insertion)
-
-| Cell Type | Count |
-|-----------|------:|
-| Multi-input combinational | 1,024 |
-| Sequential (flip-flops) | 190 |
-| Tie cells | 140 |
-| **Total instances (synthesis)** | **1,268** |
-| **Total instances (post-P&R)** | **1,555** |
-
-### Area Breakdown
-
-| Category | Area (um^2) | % of Logic |
-|----------|----------:|----------:|
-| Combinational | 9,919 | 50.8% |
-| Sequential | 9,308 | 47.7% |
-| **Total logic** | **19,524** | 100% |
-
-### Timing (Post-PnR, nom_tt_025C_1v80)
-
-| Parameter | Value |
-|-----------|-------|
-| Clock period | 20.0 ns (50 MHz) |
-| Setup violations | 0 |
-| Hold violations | 0 |
-| Max slew violations | 0 |
-| Max cap violations | 0 |
-
-### Routing
-
-| Parameter | Value |
-|-----------|-------|
-| Total wirelength | 63,288 um |
-| Total vias | 10,679 |
-
-### Power (nom_tt_025C_1v80)
-
-| Parameter | Value |
-|-----------|-------|
-| Total power | ~1.0 mW |
-
-### IR Drop (nom_tt_025C_1v80)
-
-| Net | Worst Drop |
-|-----|-----------|
-| VPWR (1.20 V) | 0.25 mV (0.02%) |
-| VGND (0.00 V) | 0.24 mV (0.02%) |
-
-### Verification
-
-| Check | Result |
-|-------|--------|
-| Magic DRC | Passed |
-| KLayout DRC | Passed |
-| LVS | Passed |
-| XOR (GDS match) | Passed |
+| Audio bandwidth | 20 kHz+ (Nyquist ~98 kHz) |
+| Write interface speed | 1 register per 60 ns (3 clocks) |

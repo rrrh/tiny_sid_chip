@@ -1,4 +1,4 @@
-// ADSR Envelope State Machine — sid_asdr_generator
+// ADSR Envelope State Machine — 4-bit linear ADSR (per voice)
 // Render: dot -Tsvg docs/adsr_fsm.dot -o docs/adsr_fsm.svg
 //         dot -Tpng docs/adsr_fsm.dot -o docs/adsr_fsm.png
 
@@ -16,12 +16,12 @@ digraph adsr_fsm {
     ];
 
     ATTACK [
-        label="{ATTACK|env counts 0 → 255\nat attack_rate}",
+        label="{ATTACK|env counts 0 → 15\nat attack_rate}",
         fillcolor="#aed6f1"
     ];
 
     DECAY [
-        label="{DECAY / SUSTAIN|env counts 255 → sustain_level\nat decay_rate\n\nholds at sustain_level\nwhile gate = 1}",
+        label="{DECAY / SUSTAIN|env counts 15 → sustain_level\nat decay_rate\n\nholds at sustain_level\nwhile gate = 1}",
         fillcolor="#a9dfbf"
     ];
 
@@ -38,7 +38,7 @@ digraph adsr_fsm {
     ];
 
     ATTACK -> DECAY [
-        label="  env = 0xFF  ",
+        label="  env = 0xF  ",
         color="#27ae60",
         fontcolor="#27ae60"
     ];
