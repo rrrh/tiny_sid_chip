@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// TT10 Wrapper — Triple SID Voice Synthesizer (Pipelined Time-Multiplexed)
+// TT10 Wrapper — Triple SID Voice Synthesizer (Time-Multiplexed)
 //==============================================================================
 // Uses one shared compute pipeline cycling through 3 voices each clock.
-// Two-stage pipeline: Stage 1 muxes voice data, Stage 2 computes + writes back.
+// Each voice is updated every 3rd clock cycle at 5 MHz = 1.667 MHz/voice.
 //
 // 20-bit phase accumulators with 16-bit frequency registers:
 //   Effective rate = 5 MHz / 3 = 1.667 MHz per voice
@@ -160,27 +160,37 @@ module tt_um_sid (
         else                 vidx <= vidx + 1'b1;
 
     //==========================================================================
-    // STAGE 1: Mux current voice registers based on vidx (combinational)
+    // Mux current voice registers based on vidx
     //==========================================================================
-    reg [15:0] mux_frequency;
-    reg [7:0]  mux_duration, mux_waveform;
+    reg [15:0] cur_frequency;
+    reg [7:0]  cur_duration, cur_waveform;
 
     always @(*) begin
         case (vidx)
             2'd0: begin
-                mux_frequency = v1_frequency; mux_duration = v1_duration;
-                mux_waveform = v1_waveform;
+                cur_frequency = v1_frequency; cur_duration = v1_duration;
+                cur_waveform = v1_waveform;
             end
             2'd1: begin
-                mux_frequency = v2_frequency; mux_duration = v2_duration;
-                mux_waveform = v2_waveform;
+                cur_frequency = v2_frequency; cur_duration = v2_duration;
+                cur_waveform = v2_waveform;
             end
             default: begin
-                mux_frequency = v3_frequency; mux_duration = v3_duration;
-                mux_waveform = v3_waveform;
+                cur_frequency = v3_frequency; cur_duration = v3_duration;
+                cur_waveform = v3_waveform;
             end
         endcase
     end
+
+    //==========================================================================
+    // Waveform control bit aliases (from current voice)
+    //==========================================================================
+    wire cur_test        = cur_waveform[3];
+    wire cur_gate        = cur_waveform[0];
+    wire cur_triangle_en = cur_waveform[4];
+    wire cur_sawtooth_en = cur_waveform[5];
+    wire cur_pulse_en    = cur_waveform[6];
+    wire cur_noise_en    = cur_waveform[7];
 
     //==========================================================================
     // Per-voice state banks
@@ -195,83 +205,41 @@ module tt_um_sid (
     reg        v_lg_0,   v_lg_1,   v_lg_2;
 
     //==========================================================================
-    // STAGE 1: Mux current voice state based on vidx (combinational)
+    // Mux current voice state based on vidx
     //==========================================================================
-    reg [19:0] mux_acc;
-    reg [3:0]  mux_env;
-    reg [1:0]  mux_ast;
-    reg        mux_lg;
+    reg [19:0] cur_acc;
+    wire [7:0] cur_lfsr = shared_lfsr;
+    reg [3:0]  cur_env;
+    reg [1:0]  cur_ast;
+    reg        cur_lg;
 
     always @(*) begin
         case (vidx)
             2'd0: begin
-                mux_acc = v_acc_0;
-                mux_env = v_env_0; mux_ast = v_ast_0; mux_lg = v_lg_0;
+                cur_acc = v_acc_0;
+                cur_env = v_env_0; cur_ast = v_ast_0; cur_lg = v_lg_0;
             end
             2'd1: begin
-                mux_acc = v_acc_1;
-                mux_env = v_env_1; mux_ast = v_ast_1; mux_lg = v_lg_1;
+                cur_acc = v_acc_1;
+                cur_env = v_env_1; cur_ast = v_ast_1; cur_lg = v_lg_1;
             end
             default: begin
-                mux_acc = v_acc_2;
-                mux_env = v_env_2; mux_ast = v_ast_2; mux_lg = v_lg_2;
+                cur_acc = v_acc_2;
+                cur_env = v_env_2; cur_ast = v_ast_2; cur_lg = v_lg_2;
             end
         endcase
     end
 
     //==========================================================================
-    // Pipeline registers: latch mux outputs for Stage 2
+    // Shared combinational: waveform generation (20-bit accumulator)
     //==========================================================================
-    reg [15:0] pipe_frequency;
-    reg [7:0]  pipe_duration, pipe_waveform;
-    reg [19:0] pipe_acc;
-    reg [3:0]  pipe_env;
-    reg [1:0]  pipe_ast;
-    reg        pipe_lg;
-    reg [1:0]  pipe_vidx;
-
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            pipe_frequency <= 16'd0;
-            pipe_duration  <= 8'd0;
-            pipe_waveform  <= 8'd0;
-            pipe_acc       <= 20'd0;
-            pipe_env       <= 4'd0;
-            pipe_ast       <= 2'd0;
-            pipe_lg        <= 1'b0;
-            pipe_vidx      <= 2'd0;
-        end else begin
-            pipe_frequency <= mux_frequency;
-            pipe_duration  <= mux_duration;
-            pipe_waveform  <= mux_waveform;
-            pipe_acc       <= mux_acc;
-            pipe_env       <= mux_env;
-            pipe_ast       <= mux_ast;
-            pipe_lg        <= mux_lg;
-            pipe_vidx      <= vidx;
-        end
-    end
+    wire [7:0] saw_out = cur_acc[19:12];
+    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[19]}};
+    wire [7:0] tri_out = cur_acc[18:11] ^ tri_tmp;
+    wire       pulse_out = cur_acc[19:12] > cur_duration;
 
     //==========================================================================
-    // STAGE 2: Waveform control bit aliases (from pipeline)
-    //==========================================================================
-    wire pipe_test        = pipe_waveform[3];
-    wire pipe_gate        = pipe_waveform[0];
-    wire pipe_triangle_en = pipe_waveform[4];
-    wire pipe_sawtooth_en = pipe_waveform[5];
-    wire pipe_pulse_en    = pipe_waveform[6];
-    wire pipe_noise_en    = pipe_waveform[7];
-
-    //==========================================================================
-    // STAGE 2: Waveform generation (20-bit accumulator)
-    //==========================================================================
-    wire [7:0] saw_out = pipe_acc[19:12];
-    wire [7:0] tri_tmp = pipe_sawtooth_en ? 8'h00 : {8{pipe_acc[19]}};
-    wire [7:0] tri_out = pipe_acc[18:11] ^ tri_tmp;
-    wire       pulse_out = pipe_acc[19:12] > pipe_duration;
-
-    //==========================================================================
-    // STAGE 2: ADSR envelope tick + next state
+    // Shared combinational: ADSR envelope tick + next state
     //==========================================================================
     localparam [1:0] ENV_IDLE    = 2'd0,
                      ENV_ATTACK  = 2'd1,
@@ -281,7 +249,7 @@ module tt_um_sid (
     // Rate selection (from shared registers)
     reg [3:0] active_rate;
     always @(*) begin
-        case (pipe_ast)
+        case (cur_ast)
             ENV_ATTACK:  active_rate = shared_attack[3:0];
             ENV_DECAY:   active_rate = shared_attack[7:4];
             ENV_RELEASE: active_rate = shared_sustain[7:4];
@@ -317,71 +285,71 @@ module tt_um_sid (
     reg [3:0] nxt_env;
 
     always @(*) begin
-        nxt_ast = pipe_ast;
-        nxt_env = pipe_env;
+        nxt_ast = cur_ast;
+        nxt_env = cur_env;
 
-        case (pipe_ast)
+        case (cur_ast)
             ENV_IDLE: begin
                 nxt_env = 4'd0;
-                if (pipe_gate && !pipe_lg)
+                if (cur_gate && !cur_lg)
                     nxt_ast = ENV_ATTACK;
             end
             ENV_ATTACK: begin
-                if (!pipe_gate) begin
+                if (!cur_gate) begin
                     nxt_ast = ENV_RELEASE;
-                end else if (pipe_env == 4'hF) begin
+                end else if (cur_env == 4'hF) begin
                     nxt_ast = ENV_DECAY;
                 end else if (env_tick) begin
-                    nxt_env = pipe_env + 1'b1;
+                    nxt_env = cur_env + 1'b1;
                 end
             end
             ENV_DECAY: begin
-                if (!pipe_gate) begin
+                if (!cur_gate) begin
                     nxt_ast = ENV_RELEASE;
-                end else if (pipe_env > sustain_level && env_tick) begin
-                    nxt_env = pipe_env - 1'b1;
+                end else if (cur_env > sustain_level && env_tick) begin
+                    nxt_env = cur_env - 1'b1;
                 end
             end
             ENV_RELEASE: begin
-                if (pipe_gate && !pipe_lg) begin
+                if (cur_gate && !cur_lg) begin
                     nxt_ast = ENV_ATTACK;
-                end else if (pipe_env == 4'd0) begin
+                end else if (cur_env == 4'd0) begin
                     nxt_ast = ENV_IDLE;
                 end else if (env_tick) begin
-                    nxt_env = pipe_env - 1'b1;
+                    nxt_env = cur_env - 1'b1;
                 end
             end
         endcase
     end
 
     //==========================================================================
-    // STAGE 2: Waveform mux + envelope scaling
+    // Shared combinational: waveform mux + envelope scaling
     //==========================================================================
     reg [7:0]  voice_mux;
     reg [11:0] voice_out;
 
     always @(*) begin
         voice_mux = 8'h00;
-        if (pipe_triangle_en) voice_mux = voice_mux | tri_out;
-        if (pipe_sawtooth_en) voice_mux = voice_mux | saw_out;
-        if (pipe_pulse_en)    voice_mux = voice_mux | {8{pulse_out}};
-        if (pipe_noise_en)    voice_mux = voice_mux | shared_lfsr;
+        if (cur_triangle_en) voice_mux = voice_mux | tri_out;
+        if (cur_sawtooth_en) voice_mux = voice_mux | saw_out;
+        if (cur_pulse_en)    voice_mux = voice_mux | {8{pulse_out}};
+        if (cur_noise_en)    voice_mux = voice_mux | cur_lfsr;
 
-        voice_out = voice_mux * pipe_env;
+        voice_out = voice_mux * cur_env;
 
         if (rst) voice_out = 12'b0;
     end
 
     //==========================================================================
-    // Next accumulator + LFSR (reads from pipeline)
+    // Next accumulator + LFSR
     //==========================================================================
-    wire [19:0] nxt_acc  = pipe_test ? 20'd0 :
-                           (pipe_acc + {4'd0, pipe_frequency});
+    wire [19:0] nxt_acc  = cur_test ? 20'd0 :
+                           (cur_acc + {4'd0, cur_frequency});
 
     wire [7:0]  nxt_lfsr = {shared_lfsr[6:0], shared_lfsr[7] ^ shared_lfsr[5] ^ shared_lfsr[4] ^ shared_lfsr[3]};
 
     //==========================================================================
-    // Sequential: update state banks using pipe_vidx + shared LFSR
+    // Sequential: update state banks for current voice + shared LFSR
     //==========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -392,28 +360,28 @@ module tt_um_sid (
             v_lg_0 <= 1'b0; v_lg_1 <= 1'b0; v_lg_2 <= 1'b0;
         end else begin
             shared_lfsr <= nxt_lfsr;
-            case (pipe_vidx)
+            case (vidx)
                 2'd0: begin
                     v_acc_0  <= nxt_acc;
                     v_env_0  <= nxt_env;  v_ast_0  <= nxt_ast;
-                    v_lg_0   <= pipe_gate;
+                    v_lg_0   <= cur_gate;
                 end
                 2'd1: begin
                     v_acc_1  <= nxt_acc;
                     v_env_1  <= nxt_env;  v_ast_1  <= nxt_ast;
-                    v_lg_1   <= pipe_gate;
+                    v_lg_1   <= cur_gate;
                 end
                 default: begin
                     v_acc_2  <= nxt_acc;
                     v_env_2  <= nxt_env;  v_ast_2  <= nxt_ast;
-                    v_lg_2   <= pipe_gate;
+                    v_lg_2   <= cur_gate;
                 end
             endcase
         end
     end
 
     //==========================================================================
-    // Mix: accumulate voice outputs over 3 cycles using pipe_vidx
+    // Mix: accumulate voice outputs over 3 cycles, latch every 3rd
     //==========================================================================
     reg [9:0] mix_acc;
     reg [7:0] mix_out;
@@ -423,7 +391,7 @@ module tt_um_sid (
             mix_acc <= 10'd0;
             mix_out <= 8'd0;
         end else begin
-            if (pipe_vidx == 2'd0) begin
+            if (vidx == 2'd0) begin
                 mix_out <= mix_acc[9:2];
                 mix_acc <= {2'b0, voice_out[11:4]};
             end else begin
