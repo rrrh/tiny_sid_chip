@@ -5,10 +5,10 @@
 // Uses one shared compute pipeline cycling through 3 voices each clock.
 // Two-stage pipeline: Stage 1 muxes voice data, Stage 2 computes + writes back.
 //
-// 20-bit phase accumulators with 16-bit frequency registers:
+// 16-bit phase accumulators with 16-bit frequency registers:
 //   Effective rate = 5 MHz / 3 = 1.667 MHz per voice
-//   Resolution = 1.667 MHz / 2^20 ≈ 1.59 Hz per step
-//   freq_reg = desired_Hz * 2^20 / 1666667 ≈ desired_Hz * 0.62915
+//   Resolution = 1.667 MHz / 2^16 ≈ 25.4 Hz per step
+//   freq_reg = desired_Hz * 2^16 / 1666667 ≈ desired_Hz * 0.03932
 //
 // Flat Memory-Mapped Register Interface:
 //   ui_in[2:0]  = register address (3-bit)
@@ -137,11 +137,11 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared ADSR prescaler (free-running 18-bit counter)
+    // Shared ADSR prescaler (free-running 14-bit counter)
     //==========================================================================
-    reg [17:0] adsr_prescaler;
+    reg [13:0] adsr_prescaler;
     always @(posedge clk or negedge rst_n)
-        if (!rst_n) adsr_prescaler <= 18'd0;
+        if (!rst_n) adsr_prescaler <= 14'd0;
         else        adsr_prescaler <= adsr_prescaler + 1'b1;
 
     //==========================================================================
@@ -183,8 +183,8 @@ module tt_um_sid (
     //==========================================================================
     // Per-voice state banks
     //==========================================================================
-    // Phase accumulator (20-bit) per voice + shared LFSR (8-bit)
-    reg [19:0] v_acc_0,  v_acc_1,  v_acc_2;
+    // Phase accumulator (16-bit) per voice + shared LFSR (8-bit)
+    reg [15:0] v_acc_0,  v_acc_1,  v_acc_2;
     reg [7:0]  shared_lfsr;
 
     // ADSR state: env_counter (4-bit), state (2-bit), last_gate (1-bit)
@@ -195,7 +195,7 @@ module tt_um_sid (
     //==========================================================================
     // STAGE 1: Mux current voice state based on vidx (combinational)
     //==========================================================================
-    reg [19:0] mux_acc;
+    reg [15:0] mux_acc;
     reg [3:0]  mux_env;
     reg [1:0]  mux_ast;
     reg        mux_lg;
@@ -223,8 +223,7 @@ module tt_um_sid (
     reg [15:0] pipe_frequency;
     reg [7:0]  pipe_duration, pipe_waveform;
     reg [7:0]  pipe_attack, pipe_sustain;
-    reg [19:0] pipe_acc;
-    reg [7:0]  pipe_lfsr;
+    reg [15:0] pipe_acc;
     reg [3:0]  pipe_env;
     reg [1:0]  pipe_ast;
     reg        pipe_lg;
@@ -237,8 +236,7 @@ module tt_um_sid (
             pipe_waveform  <= 8'd0;
             pipe_attack    <= 8'd0;
             pipe_sustain   <= 8'd0;
-            pipe_acc       <= 20'd0;
-            pipe_lfsr      <= 8'd1;
+            pipe_acc       <= 16'd0;
             pipe_env       <= 4'd0;
             pipe_ast       <= 2'd0;
             pipe_lg        <= 1'b0;
@@ -250,7 +248,6 @@ module tt_um_sid (
             pipe_attack    <= mux_attack;
             pipe_sustain   <= mux_sustain;
             pipe_acc       <= mux_acc;
-            pipe_lfsr      <= shared_lfsr;
             pipe_env       <= mux_env;
             pipe_ast       <= mux_ast;
             pipe_lg        <= mux_lg;
@@ -269,12 +266,12 @@ module tt_um_sid (
     wire pipe_noise_en    = pipe_waveform[7];
 
     //==========================================================================
-    // STAGE 2: Waveform generation (20-bit accumulator)
+    // STAGE 2: Waveform generation (16-bit accumulator)
     //==========================================================================
-    wire [7:0] saw_out = pipe_acc[19:12];
-    wire [7:0] tri_tmp = pipe_sawtooth_en ? 8'h00 : {8{pipe_acc[19]}};
-    wire [7:0] tri_out = pipe_acc[18:11] ^ tri_tmp;
-    wire       pulse_out = pipe_acc[19:12] > pipe_duration;
+    wire [7:0] saw_out = pipe_acc[15:8];
+    wire [7:0] tri_tmp = pipe_sawtooth_en ? 8'h00 : {8{pipe_acc[15]}};
+    wire [7:0] tri_out = pipe_acc[14:7] ^ tri_tmp;
+    wire       pulse_out = pipe_acc[15:8] > pipe_duration;
 
     //==========================================================================
     // STAGE 2: ADSR envelope tick + next state
@@ -295,7 +292,9 @@ module tt_um_sid (
         endcase
     end
 
-    // Envelope tick from prescaler (18-bit, 13 rate levels)
+    // Envelope tick from prescaler (14-bit, 9 rate levels)
+    // At 5 MHz: rate 0 → tick every 64 clk (~205 us full traverse)
+    //           rate 8 → tick every 16384 clk (~52 ms full traverse)
     reg env_tick;
     always @(*) begin
         case (active_rate)
@@ -308,11 +307,7 @@ module tt_um_sid (
             4'd6:    env_tick = &adsr_prescaler[11:0];
             4'd7:    env_tick = &adsr_prescaler[12:0];
             4'd8:    env_tick = &adsr_prescaler[13:0];
-            4'd9:    env_tick = &adsr_prescaler[14:0];
-            4'd10:   env_tick = &adsr_prescaler[15:0];
-            4'd11:   env_tick = &adsr_prescaler[16:0];
-            4'd12:   env_tick = &adsr_prescaler[17:0];
-            default: env_tick = &adsr_prescaler[17:0];
+            default: env_tick = &adsr_prescaler[13:0];
         endcase
     end
 
@@ -371,7 +366,7 @@ module tt_um_sid (
         if (pipe_triangle_en) voice_mux = voice_mux | tri_out;
         if (pipe_sawtooth_en) voice_mux = voice_mux | saw_out;
         if (pipe_pulse_en)    voice_mux = voice_mux | {8{pulse_out}};
-        if (pipe_noise_en)    voice_mux = voice_mux | pipe_lfsr;
+        if (pipe_noise_en)    voice_mux = voice_mux | shared_lfsr;
 
         voice_out = voice_mux * pipe_env;
 
@@ -381,8 +376,8 @@ module tt_um_sid (
     //==========================================================================
     // Next accumulator + LFSR (reads from pipeline)
     //==========================================================================
-    wire [19:0] nxt_acc  = pipe_test ? 20'd0 :
-                           (pipe_acc + {4'd0, pipe_frequency});
+    wire [15:0] nxt_acc  = pipe_test ? 16'd0 :
+                           (pipe_acc + pipe_frequency);
 
     wire [7:0]  nxt_lfsr = {shared_lfsr[6:0], shared_lfsr[7] ^ shared_lfsr[5] ^ shared_lfsr[4] ^ shared_lfsr[3]};
 
@@ -391,7 +386,7 @@ module tt_um_sid (
     //==========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            v_acc_0 <= 20'd0; v_acc_1 <= 20'd0; v_acc_2 <= 20'd0;
+            v_acc_0 <= 16'd0; v_acc_1 <= 16'd0; v_acc_2 <= 16'd0;
             shared_lfsr <= 8'd1;
             v_env_0 <= 4'd0; v_env_1 <= 4'd0; v_env_2 <= 4'd0;
             v_ast_0 <= ENV_IDLE; v_ast_1 <= ENV_IDLE; v_ast_2 <= ENV_IDLE;
