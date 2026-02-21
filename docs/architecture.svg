@@ -141,7 +141,7 @@
 <text text-anchor="start" x="1401.5" y="-155.6" font-family="Helvetica,sans-Serif" font-size="8.00">Sawtooth: acc[19:12]</text>
 <text text-anchor="start" x="1391.5" y="-146.6" font-family="Helvetica,sans-Serif" font-size="8.00">Triangle: acc[18:11] ^ fold</text>
 <text text-anchor="start" x="1398" y="-137.6" font-family="Helvetica,sans-Serif" font-size="8.00">Pulse: acc[19:12] &gt; PW</text>
-<text text-anchor="start" x="1396" y="-128.6" font-family="Helvetica,sans-Serif" font-size="8.00">Noise: shared 6&#45;bit LFSR</text>
+<text text-anchor="start" x="1396" y="-128.6" font-family="Helvetica,sans-Serif" font-size="8.00">Noise: shared 4&#45;bit LFSR</text>
 <polygon fill="none" stroke="black" points="1505.5,-121 1505.5,-167 1565.5,-167 1565.5,-121 1505.5,-121"/>
 <text text-anchor="start" x="1510.5" y="-155.6" font-family="Helvetica,sans-Serif" font-size="8.00">OR&#45;combine</text>
 <text text-anchor="start" x="1518.5" y="-146.6" font-family="Helvetica,sans-Serif" font-size="8.00">enabled</text>

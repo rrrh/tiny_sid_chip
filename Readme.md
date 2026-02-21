@@ -100,7 +100,7 @@ only a passive second-order RC low-pass filter to produce analog audio.
    ~1.59 Hz frequency resolution.
 
 4. The waveform generator derives sawtooth, triangle, pulse, and noise
-   outputs from the accumulator state and a shared 6-bit LFSR. Selected
+   outputs from the accumulator state and a shared 4-bit LFSR. Selected
    waveforms are OR-combined into an 8-bit value, then multiplied by
    the 4-bit ADSR envelope to produce a 12-bit voice output.
 
@@ -244,7 +244,7 @@ Bit:   7      6      5        4        3     2     1     0
 | 4 | `triangle` | Enable triangle waveform. |
 | 5 | `sawtooth` | Enable sawtooth waveform. |
 | 6 | `pulse` | Enable pulse waveform (duty cycle set by reg 2). |
-| 7 | `noise` | Enable noise waveform (shared 6-bit LFSR). |
+| 7 | `noise` | Enable noise waveform (shared 4-bit LFSR). |
 
 When multiple waveform bits are set, their outputs are bitwise
 OR-combined (matching real SID behavior).
