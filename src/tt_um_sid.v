@@ -5,10 +5,10 @@
 // Uses one shared compute pipeline cycling through 3 voices each clock.
 // Two-stage pipeline: Stage 1 muxes voice data, Stage 2 computes + writes back.
 //
-// 16-bit phase accumulators with 16-bit frequency registers:
+// 20-bit phase accumulators with 16-bit frequency registers:
 //   Effective rate = 5 MHz / 3 = 1.667 MHz per voice
-//   Resolution = 1.667 MHz / 2^16 ≈ 25.4 Hz per step
-//   freq_reg = desired_Hz * 2^16 / 1666667 ≈ desired_Hz * 0.03932
+//   Resolution = 1.667 MHz / 2^20 ≈ 1.59 Hz per step
+//   freq_reg = desired_Hz * 2^20 / 1666667 ≈ desired_Hz * 0.62915
 //
 // Flat Memory-Mapped Register Interface:
 //   ui_in[2:0]  = register address (3-bit)
@@ -24,8 +24,8 @@
 //   1: freq_hi  — frequency[15:8]
 //   2: pw       — pulse width[7:0]
 //   3: (reserved)
-//   4: attack   — attack_rate[3:0] / decay_rate[7:4]  (per-voice)
-//   5: sustain  — sustain_level[3:0] / release_rate[7:4]  (per-voice)
+//   4: attack   — attack_rate[3:0] / decay_rate[7:4]  (shared)
+//   5: sustain  — sustain_level[3:0] / release_rate[7:4]  (shared)
 //   6: waveform — waveform[7:0]
 //
 // Mixing: accumulate 3 voice outputs over 3 clocks, shift right by 2.
@@ -62,24 +62,20 @@ module tt_um_sid (
     wire wr_en_rise = wr_en && !wr_en_d;
 
     //==========================================================================
-    // Voice 1 register bank (frequency, duration, waveform, attack, sustain)
+    // Voice 1 register bank (frequency, duration, waveform)
     //==========================================================================
     reg [15:0] v1_frequency;
     reg [7:0]  v1_duration;
     reg [7:0]  v1_waveform;
-    reg [7:0]  v1_attack, v1_sustain;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v1_frequency <= 0; v1_duration <= 0; v1_waveform <= 0;
-            v1_attack <= 0; v1_sustain <= 0;
         end else if (wr_en_rise && voice_sel == 2'd0) begin
             case (reg_addr)
                 3'd0: v1_frequency[7:0]  <= wr_data;
                 3'd1: v1_frequency[15:8] <= wr_data;
                 3'd2: v1_duration        <= wr_data;
-                3'd4: v1_attack          <= wr_data;
-                3'd5: v1_sustain         <= wr_data;
                 3'd6: v1_waveform        <= wr_data;
                 default: ;
             endcase
@@ -92,19 +88,15 @@ module tt_um_sid (
     reg [15:0] v2_frequency;
     reg [7:0]  v2_duration;
     reg [7:0]  v2_waveform;
-    reg [7:0]  v2_attack, v2_sustain;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v2_frequency <= 0; v2_duration <= 0; v2_waveform <= 0;
-            v2_attack <= 0; v2_sustain <= 0;
         end else if (wr_en_rise && voice_sel == 2'd1) begin
             case (reg_addr)
                 3'd0: v2_frequency[7:0]  <= wr_data;
                 3'd1: v2_frequency[15:8] <= wr_data;
                 3'd2: v2_duration        <= wr_data;
-                3'd4: v2_attack          <= wr_data;
-                3'd5: v2_sustain         <= wr_data;
                 3'd6: v2_waveform        <= wr_data;
                 default: ;
             endcase
@@ -117,19 +109,15 @@ module tt_um_sid (
     reg [15:0] v3_frequency;
     reg [7:0]  v3_duration;
     reg [7:0]  v3_waveform;
-    reg [7:0]  v3_attack, v3_sustain;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v3_frequency <= 0; v3_duration <= 0; v3_waveform <= 0;
-            v3_attack <= 0; v3_sustain <= 0;
         end else if (wr_en_rise && voice_sel == 2'd2) begin
             case (reg_addr)
                 3'd0: v3_frequency[7:0]  <= wr_data;
                 3'd1: v3_frequency[15:8] <= wr_data;
                 3'd2: v3_duration        <= wr_data;
-                3'd4: v3_attack          <= wr_data;
-                3'd5: v3_sustain         <= wr_data;
                 3'd6: v3_waveform        <= wr_data;
                 default: ;
             endcase
@@ -137,11 +125,29 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared ADSR prescaler (free-running 14-bit counter)
+    // Shared ADSR registers (written via any voice_sel, reg 4/5)
     //==========================================================================
-    reg [13:0] adsr_prescaler;
+    reg [7:0] shared_attack, shared_sustain;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            shared_attack  <= 8'd0;
+            shared_sustain <= 8'd0;
+        end else if (wr_en_rise) begin
+            case (reg_addr)
+                3'd4: shared_attack  <= wr_data;
+                3'd5: shared_sustain <= wr_data;
+                default: ;
+            endcase
+        end
+    end
+
+    //==========================================================================
+    // Shared ADSR prescaler (free-running 18-bit counter)
+    //==========================================================================
+    reg [17:0] adsr_prescaler;
     always @(posedge clk or negedge rst_n)
-        if (!rst_n) adsr_prescaler <= 14'd0;
+        if (!rst_n) adsr_prescaler <= 18'd0;
         else        adsr_prescaler <= adsr_prescaler + 1'b1;
 
     //==========================================================================
@@ -158,24 +164,20 @@ module tt_um_sid (
     //==========================================================================
     reg [15:0] mux_frequency;
     reg [7:0]  mux_duration, mux_waveform;
-    reg [7:0]  mux_attack, mux_sustain;
 
     always @(*) begin
         case (vidx)
             2'd0: begin
                 mux_frequency = v1_frequency; mux_duration = v1_duration;
                 mux_waveform = v1_waveform;
-                mux_attack = v1_attack; mux_sustain = v1_sustain;
             end
             2'd1: begin
                 mux_frequency = v2_frequency; mux_duration = v2_duration;
                 mux_waveform = v2_waveform;
-                mux_attack = v2_attack; mux_sustain = v2_sustain;
             end
             default: begin
                 mux_frequency = v3_frequency; mux_duration = v3_duration;
                 mux_waveform = v3_waveform;
-                mux_attack = v3_attack; mux_sustain = v3_sustain;
             end
         endcase
     end
@@ -183,8 +185,8 @@ module tt_um_sid (
     //==========================================================================
     // Per-voice state banks
     //==========================================================================
-    // Phase accumulator (16-bit) per voice + shared LFSR (8-bit)
-    reg [15:0] v_acc_0,  v_acc_1,  v_acc_2;
+    // Phase accumulator (20-bit) per voice + shared LFSR (8-bit)
+    reg [19:0] v_acc_0,  v_acc_1,  v_acc_2;
     reg [7:0]  shared_lfsr;
 
     // ADSR state: env_counter (4-bit), state (2-bit), last_gate (1-bit)
@@ -195,7 +197,7 @@ module tt_um_sid (
     //==========================================================================
     // STAGE 1: Mux current voice state based on vidx (combinational)
     //==========================================================================
-    reg [15:0] mux_acc;
+    reg [19:0] mux_acc;
     reg [3:0]  mux_env;
     reg [1:0]  mux_ast;
     reg        mux_lg;
@@ -222,8 +224,7 @@ module tt_um_sid (
     //==========================================================================
     reg [15:0] pipe_frequency;
     reg [7:0]  pipe_duration, pipe_waveform;
-    reg [7:0]  pipe_attack, pipe_sustain;
-    reg [15:0] pipe_acc;
+    reg [19:0] pipe_acc;
     reg [3:0]  pipe_env;
     reg [1:0]  pipe_ast;
     reg        pipe_lg;
@@ -234,9 +235,7 @@ module tt_um_sid (
             pipe_frequency <= 16'd0;
             pipe_duration  <= 8'd0;
             pipe_waveform  <= 8'd0;
-            pipe_attack    <= 8'd0;
-            pipe_sustain   <= 8'd0;
-            pipe_acc       <= 16'd0;
+            pipe_acc       <= 20'd0;
             pipe_env       <= 4'd0;
             pipe_ast       <= 2'd0;
             pipe_lg        <= 1'b0;
@@ -245,8 +244,6 @@ module tt_um_sid (
             pipe_frequency <= mux_frequency;
             pipe_duration  <= mux_duration;
             pipe_waveform  <= mux_waveform;
-            pipe_attack    <= mux_attack;
-            pipe_sustain   <= mux_sustain;
             pipe_acc       <= mux_acc;
             pipe_env       <= mux_env;
             pipe_ast       <= mux_ast;
@@ -266,12 +263,12 @@ module tt_um_sid (
     wire pipe_noise_en    = pipe_waveform[7];
 
     //==========================================================================
-    // STAGE 2: Waveform generation (16-bit accumulator)
+    // STAGE 2: Waveform generation (20-bit accumulator)
     //==========================================================================
-    wire [7:0] saw_out = pipe_acc[15:8];
-    wire [7:0] tri_tmp = pipe_sawtooth_en ? 8'h00 : {8{pipe_acc[15]}};
-    wire [7:0] tri_out = pipe_acc[14:7] ^ tri_tmp;
-    wire       pulse_out = pipe_acc[15:8] > pipe_duration;
+    wire [7:0] saw_out = pipe_acc[19:12];
+    wire [7:0] tri_tmp = pipe_sawtooth_en ? 8'h00 : {8{pipe_acc[19]}};
+    wire [7:0] tri_out = pipe_acc[18:11] ^ tri_tmp;
+    wire       pulse_out = pipe_acc[19:12] > pipe_duration;
 
     //==========================================================================
     // STAGE 2: ADSR envelope tick + next state
@@ -281,20 +278,18 @@ module tt_um_sid (
                      ENV_DECAY   = 2'd2,
                      ENV_RELEASE = 2'd3;
 
-    // Rate selection
+    // Rate selection (from shared registers)
     reg [3:0] active_rate;
     always @(*) begin
         case (pipe_ast)
-            ENV_ATTACK:  active_rate = pipe_attack[3:0];
-            ENV_DECAY:   active_rate = pipe_attack[7:4];
-            ENV_RELEASE: active_rate = pipe_sustain[7:4];
+            ENV_ATTACK:  active_rate = shared_attack[3:0];
+            ENV_DECAY:   active_rate = shared_attack[7:4];
+            ENV_RELEASE: active_rate = shared_sustain[7:4];
             default:     active_rate = 4'd0;
         endcase
     end
 
-    // Envelope tick from prescaler (14-bit, 9 rate levels)
-    // At 5 MHz: rate 0 → tick every 64 clk (~205 us full traverse)
-    //           rate 8 → tick every 16384 clk (~52 ms full traverse)
+    // Envelope tick from prescaler (18-bit, 13 rate levels)
     reg env_tick;
     always @(*) begin
         case (active_rate)
@@ -307,11 +302,15 @@ module tt_um_sid (
             4'd6:    env_tick = &adsr_prescaler[11:0];
             4'd7:    env_tick = &adsr_prescaler[12:0];
             4'd8:    env_tick = &adsr_prescaler[13:0];
-            default: env_tick = &adsr_prescaler[13:0];
+            4'd9:    env_tick = &adsr_prescaler[14:0];
+            4'd10:   env_tick = &adsr_prescaler[15:0];
+            4'd11:   env_tick = &adsr_prescaler[16:0];
+            4'd12:   env_tick = &adsr_prescaler[17:0];
+            default: env_tick = &adsr_prescaler[17:0];
         endcase
     end
 
-    wire [3:0] sustain_level = pipe_sustain[3:0];
+    wire [3:0] sustain_level = shared_sustain[3:0];
 
     // Compute next ADSR state + env_counter
     reg [1:0] nxt_ast;
@@ -376,8 +375,8 @@ module tt_um_sid (
     //==========================================================================
     // Next accumulator + LFSR (reads from pipeline)
     //==========================================================================
-    wire [15:0] nxt_acc  = pipe_test ? 16'd0 :
-                           (pipe_acc + pipe_frequency);
+    wire [19:0] nxt_acc  = pipe_test ? 20'd0 :
+                           (pipe_acc + {4'd0, pipe_frequency});
 
     wire [7:0]  nxt_lfsr = {shared_lfsr[6:0], shared_lfsr[7] ^ shared_lfsr[5] ^ shared_lfsr[4] ^ shared_lfsr[3]};
 
@@ -386,7 +385,7 @@ module tt_um_sid (
     //==========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            v_acc_0 <= 16'd0; v_acc_1 <= 16'd0; v_acc_2 <= 16'd0;
+            v_acc_0 <= 20'd0; v_acc_1 <= 20'd0; v_acc_2 <= 20'd0;
             shared_lfsr <= 8'd1;
             v_env_0 <= 4'd0; v_env_1 <= 4'd0; v_env_2 <= 4'd0;
             v_ast_0 <= ENV_IDLE; v_ast_1 <= ENV_IDLE; v_ast_2 <= ENV_IDLE;
