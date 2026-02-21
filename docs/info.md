@@ -14,8 +14,8 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer implemented in a sing
 **Architecture:**
 
 - **Flat register interface** -- rising-edge-triggered writes via `ui_in[7]` (WE), `ui_in[4:3]` (voice select), `ui_in[2:0]` (register address), `uio_in[7:0]` (data). No SPI or I2C overhead.
-- **3-voice time-multiplexed pipeline** -- a single shared compute pipeline cycles through voices 0/1/2 every clock at 5 MHz (1.667 MHz per voice). 20-bit phase accumulators with no prescaler provide ~1.59 Hz frequency resolution.
-- **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 4-bit LFSR), OR-combined per voice.
+- **3-voice time-multiplexed pipeline** -- a single shared compute pipeline cycles through voices 0/1/2 every clock at 5 MHz (1.667 MHz per voice). 18-bit phase accumulators with no prescaler provide ~6.36 Hz frequency resolution.
+- **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 8-bit LFSR), OR-combined per voice.
 - **ADSR envelope** -- 4-bit linear envelope per voice with shared 18-bit prescaler. 13 distinct rate settings from ~205 us to ~839 ms per full traverse.
 - **3-voice mixer** -- accumulates the three 12-bit voice outputs (waveform x envelope) over 3 clock cycles and shifts right by 2 to produce an 8-bit mix.
 - **PWM audio** (`pwm_audio`) -- 8-bit PWM with a 255-clock period (~19.6 kHz at 5 MHz).
@@ -35,7 +35,7 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer implemented in a sing
 **Frequency formula:**
 
 ```
-freq_reg = round(desired_Hz * 1048576 / 1666667)  ≈  desired_Hz * 0.6291
+freq_reg = round(desired_Hz * 262144 / 1666667)  ≈  desired_Hz * 0.1573
 ```
 
 Attack and sustain registers are shared across all voices (written by any voice select).

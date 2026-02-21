@@ -15,8 +15,8 @@
 //                        4=attack, 5=sustain, 6=waveform
 //
 // Voice update rate: 5 MHz / 3 = 1.667 MHz per voice
-// 20-bit accumulator, 16-bit frequency register:
-// freq_reg = Hz * 2^20 / (5e6 / 3) ≈ Hz * 0.6291
+// 18-bit accumulator, 16-bit frequency register:
+// freq_reg = Hz * 2^18 / (5e6 / 3) ≈ Hz * 0.1573
 //==============================================================================
 
 module tt_um_sid_tb;
@@ -113,11 +113,11 @@ module tt_um_sid_tb;
                      PULSE = 8'h40,
                      NOISE = 8'h80;
 
-    // 20-bit acc: freq_reg = Hz * 2^20 / (5e6/3) ≈ Hz * 0.6291
-    localparam [15:0] FREQ_C4 = 16'd165,   // 262 Hz
-                      FREQ_E4 = 16'd208,   // 330 Hz
-                      FREQ_G4 = 16'd247,   // 392 Hz
-                      FREQ_C5 = 16'd329;   // 523 Hz
+    // 18-bit acc: freq_reg = Hz * 2^18 / (5e6/3) ≈ Hz * 0.1573
+    localparam [15:0] FREQ_C4 = 16'd41,    // 262 Hz
+                      FREQ_E4 = 16'd52,    // 330 Hz
+                      FREQ_G4 = 16'd62,    // 392 Hz
+                      FREQ_C5 = 16'd82;    // 523 Hz
 
     // Register addresses
     localparam [2:0] REG_FREQ_LO = 3'd0,
