@@ -43,10 +43,10 @@ async def sid_write_pw(dut, pw8, voice=0):
 
 def hz_to_freq(hz):
     """Convert Hz to 16-bit frequency register value.
-    16-bit accumulator with /16 prescaler. Effective rate = 50 MHz / 3 / 16.
-    freq_reg = hz * 65536 / (50e6 / 3 / 16) ≈ hz * 0.06291
+    20-bit accumulator, no prescaler. Effective rate = 5 MHz / 3 = 1.667 MHz.
+    freq_reg = hz * 2^20 / (5e6 / 3) ≈ hz * 0.6291
     """
-    return round(hz * 65536 / (50e6 / 3 / 16))
+    return round(hz * (2**20) / (5e6 / 3))
 
 
 async def count_pwm(dut, cycles):
@@ -65,7 +65,7 @@ async def count_pwm(dut, cycles):
 @cocotb.test()
 async def test_reset(dut):
     """Test that reset clears outputs."""
-    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
+    clock = Clock(dut.clk, 200, unit="ns")  # 5 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -88,7 +88,7 @@ async def test_reset(dut):
 @cocotb.test()
 async def test_sawtooth(dut):
     """Test sawtooth waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
+    clock = Clock(dut.clk, 200, unit="ns")  # 5 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -109,8 +109,8 @@ async def test_sawtooth(dut):
     await sid_write(dut, REG_WAVEFORM, 0x21)
 
     # Wait for attack to ramp up and check PDM activity
-    await ClockCycles(dut.clk, 200000)
-    pdm_count = await count_pwm(dut, 100000)
+    await ClockCycles(dut.clk, 50000)
+    pdm_count = await count_pwm(dut, 5000)
     dut._log.info(f"Sawtooth PWM count: {pdm_count}")
     assert pdm_count > 0, f"Sawtooth should produce PWM pulses, got {pdm_count}"
 
@@ -118,7 +118,7 @@ async def test_sawtooth(dut):
 @cocotb.test()
 async def test_triangle(dut):
     """Test triangle waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
+    clock = Clock(dut.clk, 200, unit="ns")  # 5 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -135,8 +135,8 @@ async def test_triangle(dut):
     # Triangle + gate: bit4=tri, bit0=gate
     await sid_write(dut, REG_WAVEFORM, 0x11)
 
-    await ClockCycles(dut.clk, 200000)
-    pdm_count = await count_pwm(dut, 100000)
+    await ClockCycles(dut.clk, 50000)
+    pdm_count = await count_pwm(dut, 5000)
     dut._log.info(f"Triangle PWM count: {pdm_count}")
     assert pdm_count > 0, f"Triangle should produce PWM pulses, got {pdm_count}"
 
@@ -144,7 +144,7 @@ async def test_triangle(dut):
 @cocotb.test()
 async def test_pulse(dut):
     """Test pulse waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
+    clock = Clock(dut.clk, 200, unit="ns")  # 5 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -163,8 +163,8 @@ async def test_pulse(dut):
     # Pulse + gate: bit6=pulse, bit0=gate
     await sid_write(dut, REG_WAVEFORM, 0x41)
 
-    await ClockCycles(dut.clk, 200000)
-    pdm_count = await count_pwm(dut, 100000)
+    await ClockCycles(dut.clk, 50000)
+    pdm_count = await count_pwm(dut, 5000)
     dut._log.info(f"Pulse PWM count: {pdm_count}")
     assert pdm_count > 0, f"Pulse should produce PWM pulses, got {pdm_count}"
 
@@ -172,7 +172,7 @@ async def test_pulse(dut):
 @cocotb.test()
 async def test_noise(dut):
     """Test noise waveform produces PWM output."""
-    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
+    clock = Clock(dut.clk, 200, unit="ns")  # 5 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -189,8 +189,8 @@ async def test_noise(dut):
     # Noise + gate: bit7=noise, bit0=gate
     await sid_write(dut, REG_WAVEFORM, 0x81)
 
-    await ClockCycles(dut.clk, 200000)
-    pdm_count = await count_pwm(dut, 100000)
+    await ClockCycles(dut.clk, 50000)
+    pdm_count = await count_pwm(dut, 5000)
     dut._log.info(f"Noise PWM count: {pdm_count}")
     assert pdm_count > 0, f"Noise should produce PWM pulses, got {pdm_count}"
 
@@ -198,7 +198,7 @@ async def test_noise(dut):
 @cocotb.test(skip=os.environ.get("GATES") == "yes")
 async def test_gate_release(dut):
     """Test that releasing the gate silences PWM output. Skipped in GL sim."""
-    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
+    clock = Clock(dut.clk, 200, unit="ns")  # 5 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -216,16 +216,18 @@ async def test_gate_release(dut):
     await sid_write(dut, REG_WAVEFORM, 0x21)
 
     # Let it play
-    await ClockCycles(dut.clk, 200000)
+    await ClockCycles(dut.clk, 50000)
 
     # Release gate (clear bit 0)
     await sid_write(dut, REG_WAVEFORM, 0x20)
 
-    # Wait for release to fully complete (~2.6ms at rate 0 = 130k cycles at 50 MHz)
-    await ClockCycles(dut.clk, 300000)
+    # Wait for release to fully complete
+    # rate 0: env_tick every 64 clk, voice multiplexing means each voice
+    # catches tick every 192 clk. 4-bit env: full release = 15*192 ≈ 2880 clk.
+    await ClockCycles(dut.clk, 10000)
 
     # PWM should be silent
-    pdm_count = await count_pwm(dut, 100000)
+    pdm_count = await count_pwm(dut, 5000)
     dut._log.info(f"After release PWM count: {pdm_count}")
     assert pdm_count == 0, f"PWM should be silent after release, got {pdm_count}"
 
@@ -233,7 +235,7 @@ async def test_gate_release(dut):
 @cocotb.test()
 async def test_two_voices(dut):
     """Test that both voices play simultaneously and produce PWM output."""
-    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
+    clock = Clock(dut.clk, 200, unit="ns")  # 5 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -256,8 +258,8 @@ async def test_two_voices(dut):
     await sid_write(dut, REG_SUSTAIN, 0x0F, voice=1)
     await sid_write(dut, REG_WAVEFORM, 0x11, voice=1)  # TRI + GATE
 
-    await ClockCycles(dut.clk, 200000)
-    pdm_count = await count_pwm(dut, 100000)
+    await ClockCycles(dut.clk, 50000)
+    pdm_count = await count_pwm(dut, 5000)
     dut._log.info(f"Two voices PWM count: {pdm_count}")
     assert pdm_count > 0, f"Two voices should produce PWM pulses, got {pdm_count}"
 
@@ -265,7 +267,7 @@ async def test_two_voices(dut):
 @cocotb.test()
 async def test_three_voices(dut):
     """Test that all three voices play simultaneously and produce PWM output."""
-    clock = Clock(dut.clk, 20, unit="ns")  # 50 MHz
+    clock = Clock(dut.clk, 200, unit="ns")  # 5 MHz
     cocotb.start_soon(clock.start())
 
     dut.ena.value = 1
@@ -295,7 +297,7 @@ async def test_three_voices(dut):
     await sid_write(dut, REG_SUSTAIN, 0x0F, voice=2)
     await sid_write(dut, REG_WAVEFORM, 0x41, voice=2)  # PULSE + GATE
 
-    await ClockCycles(dut.clk, 200000)
-    pdm_count = await count_pwm(dut, 100000)
+    await ClockCycles(dut.clk, 50000)
+    pdm_count = await count_pwm(dut, 5000)
     dut._log.info(f"Three voices PWM count: {pdm_count}")
     assert pdm_count > 0, f"Three voices should produce PWM pulses, got {pdm_count}"

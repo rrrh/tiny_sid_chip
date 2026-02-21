@@ -3,13 +3,12 @@
 // TT10 Wrapper — Triple SID Voice Synthesizer (Time-Multiplexed)
 //==============================================================================
 // Uses one shared compute pipeline cycling through 3 voices each clock.
-// Each voice is updated every 3rd clock cycle at 50 MHz = 16.67 MHz/voice.
+// Each voice is updated every 3rd clock cycle at 5 MHz = 1.667 MHz/voice.
 //
-// Frequency resolution is improved with a shared 4-bit accumulator
-// prescaler that divides the voice update rate by 16:
-//   Effective rate = 50 MHz / 3 / 16 = 1.042 MHz per voice
-//   Resolution = 1.042 MHz / 65536 ≈ 15.9 Hz per step
-//   freq_reg = desired_Hz * 65536 / 1041667 ≈ desired_Hz * 0.06291
+// 20-bit phase accumulators with 16-bit frequency registers:
+//   Effective rate = 5 MHz / 3 = 1.667 MHz per voice
+//   Resolution = 1.667 MHz / 2^20 ≈ 1.59 Hz per step
+//   freq_reg = desired_Hz * 2^20 / 1666667 ≈ desired_Hz * 0.6291
 //
 // Flat Memory-Mapped Register Interface:
 //   ui_in[2:0]  = register address (3-bit)
@@ -25,8 +24,8 @@
 //   1: freq_hi  — frequency[15:8]
 //   2: pw       — pulse width[7:0]
 //   3: (reserved)
-//   4: attack   — attack[7:0]  (lo=attack_rate, hi=decay_rate)
-//   5: sustain  — sustain[7:0] (lo=sustain_level, hi=release_rate)
+//   4: attack   — attack_rate[3:0] / decay_rate[7:4]  (shared)
+//   5: sustain  — sustain_level[3:0] / release_rate[7:4]  (shared)
 //   6: waveform — waveform[7:0]
 //
 // Mixing: accumulate 3 voice outputs over 3 clocks, shift right by 2.
@@ -101,7 +100,7 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Voice 2 register bank (frequency, duration, waveform only)
+    // Voice 2 register bank
     //==========================================================================
     reg [15:0] v2_frequency;
     reg [7:0]  v2_duration;
@@ -122,7 +121,7 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Voice 3 register bank (frequency, duration, waveform only)
+    // Voice 3 register bank
     //==========================================================================
     reg [15:0] v3_frequency;
     reg [7:0]  v3_duration;
@@ -197,8 +196,8 @@ module tt_um_sid (
     //==========================================================================
     // Per-voice state banks
     //==========================================================================
-    // Phase accumulator (16-bit) per voice + shared LFSR (4-bit)
-    reg [15:0] v_acc_0,  v_acc_1,  v_acc_2;
+    // Phase accumulator (20-bit) per voice + shared LFSR (4-bit)
+    reg [19:0] v_acc_0,  v_acc_1,  v_acc_2;
     reg [3:0]  shared_lfsr;
 
     // ADSR state: env_counter (4-bit), state (2-bit), last_gate (1-bit)
@@ -209,7 +208,7 @@ module tt_um_sid (
     //==========================================================================
     // Mux current voice state based on vidx
     //==========================================================================
-    reg [15:0] cur_acc;
+    reg [19:0] cur_acc;
     wire [3:0] cur_lfsr = shared_lfsr;
     reg [3:0]  cur_env;
     reg [1:0]  cur_ast;
@@ -233,12 +232,12 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared combinational: waveform generation (16-bit accumulator)
+    // Shared combinational: waveform generation (20-bit accumulator)
     //==========================================================================
-    wire [7:0] saw_out = cur_acc[15:8];
-    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[15]}};
-    wire [7:0] tri_out = cur_acc[14:7] ^ tri_tmp;
-    wire       pulse_out = cur_acc[15:8] > cur_duration;
+    wire [7:0] saw_out = cur_acc[19:12];
+    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[19]}};
+    wire [7:0] tri_out = cur_acc[18:11] ^ tri_tmp;
+    wire       pulse_out = cur_acc[19:12] > cur_duration;
 
     //==========================================================================
     // Shared combinational: ADSR envelope tick + next state
@@ -260,6 +259,9 @@ module tt_um_sid (
     end
 
     // Envelope tick from prescaler
+    // At 5 MHz: rate 0 → tick every 64 clk (3.3 ms full traverse)
+    //           rate 12 → tick every 262144 clk (13.4 s full traverse)
+    //           rates 13-15 alias to rate 12
     reg env_tick;
     always @(*) begin
         case (active_rate)
@@ -345,24 +347,11 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Accumulator prescaler: divide voice update rate by 16
-    //--------------------------------------------------------------------------
-    // Increments once per complete voice cycle (every 3 clocks, when vidx==2).
-    // Accumulator only advances when prescaler == 0, giving an effective
-    // update rate of 50 MHz / 3 / 16 = 1.042 MHz per voice.
-    //==========================================================================
-    reg [3:0] acc_prescaler;
-    always @(posedge clk or negedge rst_n)
-        if (!rst_n)            acc_prescaler <= 4'd0;
-        else if (vidx == 2'd2) acc_prescaler <= acc_prescaler + 1'b1;
-
-    wire acc_update = (acc_prescaler == 4'd0);
-
-    //==========================================================================
     // Next accumulator + LFSR
     //==========================================================================
-    wire [15:0] nxt_acc  = cur_test ? 16'd0 :
-                           (cur_acc + (acc_update ? cur_frequency : 16'd0));
+    wire [19:0] nxt_acc  = cur_test ? 20'd0 :
+                           (cur_acc + {4'd0, cur_frequency});
+
     wire [3:0]  nxt_lfsr = {shared_lfsr[2:0], shared_lfsr[1] ^ shared_lfsr[3]};
 
     //==========================================================================
@@ -370,7 +359,7 @@ module tt_um_sid (
     //==========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            v_acc_0 <= 16'd0; v_acc_1 <= 16'd0; v_acc_2 <= 16'd0;
+            v_acc_0 <= 20'd0; v_acc_1 <= 20'd0; v_acc_2 <= 20'd0;
             shared_lfsr <= 4'd1;
             v_env_0 <= 4'd0; v_env_1 <= 4'd0; v_env_2 <= 4'd0;
             v_ast_0 <= ENV_IDLE; v_ast_1 <= ENV_IDLE; v_ast_2 <= ENV_IDLE;
@@ -418,7 +407,7 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // PWM Audio Output (8-bit, ~196 kHz)
+    // PWM Audio Output (8-bit, ~19.6 kHz at 5 MHz)
     //==========================================================================
     wire pwm_out;
 
