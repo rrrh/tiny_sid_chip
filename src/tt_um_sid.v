@@ -5,10 +5,10 @@
 // Uses one shared compute pipeline cycling through 3 voices each clock.
 // Each voice is updated every 3rd clock cycle at 5 MHz = 1.667 MHz/voice.
 //
-// 16-bit phase accumulators with 16-bit frequency registers:
+// 20-bit phase accumulators with 16-bit frequency registers:
 //   Effective rate = 5 MHz / 3 = 1.667 MHz per voice
-//   Resolution = 1.667 MHz / 2^16 ≈ 25.4 Hz per step
-//   freq_reg = desired_Hz * 2^16 / 1666667 ≈ desired_Hz * 0.03932
+//   Resolution = 1.667 MHz / 2^20 ≈ 1.59 Hz per step
+//   freq_reg = desired_Hz * 2^20 / 1666667 ≈ desired_Hz * 0.6291
 //
 // Flat Memory-Mapped Register Interface:
 //   ui_in[2:0]  = register address (3-bit)
@@ -24,8 +24,8 @@
 //   1: freq_hi  — frequency[15:8]
 //   2: pw       — pulse width[7:0]
 //   3: (reserved)
-//   4: attack   — attack_rate[3:0] / decay_rate[7:4]  (shared)
-//   5: sustain  — sustain_level[3:0] / release_rate[7:4]  (shared)
+//   4: attack   — attack_rate[3:0] / decay_rate[7:4]  (per-voice)
+//   5: sustain  — sustain_level[3:0] / release_rate[7:4]  (per-voice)
 //   6: waveform — waveform[7:0]
 //
 // Mixing: accumulate 3 voice outputs over 3 clocks, shift right by 2.
@@ -62,37 +62,24 @@ module tt_um_sid (
     wire wr_en_rise = wr_en && !wr_en_d;
 
     //==========================================================================
-    // Shared attack/sustain registers (written by any voice select)
-    //==========================================================================
-    reg [7:0] shared_attack, shared_sustain;
-
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            shared_attack <= 0; shared_sustain <= 0;
-        end else if (wr_en_rise) begin
-            case (reg_addr)
-                3'd4: shared_attack  <= wr_data;
-                3'd5: shared_sustain <= wr_data;
-                default: ;
-            endcase
-        end
-    end
-
-    //==========================================================================
-    // Voice 1 register bank (frequency, duration, waveform only)
+    // Voice 1 register bank (frequency, duration, waveform, attack, sustain)
     //==========================================================================
     reg [15:0] v1_frequency;
     reg [7:0]  v1_duration;
     reg [7:0]  v1_waveform;
+    reg [7:0]  v1_attack, v1_sustain;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v1_frequency <= 0; v1_duration <= 0; v1_waveform <= 0;
+            v1_attack <= 0; v1_sustain <= 0;
         end else if (wr_en_rise && voice_sel == 2'd0) begin
             case (reg_addr)
                 3'd0: v1_frequency[7:0]  <= wr_data;
                 3'd1: v1_frequency[15:8] <= wr_data;
                 3'd2: v1_duration        <= wr_data;
+                3'd4: v1_attack          <= wr_data;
+                3'd5: v1_sustain         <= wr_data;
                 3'd6: v1_waveform        <= wr_data;
                 default: ;
             endcase
@@ -105,15 +92,19 @@ module tt_um_sid (
     reg [15:0] v2_frequency;
     reg [7:0]  v2_duration;
     reg [7:0]  v2_waveform;
+    reg [7:0]  v2_attack, v2_sustain;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v2_frequency <= 0; v2_duration <= 0; v2_waveform <= 0;
+            v2_attack <= 0; v2_sustain <= 0;
         end else if (wr_en_rise && voice_sel == 2'd1) begin
             case (reg_addr)
                 3'd0: v2_frequency[7:0]  <= wr_data;
                 3'd1: v2_frequency[15:8] <= wr_data;
                 3'd2: v2_duration        <= wr_data;
+                3'd4: v2_attack          <= wr_data;
+                3'd5: v2_sustain         <= wr_data;
                 3'd6: v2_waveform        <= wr_data;
                 default: ;
             endcase
@@ -126,15 +117,19 @@ module tt_um_sid (
     reg [15:0] v3_frequency;
     reg [7:0]  v3_duration;
     reg [7:0]  v3_waveform;
+    reg [7:0]  v3_attack, v3_sustain;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v3_frequency <= 0; v3_duration <= 0; v3_waveform <= 0;
+            v3_attack <= 0; v3_sustain <= 0;
         end else if (wr_en_rise && voice_sel == 2'd2) begin
             case (reg_addr)
                 3'd0: v3_frequency[7:0]  <= wr_data;
                 3'd1: v3_frequency[15:8] <= wr_data;
                 3'd2: v3_duration        <= wr_data;
+                3'd4: v3_attack          <= wr_data;
+                3'd5: v3_sustain         <= wr_data;
                 3'd6: v3_waveform        <= wr_data;
                 default: ;
             endcase
@@ -163,22 +158,24 @@ module tt_um_sid (
     //==========================================================================
     reg [15:0] cur_frequency;
     reg [7:0]  cur_duration, cur_waveform;
-    wire [7:0] cur_attack  = shared_attack;
-    wire [7:0] cur_sustain = shared_sustain;
+    reg [7:0]  cur_attack, cur_sustain;
 
     always @(*) begin
         case (vidx)
             2'd0: begin
                 cur_frequency = v1_frequency; cur_duration = v1_duration;
                 cur_waveform = v1_waveform;
+                cur_attack = v1_attack; cur_sustain = v1_sustain;
             end
             2'd1: begin
                 cur_frequency = v2_frequency; cur_duration = v2_duration;
                 cur_waveform = v2_waveform;
+                cur_attack = v2_attack; cur_sustain = v2_sustain;
             end
             default: begin
                 cur_frequency = v3_frequency; cur_duration = v3_duration;
                 cur_waveform = v3_waveform;
+                cur_attack = v3_attack; cur_sustain = v3_sustain;
             end
         endcase
     end
@@ -196,8 +193,8 @@ module tt_um_sid (
     //==========================================================================
     // Per-voice state banks
     //==========================================================================
-    // Phase accumulator (16-bit) per voice + shared LFSR (8-bit)
-    reg [15:0] v_acc_0,  v_acc_1,  v_acc_2;
+    // Phase accumulator (20-bit) per voice + shared LFSR (8-bit)
+    reg [19:0] v_acc_0,  v_acc_1,  v_acc_2;
     reg [7:0]  shared_lfsr;
 
     // ADSR state: env_counter (4-bit), state (2-bit), last_gate (1-bit)
@@ -208,7 +205,7 @@ module tt_um_sid (
     //==========================================================================
     // Mux current voice state based on vidx
     //==========================================================================
-    reg [15:0] cur_acc;
+    reg [19:0] cur_acc;
     wire [7:0] cur_lfsr = shared_lfsr;
     reg [3:0]  cur_env;
     reg [1:0]  cur_ast;
@@ -232,12 +229,12 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared combinational: waveform generation (16-bit accumulator)
+    // Shared combinational: waveform generation (20-bit accumulator)
     //==========================================================================
-    wire [7:0] saw_out = cur_acc[15:8];
-    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[15]}};
-    wire [7:0] tri_out = cur_acc[14:7] ^ tri_tmp;
-    wire       pulse_out = cur_acc[15:8] > cur_duration;
+    wire [7:0] saw_out = cur_acc[19:12];
+    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[19]}};
+    wire [7:0] tri_out = cur_acc[18:11] ^ tri_tmp;
+    wire       pulse_out = cur_acc[19:12] > cur_duration;
 
     //==========================================================================
     // Shared combinational: ADSR envelope tick + next state
@@ -349,8 +346,8 @@ module tt_um_sid (
     //==========================================================================
     // Next accumulator + LFSR
     //==========================================================================
-    wire [15:0] nxt_acc  = cur_test ? 16'd0 :
-                           (cur_acc + cur_frequency);
+    wire [19:0] nxt_acc  = cur_test ? 20'd0 :
+                           (cur_acc + {4'd0, cur_frequency});
 
     wire [7:0]  nxt_lfsr = {shared_lfsr[6:0], shared_lfsr[7] ^ shared_lfsr[5] ^ shared_lfsr[4] ^ shared_lfsr[3]};
 
@@ -359,7 +356,7 @@ module tt_um_sid (
     //==========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            v_acc_0 <= 16'd0; v_acc_1 <= 16'd0; v_acc_2 <= 16'd0;
+            v_acc_0 <= 20'd0; v_acc_1 <= 20'd0; v_acc_2 <= 20'd0;
             shared_lfsr <= 8'd1;
             v_env_0 <= 4'd0; v_env_1 <= 4'd0; v_env_2 <= 4'd0;
             v_ast_0 <= ENV_IDLE; v_ast_1 <= ENV_IDLE; v_ast_2 <= ENV_IDLE;
