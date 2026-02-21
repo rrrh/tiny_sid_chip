@@ -121,9 +121,9 @@
 <polygon fill="none" stroke="black" points="1173.5,-157 1173.5,-179 1302.5,-179 1302.5,-157 1173.5,-157"/>
 <text text-anchor="start" x="1178.5" y="-166.2" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">Phase Accumulator</text>
 <polygon fill="none" stroke="black" points="1173.5,-120 1173.5,-157 1302.5,-157 1302.5,-120 1173.5,-120"/>
-<text text-anchor="start" x="1195.5" y="-145.6" font-family="Helvetica,sans-Serif" font-size="8.00">18&#45;bit per voice (×3)</text>
+<text text-anchor="start" x="1195.5" y="-145.6" font-family="Helvetica,sans-Serif" font-size="8.00">16&#45;bit per voice (×3)</text>
 <text text-anchor="start" x="1189.5" y="-136.6" font-family="Helvetica,sans-Serif" font-size="8.00">acc += freq every cycle</text>
-<text text-anchor="start" x="1197" y="-127.6" font-family="Helvetica,sans-Serif" font-size="8.00">~6.36 Hz resolution</text>
+<text text-anchor="start" x="1197" y="-127.6" font-family="Helvetica,sans-Serif" font-size="8.00">~25.4 Hz resolution</text>
 </g>
 <!-- vidx&#45;&gt;phase_acc -->
 <g id="edge5" class="edge">
@@ -138,9 +138,9 @@
 <polygon fill="none" stroke="black" points="1386,-167 1386,-189 1560,-189 1560,-167 1386,-167"/>
 <text text-anchor="start" x="1408" y="-176.2" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">Waveform Generator</text>
 <polygon fill="none" stroke="black" points="1386,-121 1386,-167 1500,-167 1500,-121 1386,-121"/>
-<text text-anchor="start" x="1398.5" y="-155.6" font-family="Helvetica,sans-Serif" font-size="8.00">Sawtooth: acc[17:10]</text>
-<text text-anchor="start" x="1391" y="-146.6" font-family="Helvetica,sans-Serif" font-size="8.00">Triangle: acc[16:9] ^ fold</text>
-<text text-anchor="start" x="1395" y="-137.6" font-family="Helvetica,sans-Serif" font-size="8.00">Pulse: acc[17:10] &gt; PW</text>
+<text text-anchor="start" x="1401" y="-155.6" font-family="Helvetica,sans-Serif" font-size="8.00">Sawtooth: acc[15:8]</text>
+<text text-anchor="start" x="1391" y="-146.6" font-family="Helvetica,sans-Serif" font-size="8.00">Triangle: acc[14:7] ^ fold</text>
+<text text-anchor="start" x="1397.5" y="-137.6" font-family="Helvetica,sans-Serif" font-size="8.00">Pulse: acc[15:8] &gt; PW</text>
 <text text-anchor="start" x="1393" y="-128.6" font-family="Helvetica,sans-Serif" font-size="8.00">Noise: shared 8&#45;bit LFSR</text>
 <polygon fill="none" stroke="black" points="1500,-121 1500,-167 1560,-167 1560,-121 1500,-121"/>
 <text text-anchor="start" x="1505" y="-155.6" font-family="Helvetica,sans-Serif" font-size="8.00">OR&#45;combine</text>
