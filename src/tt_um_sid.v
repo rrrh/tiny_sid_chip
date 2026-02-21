@@ -5,10 +5,10 @@
 // Uses one shared compute pipeline cycling through 3 voices each clock.
 // Each voice is updated every 3rd clock cycle at 5 MHz = 1.667 MHz/voice.
 //
-// 20-bit phase accumulators with 16-bit frequency registers:
+// 18-bit phase accumulators with 16-bit frequency registers:
 //   Effective rate = 5 MHz / 3 = 1.667 MHz per voice
-//   Resolution = 1.667 MHz / 2^20 ≈ 1.59 Hz per step
-//   freq_reg = desired_Hz * 2^20 / 1666667 ≈ desired_Hz * 0.6291
+//   Resolution = 1.667 MHz / 2^18 ≈ 6.36 Hz per step
+//   freq_reg = desired_Hz * 2^18 / 1666667 ≈ desired_Hz * 0.1573
 //
 // Flat Memory-Mapped Register Interface:
 //   ui_in[2:0]  = register address (3-bit)
@@ -193,8 +193,8 @@ module tt_um_sid (
     //==========================================================================
     // Per-voice state banks
     //==========================================================================
-    // Phase accumulator (20-bit) per voice + shared LFSR (8-bit)
-    reg [19:0] v_acc_0,  v_acc_1,  v_acc_2;
+    // Phase accumulator (18-bit) per voice + shared LFSR (8-bit)
+    reg [17:0] v_acc_0,  v_acc_1,  v_acc_2;
     reg [7:0]  shared_lfsr;
 
     // ADSR state: env_counter (4-bit), state (2-bit), last_gate (1-bit)
@@ -205,7 +205,7 @@ module tt_um_sid (
     //==========================================================================
     // Mux current voice state based on vidx
     //==========================================================================
-    reg [19:0] cur_acc;
+    reg [17:0] cur_acc;
     wire [7:0] cur_lfsr = shared_lfsr;
     reg [3:0]  cur_env;
     reg [1:0]  cur_ast;
@@ -229,12 +229,12 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared combinational: waveform generation (20-bit accumulator)
+    // Shared combinational: waveform generation (18-bit accumulator)
     //==========================================================================
-    wire [7:0] saw_out = cur_acc[19:12];
-    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[19]}};
-    wire [7:0] tri_out = cur_acc[18:11] ^ tri_tmp;
-    wire       pulse_out = cur_acc[19:12] > cur_duration;
+    wire [7:0] saw_out = cur_acc[17:10];
+    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[17]}};
+    wire [7:0] tri_out = cur_acc[16:9] ^ tri_tmp;
+    wire       pulse_out = cur_acc[17:10] > cur_duration;
 
     //==========================================================================
     // Shared combinational: ADSR envelope tick + next state
@@ -346,8 +346,8 @@ module tt_um_sid (
     //==========================================================================
     // Next accumulator + LFSR
     //==========================================================================
-    wire [19:0] nxt_acc  = cur_test ? 20'd0 :
-                           (cur_acc + {4'd0, cur_frequency});
+    wire [17:0] nxt_acc  = cur_test ? 18'd0 :
+                           (cur_acc + {2'd0, cur_frequency});
 
     wire [7:0]  nxt_lfsr = {shared_lfsr[6:0], shared_lfsr[7] ^ shared_lfsr[5] ^ shared_lfsr[4] ^ shared_lfsr[3]};
 
@@ -356,7 +356,7 @@ module tt_um_sid (
     //==========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            v_acc_0 <= 20'd0; v_acc_1 <= 20'd0; v_acc_2 <= 20'd0;
+            v_acc_0 <= 18'd0; v_acc_1 <= 18'd0; v_acc_2 <= 18'd0;
             shared_lfsr <= 8'd1;
             v_env_0 <= 4'd0; v_env_1 <= 4'd0; v_env_2 <= 4'd0;
             v_ast_0 <= ENV_IDLE; v_ast_1 <= ENV_IDLE; v_ast_2 <= ENV_IDLE;
