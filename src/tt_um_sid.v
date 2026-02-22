@@ -143,11 +143,11 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared ADSR prescaler (free-running 18-bit counter)
+    // Shared ADSR prescaler (free-running 16-bit counter)
     //==========================================================================
-    reg [17:0] adsr_prescaler;
+    reg [15:0] adsr_prescaler;
     always @(posedge clk or negedge rst_n)
-        if (!rst_n) adsr_prescaler <= 18'd0;
+        if (!rst_n) adsr_prescaler <= 16'd0;
         else        adsr_prescaler <= adsr_prescaler + 1'b1;
 
     //==========================================================================
@@ -257,7 +257,9 @@ module tt_um_sid (
         endcase
     end
 
-    // Envelope tick from prescaler (18-bit, 13 rate levels)
+    // Envelope tick from prescaler (16-bit, 11 rate levels)
+    // At 5 MHz: rate 0 → tick every 64 clk (~38 us per tick)
+    //           rate 10 → tick every 65536 clk (~39 ms per tick)
     reg env_tick;
     always @(*) begin
         case (active_rate)
@@ -272,9 +274,7 @@ module tt_um_sid (
             4'd8:    env_tick = &adsr_prescaler[13:0];
             4'd9:    env_tick = &adsr_prescaler[14:0];
             4'd10:   env_tick = &adsr_prescaler[15:0];
-            4'd11:   env_tick = &adsr_prescaler[16:0];
-            4'd12:   env_tick = &adsr_prescaler[17:0];
-            default: env_tick = &adsr_prescaler[17:0];
+            default: env_tick = &adsr_prescaler[15:0];
         endcase
     end
 
