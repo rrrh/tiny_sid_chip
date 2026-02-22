@@ -43,10 +43,10 @@ async def sid_write_pw(dut, pw8, voice=0):
 
 def hz_to_freq(hz):
     """Convert Hz to 16-bit frequency register value.
-    16-bit accumulator, no prescaler. Effective rate = 5 MHz / 3 = 1.667 MHz.
-    freq_reg = hz * 2^16 / (5e6 / 3) ≈ hz * 0.039322
+    20-bit accumulator, parallel voices at 5 MHz.
+    freq_reg = hz * 2^20 / 5e6 ≈ hz * 0.2097
     """
-    return max(1, round(hz * (2**16) / (5e6 / 3)))
+    return max(1, round(hz * (2**20) / 5e6))
 
 
 async def count_pwm(dut, cycles):

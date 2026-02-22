@@ -1,14 +1,14 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// TT10 Wrapper — Triple SID Voice Synthesizer (Time-Multiplexed)
+// TT10 Wrapper — Triple SID Voice Synthesizer (Fully Parallel)
 //==============================================================================
-// Uses one shared compute pipeline cycling through 3 voices each clock.
-// Each voice is updated every 3rd clock cycle at 5 MHz = 1.667 MHz/voice.
+// Three independent voice pipelines compute every clock cycle at 5 MHz.
+// No time-multiplexing mux — eliminates vidx-related hold violations.
 //
-// 16-bit phase accumulators with 16-bit frequency registers:
-//   Effective rate = 5 MHz / 3 = 1.667 MHz per voice
-//   Resolution = 1.667 MHz / 2^16 ≈ 25.4 Hz per step
-//   freq_reg = desired_Hz * 2^16 / 1666667 ≈ desired_Hz * 0.039322
+// 20-bit phase accumulators with 16-bit frequency registers:
+//   Effective rate = 5 MHz per voice
+//   Resolution = 5 MHz / 2^20 ≈ 4.77 Hz per step
+//   freq_reg = desired_Hz * 2^20 / 5e6 ≈ desired_Hz * 0.2097
 //
 // Flat Memory-Mapped Register Interface:
 //   ui_in[2:0]  = register address (3-bit)
@@ -23,17 +23,13 @@
 //   0: freq_lo  — frequency[7:0]
 //   1: freq_hi  — frequency[15:8]
 //   2: pw       — pulse width[7:0]
-//   3: filter   — [7:4]=volume  (shared)
-//   4: attack   — attack_rate[3:0] / decay_rate[7:4]  (shared)
-//   5: sustain  — sustain_level[3:0] / release_rate[7:4]  (shared)
+//   3: volume   — [7:4]=global volume  (shared)
+//   4: attack   — attack_rate[3:0] / decay_rate[7:4]  (per voice)
+//   5: sustain  — sustain_level[3:0] / release_rate[7:4]  (per voice)
 //   6: waveform — waveform[7:0]
 //   7: (reserved)
 //
-// Post-mix features (no vidx mux dependency):
-//   - 4-bit global volume control
-//   - Complementary (inverted) PWM output for differential drive
-//
-// Mixing: accumulate 3 voice outputs over 3 clocks, shift right by 2.
+// Mixing: all 3 voice outputs summed in parallel each clock.
 //==============================================================================
 
 module tt_um_sid (
@@ -67,20 +63,22 @@ module tt_um_sid (
     wire wr_en_rise = wr_en && !wr_en_d;
 
     //==========================================================================
-    // Voice 1 register bank (frequency, duration, waveform)
+    // Voice 1 register bank
     //==========================================================================
     reg [15:0] v1_frequency;
-    reg [7:0]  v1_duration;
-    reg [7:0]  v1_waveform;
+    reg [7:0]  v1_duration, v1_waveform, v1_attack, v1_sustain;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v1_frequency <= 0; v1_duration <= 0; v1_waveform <= 0;
+            v1_attack <= 0; v1_sustain <= 0;
         end else if (wr_en_rise && voice_sel == 2'd0) begin
             case (reg_addr)
                 3'd0: v1_frequency[7:0]  <= wr_data;
                 3'd1: v1_frequency[15:8] <= wr_data;
                 3'd2: v1_duration        <= wr_data;
+                3'd4: v1_attack          <= wr_data;
+                3'd5: v1_sustain         <= wr_data;
                 3'd6: v1_waveform        <= wr_data;
                 default: ;
             endcase
@@ -91,17 +89,19 @@ module tt_um_sid (
     // Voice 2 register bank
     //==========================================================================
     reg [15:0] v2_frequency;
-    reg [7:0]  v2_duration;
-    reg [7:0]  v2_waveform;
+    reg [7:0]  v2_duration, v2_waveform, v2_attack, v2_sustain;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v2_frequency <= 0; v2_duration <= 0; v2_waveform <= 0;
+            v2_attack <= 0; v2_sustain <= 0;
         end else if (wr_en_rise && voice_sel == 2'd1) begin
             case (reg_addr)
                 3'd0: v2_frequency[7:0]  <= wr_data;
                 3'd1: v2_frequency[15:8] <= wr_data;
                 3'd2: v2_duration        <= wr_data;
+                3'd4: v2_attack          <= wr_data;
+                3'd5: v2_sustain         <= wr_data;
                 3'd6: v2_waveform        <= wr_data;
                 default: ;
             endcase
@@ -112,17 +112,19 @@ module tt_um_sid (
     // Voice 3 register bank
     //==========================================================================
     reg [15:0] v3_frequency;
-    reg [7:0]  v3_duration;
-    reg [7:0]  v3_waveform;
+    reg [7:0]  v3_duration, v3_waveform, v3_attack, v3_sustain;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             v3_frequency <= 0; v3_duration <= 0; v3_waveform <= 0;
+            v3_attack <= 0; v3_sustain <= 0;
         end else if (wr_en_rise && voice_sel == 2'd2) begin
             case (reg_addr)
                 3'd0: v3_frequency[7:0]  <= wr_data;
                 3'd1: v3_frequency[15:8] <= wr_data;
                 3'd2: v3_duration        <= wr_data;
+                3'd4: v3_attack          <= wr_data;
+                3'd5: v3_sustain         <= wr_data;
                 3'd6: v3_waveform        <= wr_data;
                 default: ;
             endcase
@@ -130,25 +132,12 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared registers (written via any voice_sel)
+    // Global volume register (shared, written via reg 3 from any voice)
     //==========================================================================
-    reg [7:0] shared_attack, shared_sustain;
-    reg [7:0] filter_ctrl;  // [2:0]=cutoff, [7:4]=volume
-
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            shared_attack  <= 8'd0;
-            shared_sustain <= 8'd0;
-            filter_ctrl    <= 8'hF0;  // bypass filter, full volume
-        end else if (wr_en_rise) begin
-            case (reg_addr)
-                3'd3: filter_ctrl    <= wr_data;
-                3'd4: shared_attack  <= wr_data;
-                3'd5: shared_sustain <= wr_data;
-                default: ;
-            endcase
-        end
-    end
+    reg [3:0] global_vol;
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n)                              global_vol <= 4'hF;
+        else if (wr_en_rise && reg_addr == 3'd3) global_vol <= wr_data[7:4];
 
     //==========================================================================
     // Shared ADSR prescaler (free-running 18-bit counter)
@@ -159,259 +148,284 @@ module tt_um_sid (
         else        adsr_prescaler <= adsr_prescaler + 1'b1;
 
     //==========================================================================
-    // Voice round-robin counter: 0 → 1 → 2 → 0 → ...
+    // Shared LFSR (8-bit maximal-length)
     //==========================================================================
-    reg [1:0] vidx;
+    reg [7:0] shared_lfsr;
     always @(posedge clk or negedge rst_n)
-        if (!rst_n)          vidx <= 2'd0;
-        else if (vidx == 2'd2) vidx <= 2'd0;
-        else                 vidx <= vidx + 1'b1;
+        if (!rst_n) shared_lfsr <= 8'd1;
+        else        shared_lfsr <= {shared_lfsr[6:0],
+                                    shared_lfsr[7] ^ shared_lfsr[5] ^
+                                    shared_lfsr[4] ^ shared_lfsr[3]};
 
     //==========================================================================
-    // Mux current voice registers based on vidx
-    //==========================================================================
-    reg [15:0] cur_frequency;
-    reg [7:0]  cur_duration, cur_waveform;
-
-    always @(*) begin
-        case (vidx)
-            2'd0: begin
-                cur_frequency = v1_frequency; cur_duration = v1_duration;
-                cur_waveform = v1_waveform;
-            end
-            2'd1: begin
-                cur_frequency = v2_frequency; cur_duration = v2_duration;
-                cur_waveform = v2_waveform;
-            end
-            default: begin
-                cur_frequency = v3_frequency; cur_duration = v3_duration;
-                cur_waveform = v3_waveform;
-            end
-        endcase
-    end
-
-    //==========================================================================
-    // Waveform control bit aliases (from current voice)
-    //==========================================================================
-    wire cur_test        = cur_waveform[3];
-    wire cur_gate        = cur_waveform[0];
-    wire cur_triangle_en = cur_waveform[4];
-    wire cur_sawtooth_en = cur_waveform[5];
-    wire cur_pulse_en    = cur_waveform[6];
-    wire cur_noise_en    = cur_waveform[7];
-
-    //==========================================================================
-    // Per-voice state banks
-    //==========================================================================
-    // Phase accumulator (16-bit) per voice + shared LFSR (8-bit)
-    reg [15:0] v_acc_0,  v_acc_1,  v_acc_2;
-    reg [7:0]  shared_lfsr;
-
-    // ADSR state: env_counter (4-bit), state (2-bit), last_gate (1-bit)
-    reg [3:0]  v_env_0,  v_env_1,  v_env_2;
-    reg [1:0]  v_ast_0,  v_ast_1,  v_ast_2;
-    reg        v_lg_0,   v_lg_1,   v_lg_2;
-
-    //==========================================================================
-    // Mux current voice state based on vidx
-    //==========================================================================
-    reg [15:0] cur_acc;
-    wire [7:0] cur_lfsr = shared_lfsr;
-    reg [3:0]  cur_env;
-    reg [1:0]  cur_ast;
-    reg        cur_lg;
-
-    always @(*) begin
-        case (vidx)
-            2'd0: begin
-                cur_acc = v_acc_0;
-                cur_env = v_env_0; cur_ast = v_ast_0; cur_lg = v_lg_0;
-            end
-            2'd1: begin
-                cur_acc = v_acc_1;
-                cur_env = v_env_1; cur_ast = v_ast_1; cur_lg = v_lg_1;
-            end
-            default: begin
-                cur_acc = v_acc_2;
-                cur_env = v_env_2; cur_ast = v_ast_2; cur_lg = v_lg_2;
-            end
-        endcase
-    end
-
-    //==========================================================================
-    // Shared combinational: waveform generation (16-bit accumulator)
-    //==========================================================================
-    wire [7:0] saw_out = cur_acc[15:8];
-    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[15]}};
-    wire [7:0] tri_out = cur_acc[14:7] ^ tri_tmp;
-    wire       pulse_out = cur_acc[15:8] > cur_duration;
-
-    //==========================================================================
-    // Shared combinational: ADSR envelope tick + next state
+    // ADSR parameters
     //==========================================================================
     localparam [1:0] ENV_IDLE    = 2'd0,
                      ENV_ATTACK  = 2'd1,
                      ENV_DECAY   = 2'd2,
                      ENV_RELEASE = 2'd3;
 
-    // Rate selection (from shared registers)
-    reg [3:0] active_rate;
-    always @(*) begin
-        case (cur_ast)
-            ENV_ATTACK:  active_rate = shared_attack[3:0];
-            ENV_DECAY:   active_rate = shared_attack[7:4];
-            ENV_RELEASE: active_rate = shared_sustain[7:4];
-            default:     active_rate = 4'd0;
-        endcase
-    end
-
-    // Envelope tick from prescaler (18-bit, 13 rate levels)
-    reg env_tick;
-    always @(*) begin
-        case (active_rate)
-            4'd0:    env_tick = &adsr_prescaler[5:0];
-            4'd1:    env_tick = &adsr_prescaler[6:0];
-            4'd2:    env_tick = &adsr_prescaler[7:0];
-            4'd3:    env_tick = &adsr_prescaler[8:0];
-            4'd4:    env_tick = &adsr_prescaler[9:0];
-            4'd5:    env_tick = &adsr_prescaler[10:0];
-            4'd6:    env_tick = &adsr_prescaler[11:0];
-            4'd7:    env_tick = &adsr_prescaler[12:0];
-            4'd8:    env_tick = &adsr_prescaler[13:0];
-            4'd9:    env_tick = &adsr_prescaler[14:0];
-            4'd10:   env_tick = &adsr_prescaler[15:0];
-            4'd11:   env_tick = &adsr_prescaler[16:0];
-            4'd12:   env_tick = &adsr_prescaler[17:0];
-            default: env_tick = &adsr_prescaler[17:0];
-        endcase
-    end
-
-    wire [3:0] sustain_level = shared_sustain[3:0];
-
-    // Compute next ADSR state + env_counter
-    reg [1:0] nxt_ast;
-    reg [3:0] nxt_env;
-
-    always @(*) begin
-        nxt_ast = cur_ast;
-        nxt_env = cur_env;
-
-        case (cur_ast)
-            ENV_IDLE: begin
-                nxt_env = 4'd0;
-                if (cur_gate && !cur_lg)
-                    nxt_ast = ENV_ATTACK;
-            end
-            ENV_ATTACK: begin
-                if (!cur_gate) begin
-                    nxt_ast = ENV_RELEASE;
-                end else if (cur_env == 4'hF) begin
-                    nxt_ast = ENV_DECAY;
-                end else if (env_tick) begin
-                    nxt_env = cur_env + 1'b1;
-                end
-            end
-            ENV_DECAY: begin
-                if (!cur_gate) begin
-                    nxt_ast = ENV_RELEASE;
-                end else if (cur_env > sustain_level && env_tick) begin
-                    nxt_env = cur_env - 1'b1;
-                end
-            end
-            ENV_RELEASE: begin
-                if (cur_gate && !cur_lg) begin
-                    nxt_ast = ENV_ATTACK;
-                end else if (cur_env == 4'd0) begin
-                    nxt_ast = ENV_IDLE;
-                end else if (env_tick) begin
-                    nxt_env = cur_env - 1'b1;
-                end
-            end
-        endcase
-    end
-
     //==========================================================================
-    // Shared combinational: waveform mux + envelope scaling
+    // Envelope tick from prescaler (shared, rate-selected per voice)
     //==========================================================================
-    reg [7:0]  voice_mux;
-    reg [11:0] voice_out;
-
-    always @(*) begin
-        voice_mux = 8'h00;
-        if (cur_triangle_en) voice_mux = voice_mux | tri_out;
-        if (cur_sawtooth_en) voice_mux = voice_mux | saw_out;
-        if (cur_pulse_en)    voice_mux = voice_mux | {8{pulse_out}};
-        if (cur_noise_en)    voice_mux = voice_mux | cur_lfsr;
-
-        voice_out = voice_mux * cur_env;
-
-        if (rst) voice_out = 12'b0;
-    end
-
-    //==========================================================================
-    // Next accumulator + LFSR
-    //==========================================================================
-    wire [15:0] nxt_acc  = cur_test ? 16'd0 :
-                           (cur_acc + cur_frequency);
-
-    wire [7:0]  nxt_lfsr = {shared_lfsr[6:0], shared_lfsr[7] ^ shared_lfsr[5] ^ shared_lfsr[4] ^ shared_lfsr[3]};
-
-    //==========================================================================
-    // Sequential: update state banks for current voice + shared LFSR
-    //==========================================================================
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            v_acc_0 <= 16'd0; v_acc_1 <= 16'd0; v_acc_2 <= 16'd0;
-            shared_lfsr <= 8'd1;
-            v_env_0 <= 4'd0; v_env_1 <= 4'd0; v_env_2 <= 4'd0;
-            v_ast_0 <= ENV_IDLE; v_ast_1 <= ENV_IDLE; v_ast_2 <= ENV_IDLE;
-            v_lg_0 <= 1'b0; v_lg_1 <= 1'b0; v_lg_2 <= 1'b0;
-        end else begin
-            shared_lfsr <= nxt_lfsr;
-            case (vidx)
-                2'd0: begin
-                    v_acc_0  <= nxt_acc;
-                    v_env_0  <= nxt_env;  v_ast_0  <= nxt_ast;
-                    v_lg_0   <= cur_gate;
-                end
-                2'd1: begin
-                    v_acc_1  <= nxt_acc;
-                    v_env_1  <= nxt_env;  v_ast_1  <= nxt_ast;
-                    v_lg_1   <= cur_gate;
-                end
-                default: begin
-                    v_acc_2  <= nxt_acc;
-                    v_env_2  <= nxt_env;  v_ast_2  <= nxt_ast;
-                    v_lg_2   <= cur_gate;
-                end
+    function env_tick_fn;
+        input [3:0] rate;
+        input [17:0] pre;
+        begin
+            case (rate)
+                4'd0:    env_tick_fn = &pre[5:0];
+                4'd1:    env_tick_fn = &pre[6:0];
+                4'd2:    env_tick_fn = &pre[7:0];
+                4'd3:    env_tick_fn = &pre[8:0];
+                4'd4:    env_tick_fn = &pre[9:0];
+                4'd5:    env_tick_fn = &pre[10:0];
+                4'd6:    env_tick_fn = &pre[11:0];
+                4'd7:    env_tick_fn = &pre[12:0];
+                4'd8:    env_tick_fn = &pre[13:0];
+                4'd9:    env_tick_fn = &pre[14:0];
+                4'd10:   env_tick_fn = &pre[15:0];
+                4'd11:   env_tick_fn = &pre[16:0];
+                4'd12:   env_tick_fn = &pre[17:0];
+                default: env_tick_fn = &pre[17:0];
             endcase
         end
-    end
+    endfunction
 
     //==========================================================================
-    // Mix: accumulate voice outputs over 3 cycles, latch every 3rd
+    // Voice compute function: waveform + ADSR → 8-bit output
     //==========================================================================
-    reg [9:0] mix_acc;
-    reg [7:0] mix_out;
+    // Voice 1
+    reg [19:0] v1_acc;
+    reg [3:0]  v1_env;
+    reg [1:0]  v1_ast;
+    reg        v1_lg;
+
+    wire [7:0] v1_saw = v1_acc[19:12];
+    wire [7:0] v1_tri_tmp = v1_waveform[5] ? 8'h00 : {8{v1_acc[19]}};
+    wire [7:0] v1_tri = v1_acc[18:11] ^ v1_tri_tmp;
+    wire       v1_pulse = v1_acc[19:12] > v1_duration;
+
+    reg [7:0]  v1_wave;
+    always @(*) begin
+        v1_wave = 8'h00;
+        if (v1_waveform[4]) v1_wave = v1_wave | v1_tri;
+        if (v1_waveform[5]) v1_wave = v1_wave | v1_saw;
+        if (v1_waveform[6]) v1_wave = v1_wave | {8{v1_pulse}};
+        if (v1_waveform[7]) v1_wave = v1_wave | shared_lfsr;
+    end
+
+    wire [11:0] v1_out = rst ? 12'd0 : (v1_wave * v1_env);
+
+    // ADSR for voice 1
+    reg [3:0] v1_active_rate;
+    always @(*) begin
+        case (v1_ast)
+            ENV_ATTACK:  v1_active_rate = v1_attack[3:0];
+            ENV_DECAY:   v1_active_rate = v1_attack[7:4];
+            ENV_RELEASE: v1_active_rate = v1_sustain[7:4];
+            default:     v1_active_rate = 4'd0;
+        endcase
+    end
+
+    wire v1_tick = env_tick_fn(v1_active_rate, adsr_prescaler);
+    wire v1_gate = v1_waveform[0];
+    wire [3:0] v1_sus_lvl = v1_sustain[3:0];
+
+    reg [1:0] v1_nxt_ast;
+    reg [3:0] v1_nxt_env;
+    always @(*) begin
+        v1_nxt_ast = v1_ast; v1_nxt_env = v1_env;
+        case (v1_ast)
+            ENV_IDLE: begin
+                v1_nxt_env = 4'd0;
+                if (v1_gate && !v1_lg) v1_nxt_ast = ENV_ATTACK;
+            end
+            ENV_ATTACK: begin
+                if (!v1_gate) v1_nxt_ast = ENV_RELEASE;
+                else if (v1_env == 4'hF) v1_nxt_ast = ENV_DECAY;
+                else if (v1_tick) v1_nxt_env = v1_env + 1'b1;
+            end
+            ENV_DECAY: begin
+                if (!v1_gate) v1_nxt_ast = ENV_RELEASE;
+                else if (v1_env > v1_sus_lvl && v1_tick) v1_nxt_env = v1_env - 1'b1;
+            end
+            ENV_RELEASE: begin
+                if (v1_gate && !v1_lg) v1_nxt_ast = ENV_ATTACK;
+                else if (v1_env == 4'd0) v1_nxt_ast = ENV_IDLE;
+                else if (v1_tick) v1_nxt_env = v1_env - 1'b1;
+            end
+        endcase
+    end
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            mix_acc <= 10'd0;
-            mix_out <= 8'd0;
+            v1_acc <= 20'd0; v1_env <= 4'd0; v1_ast <= ENV_IDLE; v1_lg <= 1'b0;
         end else begin
-            if (vidx == 2'd0) begin
-                mix_out <= mix_acc[9:2];
-                mix_acc <= {2'b0, voice_out[11:4]};
-            end else begin
-                mix_acc <= mix_acc + {2'b0, voice_out[11:4]};
-            end
+            v1_acc <= v1_waveform[3] ? 20'd0 : (v1_acc + {4'd0, v1_frequency});
+            v1_env <= v1_nxt_env; v1_ast <= v1_nxt_ast; v1_lg <= v1_gate;
         end
     end
 
     //==========================================================================
-    // Post-mix: global volume control (purely feedforward, no hold paths)
+    // Voice 2
     //==========================================================================
-    wire [3:0] global_vol = filter_ctrl[7:4];
+    reg [19:0] v2_acc;
+    reg [3:0]  v2_env;
+    reg [1:0]  v2_ast;
+    reg        v2_lg;
+
+    wire [7:0] v2_saw = v2_acc[19:12];
+    wire [7:0] v2_tri_tmp = v2_waveform[5] ? 8'h00 : {8{v2_acc[19]}};
+    wire [7:0] v2_tri = v2_acc[18:11] ^ v2_tri_tmp;
+    wire       v2_pulse = v2_acc[19:12] > v2_duration;
+
+    reg [7:0]  v2_wave;
+    always @(*) begin
+        v2_wave = 8'h00;
+        if (v2_waveform[4]) v2_wave = v2_wave | v2_tri;
+        if (v2_waveform[5]) v2_wave = v2_wave | v2_saw;
+        if (v2_waveform[6]) v2_wave = v2_wave | {8{v2_pulse}};
+        if (v2_waveform[7]) v2_wave = v2_wave | shared_lfsr;
+    end
+
+    wire [11:0] v2_out = rst ? 12'd0 : (v2_wave * v2_env);
+
+    reg [3:0] v2_active_rate;
+    always @(*) begin
+        case (v2_ast)
+            ENV_ATTACK:  v2_active_rate = v2_attack[3:0];
+            ENV_DECAY:   v2_active_rate = v2_attack[7:4];
+            ENV_RELEASE: v2_active_rate = v2_sustain[7:4];
+            default:     v2_active_rate = 4'd0;
+        endcase
+    end
+
+    wire v2_tick = env_tick_fn(v2_active_rate, adsr_prescaler);
+    wire v2_gate = v2_waveform[0];
+    wire [3:0] v2_sus_lvl = v2_sustain[3:0];
+
+    reg [1:0] v2_nxt_ast;
+    reg [3:0] v2_nxt_env;
+    always @(*) begin
+        v2_nxt_ast = v2_ast; v2_nxt_env = v2_env;
+        case (v2_ast)
+            ENV_IDLE: begin
+                v2_nxt_env = 4'd0;
+                if (v2_gate && !v2_lg) v2_nxt_ast = ENV_ATTACK;
+            end
+            ENV_ATTACK: begin
+                if (!v2_gate) v2_nxt_ast = ENV_RELEASE;
+                else if (v2_env == 4'hF) v2_nxt_ast = ENV_DECAY;
+                else if (v2_tick) v2_nxt_env = v2_env + 1'b1;
+            end
+            ENV_DECAY: begin
+                if (!v2_gate) v2_nxt_ast = ENV_RELEASE;
+                else if (v2_env > v2_sus_lvl && v2_tick) v2_nxt_env = v2_env - 1'b1;
+            end
+            ENV_RELEASE: begin
+                if (v2_gate && !v2_lg) v2_nxt_ast = ENV_ATTACK;
+                else if (v2_env == 4'd0) v2_nxt_ast = ENV_IDLE;
+                else if (v2_tick) v2_nxt_env = v2_env - 1'b1;
+            end
+        endcase
+    end
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            v2_acc <= 20'd0; v2_env <= 4'd0; v2_ast <= ENV_IDLE; v2_lg <= 1'b0;
+        end else begin
+            v2_acc <= v2_waveform[3] ? 20'd0 : (v2_acc + {4'd0, v2_frequency});
+            v2_env <= v2_nxt_env; v2_ast <= v2_nxt_ast; v2_lg <= v2_gate;
+        end
+    end
+
+    //==========================================================================
+    // Voice 3
+    //==========================================================================
+    reg [19:0] v3_acc;
+    reg [3:0]  v3_env;
+    reg [1:0]  v3_ast;
+    reg        v3_lg;
+
+    wire [7:0] v3_saw = v3_acc[19:12];
+    wire [7:0] v3_tri_tmp = v3_waveform[5] ? 8'h00 : {8{v3_acc[19]}};
+    wire [7:0] v3_tri = v3_acc[18:11] ^ v3_tri_tmp;
+    wire       v3_pulse = v3_acc[19:12] > v3_duration;
+
+    reg [7:0]  v3_wave;
+    always @(*) begin
+        v3_wave = 8'h00;
+        if (v3_waveform[4]) v3_wave = v3_wave | v3_tri;
+        if (v3_waveform[5]) v3_wave = v3_wave | v3_saw;
+        if (v3_waveform[6]) v3_wave = v3_wave | {8{v3_pulse}};
+        if (v3_waveform[7]) v3_wave = v3_wave | shared_lfsr;
+    end
+
+    wire [11:0] v3_out = rst ? 12'd0 : (v3_wave * v3_env);
+
+    reg [3:0] v3_active_rate;
+    always @(*) begin
+        case (v3_ast)
+            ENV_ATTACK:  v3_active_rate = v3_attack[3:0];
+            ENV_DECAY:   v3_active_rate = v3_attack[7:4];
+            ENV_RELEASE: v3_active_rate = v3_sustain[7:4];
+            default:     v3_active_rate = 4'd0;
+        endcase
+    end
+
+    wire v3_tick = env_tick_fn(v3_active_rate, adsr_prescaler);
+    wire v3_gate = v3_waveform[0];
+    wire [3:0] v3_sus_lvl = v3_sustain[3:0];
+
+    reg [1:0] v3_nxt_ast;
+    reg [3:0] v3_nxt_env;
+    always @(*) begin
+        v3_nxt_ast = v3_ast; v3_nxt_env = v3_env;
+        case (v3_ast)
+            ENV_IDLE: begin
+                v3_nxt_env = 4'd0;
+                if (v3_gate && !v3_lg) v3_nxt_ast = ENV_ATTACK;
+            end
+            ENV_ATTACK: begin
+                if (!v3_gate) v3_nxt_ast = ENV_RELEASE;
+                else if (v3_env == 4'hF) v3_nxt_ast = ENV_DECAY;
+                else if (v3_tick) v3_nxt_env = v3_env + 1'b1;
+            end
+            ENV_DECAY: begin
+                if (!v3_gate) v3_nxt_ast = ENV_RELEASE;
+                else if (v3_env > v3_sus_lvl && v3_tick) v3_nxt_env = v3_env - 1'b1;
+            end
+            ENV_RELEASE: begin
+                if (v3_gate && !v3_lg) v3_nxt_ast = ENV_ATTACK;
+                else if (v3_env == 4'd0) v3_nxt_ast = ENV_IDLE;
+                else if (v3_tick) v3_nxt_env = v3_env - 1'b1;
+            end
+        endcase
+    end
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            v3_acc <= 20'd0; v3_env <= 4'd0; v3_ast <= ENV_IDLE; v3_lg <= 1'b0;
+        end else begin
+            v3_acc <= v3_waveform[3] ? 20'd0 : (v3_acc + {4'd0, v3_frequency});
+            v3_env <= v3_nxt_env; v3_ast <= v3_nxt_ast; v3_lg <= v3_gate;
+        end
+    end
+
+    //==========================================================================
+    // Parallel mix: sum all 3 voice outputs in one clock
+    //==========================================================================
+    wire [9:0] mix_sum = {2'b0, v1_out[11:4]} + {2'b0, v2_out[11:4]}
+                       + {2'b0, v3_out[11:4]};
+
+    reg [7:0] mix_out;
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n) mix_out <= 8'd0;
+        else        mix_out <= mix_sum[9:2];
+
+    //==========================================================================
+    // Global volume control (feedforward, no feedback)
+    //==========================================================================
     wire [11:0] vol_scaled = mix_out * global_vol;
     wire [7:0]  final_sample = vol_scaled[11:4];
 
@@ -428,26 +442,13 @@ module tt_um_sid (
     );
 
     //==========================================================================
-    // Complementary PWM output (inverted sample, for differential drive)
-    //==========================================================================
-    wire pwm_out_inv;
-    wire [7:0] inv_sample = ~final_sample;
-
-    pwm_audio u_pwm_inv (
-        .clk    (clk),
-        .rst_n  (rst_n),
-        .sample (inv_sample),
-        .pwm    (pwm_out_inv)
-    );
-
-    //==========================================================================
     // Output Pin Mapping
     //==========================================================================
-    assign uo_out  = {6'b0, pwm_out_inv, pwm_out};
+    assign uo_out  = {7'b0, pwm_out};
     assign uio_out = 8'b0;
     assign uio_oe  = 8'b0;  // all inputs
 
     // Suppress unused input warnings
-    wire _unused = &{ena, ui_in[6:5], filter_ctrl[2:0], 1'b0};
+    wire _unused = &{ena, ui_in[6:5], 1'b0};
 
 endmodule
