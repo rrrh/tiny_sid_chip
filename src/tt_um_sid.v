@@ -1,24 +1,28 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// TT10 Wrapper — Triple SID Voice Synthesizer (Parallel Voices)
+// TT10 Wrapper — Triple SID Voice Synthesizer (Parallel, 1 MHz)
 //==============================================================================
-// Three parallel voice pipelines, each computing every clock at 5 MHz.
+// Three parallel voice pipelines, each computing every clock at 1 MHz.
 // No time-multiplexing mux — eliminates vidx-related hold violations.
 //
-// 16-bit phase accumulators with 16-bit frequency registers:
-//   Effective rate = 5 MHz per voice
-//   Resolution = 5 MHz / 2^16 ≈ 76.3 Hz per step
-//   freq_reg = desired_Hz * 2^16 / 5e6 ≈ desired_Hz * 0.01311
+// 16-bit phase accumulators with 8-bit frequency registers (zero-extended):
+//   Effective rate = 1 MHz per voice
+//   Resolution = 1 MHz / 2^16 ≈ 15.3 Hz per step
+//   freq_reg = desired_Hz * 2^16 / 1e6 ≈ desired_Hz * 0.06554
+//   Max frequency (reg=255) ≈ 3891 Hz (covers full piano range)
 //
-// Register Map (per voice):
-//   0: freq_lo  — frequency[7:0]
-//   1: freq_hi  — frequency[15:8]
-//   2: pw       — pulse width[7:0]
+// Register Map:
+//   0: freq     — frequency[7:0]  (per voice)
+//   1: (reserved)
+//   2: pw       — pulse width[7:0]  (shared across all voices)
 //   3: (reserved)
 //   4: attack   — attack_rate[3:0] / decay_rate[7:4]  (shared)
 //   5: sustain  — sustain_level[3:0] / release_rate[7:4]  (shared)
-//   6: waveform — waveform[7:0]
-//   7: (reserved)
+//   6: waveform — [5:0] packed  (per voice)
+//
+// Waveform register bits:
+//   [0] gate    [1] test/sync    [2] triangle
+//   [3] sawtooth    [4] pulse    [5] noise
 //==============================================================================
 
 module tt_um_sid (
@@ -51,20 +55,18 @@ module tt_um_sid (
     wire wr_en_rise = wr_en && !wr_en_d;
 
     //==========================================================================
-    // Voice 1 register bank
+    // Voice 1 register bank (8-bit freq, 6-bit waveform)
     //==========================================================================
-    reg [15:0] v1_frequency;
-    reg [7:0]  v1_duration, v1_waveform;
+    reg [7:0] v1_frequency;
+    reg [5:0] v1_waveform;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            v1_frequency <= 0; v1_duration <= 0; v1_waveform <= 0;
+            v1_frequency <= 0; v1_waveform <= 0;
         end else if (wr_en_rise && voice_sel == 2'd0) begin
             case (reg_addr)
-                3'd0: v1_frequency[7:0]  <= wr_data;
-                3'd1: v1_frequency[15:8] <= wr_data;
-                3'd2: v1_duration        <= wr_data;
-                3'd6: v1_waveform        <= wr_data;
+                3'd0: v1_frequency <= wr_data;
+                3'd6: v1_waveform <= wr_data[5:0];
                 default: ;
             endcase
         end
@@ -73,18 +75,16 @@ module tt_um_sid (
     //==========================================================================
     // Voice 2 register bank
     //==========================================================================
-    reg [15:0] v2_frequency;
-    reg [7:0]  v2_duration, v2_waveform;
+    reg [7:0] v2_frequency;
+    reg [5:0] v2_waveform;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            v2_frequency <= 0; v2_duration <= 0; v2_waveform <= 0;
+            v2_frequency <= 0; v2_waveform <= 0;
         end else if (wr_en_rise && voice_sel == 2'd1) begin
             case (reg_addr)
-                3'd0: v2_frequency[7:0]  <= wr_data;
-                3'd1: v2_frequency[15:8] <= wr_data;
-                3'd2: v2_duration        <= wr_data;
-                3'd6: v2_waveform        <= wr_data;
+                3'd0: v2_frequency <= wr_data;
+                3'd6: v2_waveform <= wr_data[5:0];
                 default: ;
             endcase
         end
@@ -93,45 +93,44 @@ module tt_um_sid (
     //==========================================================================
     // Voice 3 register bank
     //==========================================================================
-    reg [15:0] v3_frequency;
-    reg [7:0]  v3_duration, v3_waveform;
+    reg [7:0] v3_frequency;
+    reg [5:0] v3_waveform;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            v3_frequency <= 0; v3_duration <= 0; v3_waveform <= 0;
+            v3_frequency <= 0; v3_waveform <= 0;
         end else if (wr_en_rise && voice_sel == 2'd2) begin
             case (reg_addr)
-                3'd0: v3_frequency[7:0]  <= wr_data;
-                3'd1: v3_frequency[15:8] <= wr_data;
-                3'd2: v3_duration        <= wr_data;
-                3'd6: v3_waveform        <= wr_data;
+                3'd0: v3_frequency <= wr_data;
+                3'd6: v3_waveform <= wr_data[5:0];
                 default: ;
             endcase
         end
     end
 
     //==========================================================================
-    // Shared ADSR registers
+    // Shared registers (pulse width, ADSR parameters)
     //==========================================================================
-    reg [7:0] shared_attack, shared_sustain;
+    reg [7:0] shared_attack, shared_sustain, shared_duration;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            shared_attack <= 0; shared_sustain <= 0;
+            shared_attack <= 0; shared_sustain <= 0; shared_duration <= 0;
         end else if (wr_en_rise) begin
             case (reg_addr)
-                3'd4: shared_attack  <= wr_data;
-                3'd5: shared_sustain <= wr_data;
+                3'd2: shared_duration <= wr_data;
+                3'd4: shared_attack   <= wr_data;
+                3'd5: shared_sustain  <= wr_data;
                 default: ;
             endcase
         end
     end
 
     //==========================================================================
-    // Shared ADSR prescaler (14-bit)
+    // Shared ADSR prescaler (12-bit)
     //==========================================================================
-    reg [13:0] adsr_prescaler;
+    reg [11:0] adsr_prescaler;
     always @(posedge clk or negedge rst_n)
-        if (!rst_n) adsr_prescaler <= 14'd0;
+        if (!rst_n) adsr_prescaler <= 12'd0;
         else        adsr_prescaler <= adsr_prescaler + 1'b1;
 
     //==========================================================================
@@ -155,11 +154,11 @@ module tt_um_sid (
     wire [3:0] sustain_level = shared_sustain[3:0];
 
     //==========================================================================
-    // Envelope tick function (shared prescaler, per-voice rate)
+    // Envelope tick function (12-bit prescaler, 7 rate levels)
     //==========================================================================
     function env_tick_fn;
         input [3:0] rate;
-        input [13:0] pre;
+        input [11:0] pre;
         begin
             case (rate)
                 4'd0:    env_tick_fn = &pre[5:0];
@@ -169,9 +168,7 @@ module tt_um_sid (
                 4'd4:    env_tick_fn = &pre[9:0];
                 4'd5:    env_tick_fn = &pre[10:0];
                 4'd6:    env_tick_fn = &pre[11:0];
-                4'd7:    env_tick_fn = &pre[12:0];
-                4'd8:    env_tick_fn = &pre[13:0];
-                default: env_tick_fn = &pre[13:0];
+                default: env_tick_fn = &pre[11:0];
             endcase
         end
     endfunction
@@ -185,17 +182,17 @@ module tt_um_sid (
     reg        v1_lg;
 
     wire [7:0] v1_saw = v1_acc[15:8];
-    wire [7:0] v1_tri_tmp = v1_waveform[5] ? 8'h00 : {8{v1_acc[15]}};
+    wire [7:0] v1_tri_tmp = v1_waveform[3] ? 8'h00 : {8{v1_acc[15]}};
     wire [7:0] v1_tri = v1_acc[14:7] ^ v1_tri_tmp;
-    wire       v1_pulse = v1_acc[15:8] > v1_duration;
+    wire       v1_pulse = v1_acc[15:8] > shared_duration;
 
     reg [7:0] v1_wave;
     always @(*) begin
         v1_wave = 8'h00;
-        if (v1_waveform[4]) v1_wave = v1_wave | v1_tri;
-        if (v1_waveform[5]) v1_wave = v1_wave | v1_saw;
-        if (v1_waveform[6]) v1_wave = v1_wave | {8{v1_pulse}};
-        if (v1_waveform[7]) v1_wave = v1_wave | shared_lfsr;
+        if (v1_waveform[2]) v1_wave = v1_wave | v1_tri;
+        if (v1_waveform[3]) v1_wave = v1_wave | v1_saw;
+        if (v1_waveform[4]) v1_wave = v1_wave | {8{v1_pulse}};
+        if (v1_waveform[5]) v1_wave = v1_wave | shared_lfsr;
     end
     wire [11:0] v1_out = rst ? 12'd0 : (v1_wave * v1_env);
 
@@ -237,7 +234,7 @@ module tt_um_sid (
         if (!rst_n) begin
             v1_acc <= 0; v1_env <= 0; v1_ast <= ENV_IDLE; v1_lg <= 0;
         end else begin
-            v1_acc <= v1_waveform[3] ? 16'd0 : (v1_acc + v1_frequency);
+            v1_acc <= v1_waveform[1] ? 16'd0 : (v1_acc + {8'd0, v1_frequency});
             v1_env <= v1_nxt_env; v1_ast <= v1_nxt_ast; v1_lg <= v1_gate;
         end
     end
@@ -251,17 +248,17 @@ module tt_um_sid (
     reg        v2_lg;
 
     wire [7:0] v2_saw = v2_acc[15:8];
-    wire [7:0] v2_tri_tmp = v2_waveform[5] ? 8'h00 : {8{v2_acc[15]}};
+    wire [7:0] v2_tri_tmp = v2_waveform[3] ? 8'h00 : {8{v2_acc[15]}};
     wire [7:0] v2_tri = v2_acc[14:7] ^ v2_tri_tmp;
-    wire       v2_pulse = v2_acc[15:8] > v2_duration;
+    wire       v2_pulse = v2_acc[15:8] > shared_duration;
 
     reg [7:0] v2_wave;
     always @(*) begin
         v2_wave = 8'h00;
-        if (v2_waveform[4]) v2_wave = v2_wave | v2_tri;
-        if (v2_waveform[5]) v2_wave = v2_wave | v2_saw;
-        if (v2_waveform[6]) v2_wave = v2_wave | {8{v2_pulse}};
-        if (v2_waveform[7]) v2_wave = v2_wave | shared_lfsr;
+        if (v2_waveform[2]) v2_wave = v2_wave | v2_tri;
+        if (v2_waveform[3]) v2_wave = v2_wave | v2_saw;
+        if (v2_waveform[4]) v2_wave = v2_wave | {8{v2_pulse}};
+        if (v2_waveform[5]) v2_wave = v2_wave | shared_lfsr;
     end
     wire [11:0] v2_out = rst ? 12'd0 : (v2_wave * v2_env);
 
@@ -302,7 +299,7 @@ module tt_um_sid (
         if (!rst_n) begin
             v2_acc <= 0; v2_env <= 0; v2_ast <= ENV_IDLE; v2_lg <= 0;
         end else begin
-            v2_acc <= v2_waveform[3] ? 16'd0 : (v2_acc + v2_frequency);
+            v2_acc <= v2_waveform[1] ? 16'd0 : (v2_acc + {8'd0, v2_frequency});
             v2_env <= v2_nxt_env; v2_ast <= v2_nxt_ast; v2_lg <= v2_gate;
         end
     end
@@ -316,17 +313,17 @@ module tt_um_sid (
     reg        v3_lg;
 
     wire [7:0] v3_saw = v3_acc[15:8];
-    wire [7:0] v3_tri_tmp = v3_waveform[5] ? 8'h00 : {8{v3_acc[15]}};
+    wire [7:0] v3_tri_tmp = v3_waveform[3] ? 8'h00 : {8{v3_acc[15]}};
     wire [7:0] v3_tri = v3_acc[14:7] ^ v3_tri_tmp;
-    wire       v3_pulse = v3_acc[15:8] > v3_duration;
+    wire       v3_pulse = v3_acc[15:8] > shared_duration;
 
     reg [7:0] v3_wave;
     always @(*) begin
         v3_wave = 8'h00;
-        if (v3_waveform[4]) v3_wave = v3_wave | v3_tri;
-        if (v3_waveform[5]) v3_wave = v3_wave | v3_saw;
-        if (v3_waveform[6]) v3_wave = v3_wave | {8{v3_pulse}};
-        if (v3_waveform[7]) v3_wave = v3_wave | shared_lfsr;
+        if (v3_waveform[2]) v3_wave = v3_wave | v3_tri;
+        if (v3_waveform[3]) v3_wave = v3_wave | v3_saw;
+        if (v3_waveform[4]) v3_wave = v3_wave | {8{v3_pulse}};
+        if (v3_waveform[5]) v3_wave = v3_wave | shared_lfsr;
     end
     wire [11:0] v3_out = rst ? 12'd0 : (v3_wave * v3_env);
 
@@ -367,7 +364,7 @@ module tt_um_sid (
         if (!rst_n) begin
             v3_acc <= 0; v3_env <= 0; v3_ast <= ENV_IDLE; v3_lg <= 0;
         end else begin
-            v3_acc <= v3_waveform[3] ? 16'd0 : (v3_acc + v3_frequency);
+            v3_acc <= v3_waveform[1] ? 16'd0 : (v3_acc + {8'd0, v3_frequency});
             v3_env <= v3_nxt_env; v3_ast <= v3_nxt_ast; v3_lg <= v3_gate;
         end
     end
@@ -384,7 +381,7 @@ module tt_um_sid (
         else        mix_out <= mix_sum[9:2];
 
     //==========================================================================
-    // PWM Audio Output (8-bit, ~19.6 kHz at 5 MHz)
+    // PWM Audio Output (8-bit, ~3.9 kHz at 1 MHz)
     //==========================================================================
     wire pwm_out;
 

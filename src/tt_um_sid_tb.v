@@ -1,32 +1,30 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// Comprehensive Testbench for tt_um_sid
+// Comprehensive Testbench for tt_um_sid (1 MHz, 8-bit freq, 6-bit waveform)
 //==============================================================================
-// Tests the full TT top-level including flat memory register interface, all
-// waveform types, ADSR envelope behavior, PDM output activity, and edge cases.
-//
 // Memory-Mapped Interface:
 //   ui_in[2:0]  = register address
 //   ui_in[4:3]  = voice select (0=voice1, 1=voice2, 2=voice3)
 //   ui_in[7]    = write enable (rising-edge triggered)
 //   uio_in[7:0] = write data
 //
-// Registers (per voice): 0=freq_lo, 1=freq_hi, 2=pw,
-//                        4=attack, 5=sustain, 6=waveform
+// Registers: 0=freq(per-voice), 2=pw(shared), 4=attack(shared),
+//            5=sustain(shared), 6=waveform(per-voice)
 //
-// Voice update rate: 5 MHz per voice (parallel)
-// 16-bit accumulator, 16-bit frequency register:
-// freq_reg = Hz * 2^16 / 5e6 ≈ Hz * 0.01311
+// Waveform bits: [0]gate [1]test [2]tri [3]saw [4]pulse [5]noise
+//
+// 16-bit accumulator, 8-bit frequency register (zero-extended):
+// freq_reg = Hz * 2^16 / 1e6 ≈ Hz * 0.06554
 //==============================================================================
 
 module tt_um_sid_tb;
 
     //==========================================================================
-    // Clock generation — 5 MHz (200 ns period)
+    // Clock generation — 1 MHz (1000 ns period)
     //==========================================================================
     reg clk;
     initial clk = 0;
-    always #100 clk = ~clk;
+    always #500 clk = ~clk;
 
     //==========================================================================
     // DUT signals
@@ -57,7 +55,7 @@ module tt_um_sid_tb;
 
     //==========================================================================
     // PDM-to-PCM decimation filter (CIC order 1, integrate-and-dump)
-    // Converts the 5 MHz 1-bit PDM to ~4.88 kHz 10-bit PCM for waveform
+    // Converts the 1 MHz 1-bit PDM to ~977 Hz 10-bit PCM for waveform
     // inspection in VCD viewers.  Output range: 0 (silence) to 1024 (full).
     //==========================================================================
     localparam DECIM_SHIFT = 10;
@@ -102,27 +100,24 @@ module tt_um_sid_tb;
     end
 
     //==========================================================================
-    // Constants
+    // Constants — 6-bit waveform encoding
     //==========================================================================
     localparam [7:0] GATE  = 8'h01,
-                     SYNC  = 8'h02,
-                     RMOD  = 8'h04,
-                     TEST  = 8'h08,
-                     TRI   = 8'h10,
-                     SAW   = 8'h20,
-                     PULSE = 8'h40,
-                     NOISE = 8'h80;
+                     TEST  = 8'h02,
+                     TRI   = 8'h04,
+                     SAW   = 8'h08,
+                     PULSE = 8'h10,
+                     NOISE = 8'h20;
 
-    // 16-bit acc at 5 MHz: freq_reg = Hz * 2^16 / 5e6 ≈ Hz * 0.01311
-    localparam [15:0] FREQ_C4 = 16'd3,     // 262 Hz → ~229 Hz
-                      FREQ_E4 = 16'd4,     // 330 Hz → ~305 Hz
-                      FREQ_G4 = 16'd5,     // 392 Hz → ~381 Hz
-                      FREQ_C5 = 16'd7;     // 523 Hz → ~534 Hz
+    // 8-bit freq reg, 16-bit acc at 1 MHz: freq_reg = Hz * 2^16 / 1e6
+    localparam [7:0] FREQ_C4 = 8'd17,    // 262 Hz → 259 Hz
+                     FREQ_E4 = 8'd22,    // 330 Hz → 336 Hz
+                     FREQ_G4 = 8'd26,    // 392 Hz → 397 Hz
+                     FREQ_C5 = 8'd34;    // 523 Hz → 519 Hz
 
     // Register addresses
-    localparam [2:0] REG_FREQ_LO = 3'd0,
-                     REG_FREQ_HI = 3'd1,
-                     REG_PW_LO   = 3'd2,
+    localparam [2:0] REG_FREQ    = 3'd0,
+                     REG_PW      = 3'd2,
                      REG_ATK     = 3'd4,
                      REG_SUS     = 3'd5,
                      REG_WAV     = 3'd6;
@@ -155,25 +150,23 @@ module tt_um_sid_tb;
     endtask
 
     //==========================================================================
-    // Convenience: write a 16-bit frequency as two byte registers
+    // Convenience: write frequency (single 8-bit register)
     //==========================================================================
     task sid_write_freq;
-        input [15:0] freq;
-        input [1:0]  voice;
+        input [7:0] freq;
+        input [1:0] voice;
         begin
-            sid_write(REG_FREQ_LO, freq[7:0],  voice);
-            sid_write(REG_FREQ_HI, freq[15:8], voice);
+            sid_write(REG_FREQ, freq, voice);
         end
     endtask
 
     //==========================================================================
-    // Convenience: write an 8-bit pulse width
+    // Convenience: write pulse width (shared, voice ignored)
     //==========================================================================
     task sid_write_pw;
         input [7:0] pw;
-        input [1:0] voice;
         begin
-            sid_write(REG_PW_LO, pw, voice);
+            sid_write(REG_PW, pw, 2'd0);
         end
     endtask
 
@@ -198,7 +191,7 @@ module tt_um_sid_tb;
     endtask
 
     //==========================================================================
-    // Measure average PCM level over N decimated samples (~4.88 kHz rate)
+    // Measure average PCM level over N decimated samples
     //==========================================================================
     task measure_pcm;
         input  integer num_samples;
@@ -274,7 +267,7 @@ module tt_um_sid_tb;
         // =============================================================
         $display("\n===== 2. Register write =====");
         sid_write_freq(FREQ_C4, 2'd0);
-        sid_write_pw(8'h80, 2'd0);
+        sid_write_pw(8'h80);
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, SAW | GATE, 2'd0);
@@ -298,7 +291,7 @@ module tt_um_sid_tb;
         // =============================================================
         $display("\n===== 3. Sawtooth waveform =====");
         sid_write_freq(FREQ_C4, 2'd0);
-        sid_write_pw(8'h80, 2'd0);
+        sid_write_pw(8'h80);
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, SAW | GATE, 2'd0);
@@ -345,7 +338,7 @@ module tt_um_sid_tb;
         // =============================================================
         $display("\n===== 5. Pulse waveform =====");
         sid_write_freq(FREQ_E4, 2'd0);
-        sid_write_pw(8'h80, 2'd0);
+        sid_write_pw(8'h80);
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, PULSE | GATE, 2'd0);
@@ -388,14 +381,12 @@ module tt_um_sid_tb;
         repeat (30_000) @(posedge clk);
 
         // =============================================================
-        // 7. ADSR envelope — attack ramp (rate 10 ≈ slower for 4-bit env)
-        //    Uses measure_pcm (average amplitude) instead of count_pdm
-        //    because PDM edge count saturates for any non-zero output.
+        // 7. ADSR envelope — attack ramp
         // =============================================================
         $display("\n===== 7. ADSR attack ramp =====");
         sid_write_freq(FREQ_C4, 2'd0);
-        sid_write_pw(8'h80, 2'd0);
-        sid_write(REG_ATK, 8'hA0, 2'd0);  // attack=10, decay=0
+        sid_write_pw(8'h80);
+        sid_write(REG_ATK, 8'h60, 2'd0);  // attack=6(slowest), decay=0
         sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, SAW | GATE, 2'd0);
 
@@ -578,7 +569,7 @@ module tt_um_sid_tb;
         repeat (30_000) @(posedge clk);
 
         sid_write_freq(FREQ_C4, 2'd1);
-        sid_write_pw(8'h80, 2'd1);
+        sid_write_pw(8'h80);
         sid_write(REG_ATK, 8'h00, 2'd1);
         sid_write(REG_SUS, 8'h0F, 2'd1);
         sid_write(REG_WAV, SAW | GATE, 2'd1);
@@ -635,7 +626,7 @@ module tt_um_sid_tb;
         repeat (30_000) @(posedge clk);
 
         sid_write_freq(FREQ_G4, 2'd2);
-        sid_write_pw(8'h80, 2'd2);
+        sid_write_pw(8'h80);
         sid_write(REG_ATK, 8'h00, 2'd2);
         sid_write(REG_SUS, 8'h0F, 2'd2);
         sid_write(REG_WAV, SAW | GATE, 2'd2);
@@ -700,10 +691,10 @@ module tt_um_sid_tb;
     end
 
     //==========================================================================
-    // Timeout watchdog — 2 seconds
+    // Timeout watchdog — 10 seconds (slower clock needs longer timeout)
     //==========================================================================
     initial begin
-        #2_000_000_000;
+        #10_000_000_000;
         $display("\nERROR: Simulation timeout!");
         $finish;
     end

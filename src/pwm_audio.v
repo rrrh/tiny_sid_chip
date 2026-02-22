@@ -7,7 +7,7 @@
 // Output is high for `sample` clocks out of every 255 clocks.
 // sample=0 → always off, sample=255 → always on.
 //
-// At 5 MHz clock: PWM frequency = 5 MHz / 255 ≈ 19.6 kHz.
+// At 1 MHz clock: PWM frequency = 1 MHz / 255 ≈ 3.9 kHz.
 //
 // Based on MichaelBell/tt08-pwm-example.
 //==============================================================================
