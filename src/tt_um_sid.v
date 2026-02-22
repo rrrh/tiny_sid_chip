@@ -5,10 +5,10 @@
 // Uses one shared compute pipeline cycling through 3 voices each clock.
 // Each voice is updated every 3rd clock cycle at 5 MHz = 1.667 MHz/voice.
 //
-// 20-bit phase accumulators with 16-bit frequency registers:
+// 16-bit phase accumulators with 16-bit frequency registers:
 //   Effective rate = 5 MHz / 3 = 1.667 MHz per voice
-//   Resolution = 1.667 MHz / 2^20 ≈ 1.59 Hz per step
-//   freq_reg = desired_Hz * 2^20 / 1666667 ≈ desired_Hz * 0.62915
+//   Resolution = 1.667 MHz / 2^16 ≈ 25.4 Hz per step
+//   freq_reg = desired_Hz * 2^16 / 1666667 ≈ desired_Hz * 0.039322
 //
 // Flat Memory-Mapped Register Interface:
 //   ui_in[2:0]  = register address (3-bit)
@@ -23,10 +23,15 @@
 //   0: freq_lo  — frequency[7:0]
 //   1: freq_hi  — frequency[15:8]
 //   2: pw       — pulse width[7:0]
-//   3: (reserved)
+//   3: filter   — cutoff[2:0] / volume[7:4]  (shared)
 //   4: attack   — attack_rate[3:0] / decay_rate[7:4]  (shared)
 //   5: sustain  — sustain_level[3:0] / release_rate[7:4]  (shared)
 //   6: waveform — waveform[7:0]
+//   7: (reserved)
+//
+// Post-mix features (no vidx mux dependency):
+//   - 1-pole IIR low-pass filter with 8 cutoff settings
+//   - 4-bit global volume control
 //
 // Mixing: accumulate 3 voice outputs over 3 clocks, shift right by 2.
 //==============================================================================
@@ -125,16 +130,19 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared ADSR registers (written via any voice_sel, reg 4/5)
+    // Shared registers (written via any voice_sel)
     //==========================================================================
     reg [7:0] shared_attack, shared_sustain;
+    reg [7:0] filter_ctrl;  // [2:0]=cutoff, [7:4]=volume
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             shared_attack  <= 8'd0;
             shared_sustain <= 8'd0;
+            filter_ctrl    <= 8'hF0;  // bypass filter, full volume
         end else if (wr_en_rise) begin
             case (reg_addr)
+                3'd3: filter_ctrl    <= wr_data;
                 3'd4: shared_attack  <= wr_data;
                 3'd5: shared_sustain <= wr_data;
                 default: ;
@@ -143,7 +151,7 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared ADSR prescaler (free-running 16-bit counter)
+    // Shared ADSR prescaler (free-running 18-bit counter)
     //==========================================================================
     reg [17:0] adsr_prescaler;
     always @(posedge clk or negedge rst_n)
@@ -195,8 +203,8 @@ module tt_um_sid (
     //==========================================================================
     // Per-voice state banks
     //==========================================================================
-    // Phase accumulator (20-bit) per voice + shared LFSR (8-bit)
-    reg [19:0] v_acc_0,  v_acc_1,  v_acc_2;
+    // Phase accumulator (16-bit) per voice + shared LFSR (8-bit)
+    reg [15:0] v_acc_0,  v_acc_1,  v_acc_2;
     reg [7:0]  shared_lfsr;
 
     // ADSR state: env_counter (4-bit), state (2-bit), last_gate (1-bit)
@@ -207,7 +215,7 @@ module tt_um_sid (
     //==========================================================================
     // Mux current voice state based on vidx
     //==========================================================================
-    reg [19:0] cur_acc;
+    reg [15:0] cur_acc;
     wire [7:0] cur_lfsr = shared_lfsr;
     reg [3:0]  cur_env;
     reg [1:0]  cur_ast;
@@ -231,12 +239,12 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Shared combinational: waveform generation (20-bit accumulator)
+    // Shared combinational: waveform generation (16-bit accumulator)
     //==========================================================================
-    wire [7:0] saw_out = cur_acc[19:12];
-    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[19]}};
-    wire [7:0] tri_out = cur_acc[18:11] ^ tri_tmp;
-    wire       pulse_out = cur_acc[19:12] > cur_duration;
+    wire [7:0] saw_out = cur_acc[15:8];
+    wire [7:0] tri_tmp = cur_sawtooth_en ? 8'h00 : {8{cur_acc[15]}};
+    wire [7:0] tri_out = cur_acc[14:7] ^ tri_tmp;
+    wire       pulse_out = cur_acc[15:8] > cur_duration;
 
     //==========================================================================
     // Shared combinational: ADSR envelope tick + next state
@@ -258,8 +266,6 @@ module tt_um_sid (
     end
 
     // Envelope tick from prescaler (18-bit, 13 rate levels)
-    // At 5 MHz: rate 0 → tick every 64 clk (~38 us per tick)
-    //           rate 12 → tick every 262144 clk (~157 ms per tick)
     reg env_tick;
     always @(*) begin
         case (active_rate)
@@ -345,8 +351,8 @@ module tt_um_sid (
     //==========================================================================
     // Next accumulator + LFSR
     //==========================================================================
-    wire [19:0] nxt_acc  = cur_test ? 20'd0 :
-                           (cur_acc + {4'd0, cur_frequency});
+    wire [15:0] nxt_acc  = cur_test ? 16'd0 :
+                           (cur_acc + cur_frequency);
 
     wire [7:0]  nxt_lfsr = {shared_lfsr[6:0], shared_lfsr[7] ^ shared_lfsr[5] ^ shared_lfsr[4] ^ shared_lfsr[3]};
 
@@ -355,7 +361,7 @@ module tt_um_sid (
     //==========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            v_acc_0 <= 20'd0; v_acc_1 <= 20'd0; v_acc_2 <= 20'd0;
+            v_acc_0 <= 16'd0; v_acc_1 <= 16'd0; v_acc_2 <= 16'd0;
             shared_lfsr <= 8'd1;
             v_env_0 <= 4'd0; v_env_1 <= 4'd0; v_env_2 <= 4'd0;
             v_ast_0 <= ENV_IDLE; v_ast_1 <= ENV_IDLE; v_ast_2 <= ENV_IDLE;
@@ -403,6 +409,40 @@ module tt_um_sid (
     end
 
     //==========================================================================
+    // Post-mix: 1-pole IIR low-pass filter (no vidx dependency)
+    //==========================================================================
+    wire [2:0] filt_cutoff = filter_ctrl[2:0];
+    wire [3:0] global_vol  = filter_ctrl[7:4];
+
+    reg [15:0] filt_acc;
+    wire [7:0] filt_out = filt_acc[15:8];
+    wire [8:0] filt_diff = {1'b0, mix_out} - {1'b0, filt_out};
+
+    reg [15:0] filt_step;
+    always @(*) begin
+        case (filt_cutoff)
+            3'd0: filt_step = {filt_diff[8], filt_diff, 6'd0};
+            3'd1: filt_step = {{2{filt_diff[8]}}, filt_diff, 5'd0};
+            3'd2: filt_step = {{3{filt_diff[8]}}, filt_diff, 4'd0};
+            3'd3: filt_step = {{4{filt_diff[8]}}, filt_diff, 3'd0};
+            3'd4: filt_step = {{5{filt_diff[8]}}, filt_diff, 2'd0};
+            3'd5: filt_step = {{6{filt_diff[8]}}, filt_diff, 1'd0};
+            3'd6: filt_step = {{7{filt_diff[8]}}, filt_diff};
+            3'd7: filt_step = {{8{filt_diff[8]}}, filt_diff[8:1]};
+        endcase
+    end
+
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n) filt_acc <= 16'd0;
+        else        filt_acc <= filt_acc + filt_step;
+
+    //==========================================================================
+    // Post-mix: global volume control (no vidx dependency)
+    //==========================================================================
+    wire [11:0] vol_scaled = filt_out * global_vol;
+    wire [7:0]  final_sample = vol_scaled[11:4];
+
+    //==========================================================================
     // PWM Audio Output (8-bit, ~19.6 kHz at 5 MHz)
     //==========================================================================
     wire pwm_out;
@@ -410,7 +450,7 @@ module tt_um_sid (
     pwm_audio u_pwm (
         .clk    (clk),
         .rst_n  (rst_n),
-        .sample (mix_out),
+        .sample (final_sample),
         .pwm    (pwm_out)
     );
 
