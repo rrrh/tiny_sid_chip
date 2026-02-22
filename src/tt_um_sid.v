@@ -23,15 +23,15 @@
 //   0: freq_lo  — frequency[7:0]
 //   1: freq_hi  — frequency[15:8]
 //   2: pw       — pulse width[7:0]
-//   3: filter   — cutoff[2:0] / volume[7:4]  (shared)
+//   3: filter   — [7:4]=volume  (shared)
 //   4: attack   — attack_rate[3:0] / decay_rate[7:4]  (shared)
 //   5: sustain  — sustain_level[3:0] / release_rate[7:4]  (shared)
 //   6: waveform — waveform[7:0]
 //   7: (reserved)
 //
 // Post-mix features (no vidx mux dependency):
-//   - 1-pole IIR low-pass filter with 8 cutoff settings
 //   - 4-bit global volume control
+//   - Complementary (inverted) PWM output for differential drive
 //
 // Mixing: accumulate 3 voice outputs over 3 clocks, shift right by 2.
 //==============================================================================
@@ -409,37 +409,10 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Post-mix: 1-pole IIR low-pass filter (no vidx dependency)
+    // Post-mix: global volume control (purely feedforward, no hold paths)
     //==========================================================================
-    wire [2:0] filt_cutoff = filter_ctrl[2:0];
-    wire [3:0] global_vol  = filter_ctrl[7:4];
-
-    reg [15:0] filt_acc;
-    wire [7:0] filt_out = filt_acc[15:8];
-    wire [8:0] filt_diff = {1'b0, mix_out} - {1'b0, filt_out};
-
-    reg [15:0] filt_step;
-    always @(*) begin
-        case (filt_cutoff)
-            3'd0: filt_step = {filt_diff[8], filt_diff, 6'd0};
-            3'd1: filt_step = {{2{filt_diff[8]}}, filt_diff, 5'd0};
-            3'd2: filt_step = {{3{filt_diff[8]}}, filt_diff, 4'd0};
-            3'd3: filt_step = {{4{filt_diff[8]}}, filt_diff, 3'd0};
-            3'd4: filt_step = {{5{filt_diff[8]}}, filt_diff, 2'd0};
-            3'd5: filt_step = {{6{filt_diff[8]}}, filt_diff, 1'd0};
-            3'd6: filt_step = {{7{filt_diff[8]}}, filt_diff};
-            3'd7: filt_step = {{8{filt_diff[8]}}, filt_diff[8:1]};
-        endcase
-    end
-
-    always @(posedge clk or negedge rst_n)
-        if (!rst_n) filt_acc <= 16'd0;
-        else        filt_acc <= filt_acc + filt_step;
-
-    //==========================================================================
-    // Post-mix: global volume control (no vidx dependency)
-    //==========================================================================
-    wire [11:0] vol_scaled = filt_out * global_vol;
+    wire [3:0] global_vol = filter_ctrl[7:4];
+    wire [11:0] vol_scaled = mix_out * global_vol;
     wire [7:0]  final_sample = vol_scaled[11:4];
 
     //==========================================================================
@@ -455,13 +428,26 @@ module tt_um_sid (
     );
 
     //==========================================================================
+    // Complementary PWM output (inverted sample, for differential drive)
+    //==========================================================================
+    wire pwm_out_inv;
+    wire [7:0] inv_sample = ~final_sample;
+
+    pwm_audio u_pwm_inv (
+        .clk    (clk),
+        .rst_n  (rst_n),
+        .sample (inv_sample),
+        .pwm    (pwm_out_inv)
+    );
+
+    //==========================================================================
     // Output Pin Mapping
     //==========================================================================
-    assign uo_out  = {7'b0, pwm_out};
+    assign uo_out  = {6'b0, pwm_out_inv, pwm_out};
     assign uio_out = 8'b0;
     assign uio_oe  = 8'b0;  // all inputs
 
     // Suppress unused input warnings
-    wire _unused = &{ena, ui_in[6:5], 1'b0};
+    wire _unused = &{ena, ui_in[6:5], filter_ctrl[2:0], 1'b0};
 
 endmodule
