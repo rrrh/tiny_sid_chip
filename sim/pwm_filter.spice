@@ -1,0 +1,44 @@
+* PWM Audio Recovery Filter — ngspice simulation
+* Second-order RC low-pass from Readme.md + DC blocking cap
+*
+* uo_out[0] ---[R1]---+---[R2]---+---[Cac]---> Audio Out
+*                      |          |
+*                     [C1]       [C2]
+*                      |          |
+*                     GND        GND
+*
+* R1=R2=3.3k, C1=C2=4.7nF, Cac=1uF
+* VDD = 1.2V (IHP sg13g2)
+
+.title SID PWM Output Filter Simulation
+
+* PWM source from Verilog simulation
+Vpwm pwm_in 0 PWL file=pwm_output.pwl
+
+* First RC stage
+R1 pwm_in mid1 3.3k
+C1 mid1 0 4.7n
+
+* Second RC stage
+R2 mid1 mid2 3.3k
+C2 mid2 0 4.7n
+
+* DC blocking capacitor + load resistor
+Cac mid2 audio_out 1u
+Rload audio_out 0 10k
+
+* Transient analysis — full 400 us simulation
+.tran 100n 400u
+
+* Save node voltages
+.save v(pwm_in) v(mid1) v(mid2) v(audio_out)
+
+* Write raw data for post-processing
+.control
+run
+set filetype=ascii
+write pwm_filter.raw v(pwm_in) v(mid1) v(mid2) v(audio_out)
+quit
+.endc
+
+.end
