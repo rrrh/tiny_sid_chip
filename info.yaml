@@ -2,13 +2,13 @@
 project:
   title:        "SID Voice Synthesizer"
   author:       "shue"
-  discord:      ""
+  discord:      "rrrh"
   description:  "Dual SID voice synthesizer with flat memory-mapped control and 8-bit PWM audio output"
   language:     "Verilog"
-  clock_hz:     50000000  # 50 MHz
+  clock_hz:     5000000  # 5 MHz
 
   # How many tiles your design occupies? A single tile is about 167x108 uM.
-  tiles: "1x1"
+  tiles: "1x2"
 
   # Your top module name must start with "tt_um_". Make it unique by including your github username:
   top_module:  "tt_um_sid"
