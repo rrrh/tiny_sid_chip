@@ -3,7 +3,7 @@ project:
   title:        "SID Voice Synthesizer"
   author:       "shue"
   discord:      "rrrh"
-  description:  "Dual SID voice synthesizer with flat memory-mapped control and 8-bit PWM audio output"
+  description:  "Triple SID voice synthesizer with flat memory-mapped control and 8-bit PWM audio output"
   language:     "Verilog"
   clock_hz:     5000000  # 5 MHz
 

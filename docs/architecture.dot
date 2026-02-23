@@ -39,29 +39,21 @@ digraph architecture {
     ];
 
     // =====================================================================
-    // Register banks
+    // Register banks (ALL per-voice)
     // =====================================================================
     regs [
         label=<
             <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
-                <TR><TD BGCOLOR="#aed6f1" COLSPAN="2"><B>Register Banks</B></TD></TR>
-                <TR><TD><B>Per-Voice (×3)</B><BR/>
-                    <FONT POINT-SIZE="8">
-                    0: freq_lo [7:0]<BR/>
-                    1: freq_hi [15:8]<BR/>
+                <TR><TD BGCOLOR="#aed6f1"><B>Register Banks (all per-voice ×3)</B></TD></TR>
+                <TR><TD><FONT POINT-SIZE="8">
+                    0: freq [7:0]<BR/>
                     2: pulse_width [7:0]<BR/>
+                    4: attack [3:0] / decay [7:4]<BR/>
+                    5: sustain [3:0] / release [7:4]<BR/>
                     6: waveform [7:0]
                     </FONT>
-                </TD>
-                <TD><B>Shared</B><BR/>
-                    <FONT POINT-SIZE="8">
-                    4: attack [7:0]<BR/>
-                       (lo=atk, hi=dec)<BR/>
-                    5: sustain [7:0]<BR/>
-                       (lo=sus, hi=rel)
-                    </FONT>
                 </TD></TR>
-                <TR><TD COLSPAN="2"><FONT POINT-SIZE="8">voice_sel = ui_in[4:3] (0–2)</FONT></TD></TR>
+                <TR><TD><FONT POINT-SIZE="8">voice_sel = ui_in[4:3] (0–2)</FONT></TD></TR>
             </TABLE>
         >,
         shape=plain
@@ -73,7 +65,7 @@ digraph architecture {
     subgraph cluster_pipeline {
         label=<
             <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
-                <TR><TD><B>Shared Voice Pipeline</B> (time-multiplexed, 3 voices @ 1.667 MHz each)</TD></TR>
+                <TR><TD><B>Pipelined Voice Datapath</B> (mod-5 slots, 1 MHz each)</TD></TR>
             </TABLE>
         >;
         style=rounded;
@@ -84,8 +76,8 @@ digraph architecture {
         vidx [
             label=<
                 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
-                    <TR><TD BGCOLOR="#a9dfbf"><B>Voice Round-Robin</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">vidx: 0→1→2→0→…<BR/>@ 5 MHz</FONT></TD></TR>
+                    <TR><TD BGCOLOR="#a9dfbf"><B>Mod-5 Slot Counter</B></TD></TR>
+                    <TR><TD><FONT POINT-SIZE="8">slots 0–2: compute V0/V1/V2<BR/>slot 3: latch mix, load V0<BR/>slot 4: idle/preload<BR/>1 MHz effective per voice</FONT></TD></TR>
                 </TABLE>
             >,
             shape=plain
@@ -95,7 +87,7 @@ digraph architecture {
             label=<
                 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
                     <TR><TD BGCOLOR="#a9dfbf"><B>Phase Accumulator</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">16-bit per voice (×3)<BR/>acc += freq every cycle<BR/>~25.4 Hz resolution</FONT></TD></TR>
+                    <TR><TD><FONT POINT-SIZE="8">16-bit per voice (×3)<BR/>acc += {8'b0, freq[7:0]}<BR/>~15.3 Hz resolution<BR/>Hard sync: V0←V2, V1←V0, V2←V1</FONT></TD></TR>
                 </TABLE>
             >,
             shape=plain
@@ -106,8 +98,8 @@ digraph architecture {
                 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
                     <TR><TD BGCOLOR="#a9dfbf" COLSPAN="2"><B>Waveform Generator</B></TD></TR>
                     <TR>
-                        <TD><FONT POINT-SIZE="8">Sawtooth: acc[15:8]<BR/>Triangle: acc[14:7] ^ fold<BR/>Pulse: acc[15:8] &gt; PW<BR/>Noise: shared 8-bit LFSR</FONT></TD>
-                        <TD><FONT POINT-SIZE="8">OR-combine<BR/>enabled<BR/>waveforms<BR/>→ 8-bit mux</FONT></TD>
+                        <TD><FONT POINT-SIZE="8">Sawtooth: acc[15:8]<BR/>Triangle: acc[14:8]^fold (ring-mod)<BR/>Pulse: acc[15:8] ≥ PW<BR/>Noise: 15-bit LFSR [14:7]<BR/>(acc-clocked from V0)</FONT></TD>
+                        <TD><FONT POINT-SIZE="8">AND-combine<BR/>enabled<BR/>waveforms<BR/>→ 8-bit out</FONT></TD>
                     </TR>
                 </TABLE>
             >,
@@ -118,7 +110,7 @@ digraph architecture {
             label=<
                 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
                     <TR><TD BGCOLOR="#a9dfbf"><B>ADSR Envelope</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">4-bit env counter per voice (×3)<BR/>18-bit shared prescaler<BR/>16 rate levels (6–17 bit periods)<BR/>States: IDLE→ATK→DEC→REL</FONT></TD></TR>
+                    <TR><TD><FONT POINT-SIZE="8">8-bit env counter per voice (×3)<BR/>14-bit shared prescaler<BR/>9 rate levels (4–8192 clk periods)<BR/>4-state FSM: IDLE/ATK/DEC/SUS<BR/>Exponential decay adjustment</FONT></TD></TR>
                 </TABLE>
             >,
             shape=plain
@@ -128,7 +120,7 @@ digraph architecture {
             label=<
                 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
                     <TR><TD BGCOLOR="#a9dfbf"><B>Envelope Scaling</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">voice_out[11:0] = waveform × env</FONT></TD></TR>
+                    <TR><TD><FONT POINT-SIZE="8">voice_out = (wave × env)[15:8]<BR/>8×8 → upper 8 bits</FONT></TD></TR>
                 </TABLE>
             >,
             shape=plain
@@ -142,7 +134,7 @@ digraph architecture {
         label=<
             <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
                 <TR><TD BGCOLOR="#f9e79f"><B>3-Voice Mixer</B></TD></TR>
-                <TR><TD><FONT POINT-SIZE="8">Accumulate voice_out[11:4]<BR/>over 3 cycles, shift &gt;&gt;2<BR/>→ 8-bit mix_out</FONT></TD></TR>
+                <TR><TD><FONT POINT-SIZE="8">10-bit accumulator<BR/>sum 3 × voice_out[7:0]<BR/>mix_out = acc[9:2] (÷4)</FONT></TD></TR>
             </TABLE>
         >,
         shape=plain
@@ -175,7 +167,7 @@ digraph architecture {
     }
 
     // --- External filter (off-chip) ---
-    rc_filter [label="RC low-pass\nfilter\n(off-chip)", shape=trapezium, style=filled, fillcolor="#f5cba7"];
+    rc_filter [label="3rd-order RC\nlow-pass filter\n(off-chip)", shape=trapezium, style=filled, fillcolor="#f5cba7"];
     audio_out [label="Analog\naudio out", shape=doubleoctagon, style=filled, fillcolor="#d5f5e3"];
 
     // =====================================================================
@@ -189,9 +181,9 @@ digraph architecture {
 
     vidx -> phase_acc;
     phase_acc -> waveform [label="  cur_acc  "];
-    waveform -> scale [label="  8-bit mux  "];
-    adsr -> scale [label="  4-bit env  "];
-    scale -> mixer [label="  voice_out\n  [11:0]  ", ltail=cluster_pipeline];
+    waveform -> scale [label="  8-bit wave  "];
+    adsr -> scale [label="  8-bit env  "];
+    scale -> mixer [label="  voice_out\n  [7:0]  ", ltail=cluster_pipeline];
 
     mixer -> pwm [label="  mix_out\n  [7:0]  "];
     pwm -> pwm_out [label="  1-bit PWM\n  @ ~19.6 kHz  "];
