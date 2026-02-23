@@ -18,6 +18,8 @@ The ngspice netlist (pwm_filter.spice) is also provided for standalone use.
 
 import os
 import sys
+import wave
+import struct
 import numpy as np
 
 # Circuit parameters
@@ -117,17 +119,59 @@ def simulate_filter(t_pwl, v_pwl, dt):
     return t, v_in, v1_arr, v2_arr, v_out_arr
 
 
+def write_wav(t_sim, v_audio, path, sample_rate=44100):
+    """Resample audio output to WAV file (16-bit signed mono)."""
+    duration = t_sim[-1]
+    n_samples = int(duration * sample_rate)
+    if n_samples < 1:
+        print(f"WARNING: Duration {duration*1e6:.0f} us too short for WAV")
+        return
+
+    # Resample to target sample rate
+    t_wav = np.linspace(0, duration, n_samples, endpoint=False)
+    v_wav = np.interp(t_wav, t_sim, v_audio)
+
+    # Normalize to 16-bit signed range
+    v_max = max(abs(v_wav.max()), abs(v_wav.min()))
+    if v_max > 0:
+        v_norm = v_wav / v_max * 32000  # leave a little headroom
+    else:
+        v_norm = v_wav
+
+    samples = np.clip(v_norm, -32767, 32767).astype(np.int16)
+
+    with wave.open(path, "w") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)  # 16-bit
+        wf.setframerate(sample_rate)
+        wf.writeframes(samples.tobytes())
+
+    print(f"WAV file written: {path}")
+    print(f"  {n_samples} samples, {duration:.4f} s, {sample_rate} Hz, 16-bit mono")
+    print(f"  Peak voltage: +/- {v_max*1e3:.1f} mV into {RLOAD/1e3:.0f}k load")
+
+
 def main():
     sim_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(sim_dir)
 
-    pwl_path = os.path.join(sim_dir, "pwm_output.pwl")
+    # Accept optional PWL filename and label as arguments
+    # Usage: plot_filter.py [pwl_file] [label]
+    if len(sys.argv) >= 2:
+        pwl_path = os.path.abspath(sys.argv[1])
+    else:
+        pwl_path = os.path.join(sim_dir, "pwm_output.pwl")
+
+    label = sys.argv[2] if len(sys.argv) >= 3 else "Saw C4 + Pulse E4 + Tri G4"
+
+    # Derive output filenames from PWL basename
+    base = os.path.splitext(os.path.basename(pwl_path))[0]
+    wav_out = os.path.join(sim_dir, base + ".wav")
+    png_out = os.path.join(sim_dir, base + ".png")
+
     if not os.path.exists(pwl_path):
-        print("ERROR: pwm_output.pwl not found in sim/ directory.")
-        print("Run the Verilog testbench first:")
-        print("  cd .. && iverilog -o pwm_ngspice_tb src/pwm_ngspice_tb.v "
-              "src/tt_um_sid.v src/pwm_audio.v")
-        print("  vvp pwm_ngspice_tb && mv pwm_output.pwl sim/")
+        print(f"ERROR: {pwl_path} not found.")
+        print("Run the Verilog testbench first to generate the PWL file.")
         sys.exit(1)
 
     print("Loading PWL file...")
@@ -141,6 +185,9 @@ def main():
     print("Simulation complete.")
 
     time_us = t * 1e6
+
+    # Generate WAV file from audio output
+    write_wav(t, v_out, wav_out, sample_rate=44100)
 
     # Decimate for plotting (every 10th point = 100 ns)
     dec = 10
@@ -156,9 +203,9 @@ def main():
 
     fig, axes = plt.subplots(3, 1, figsize=(14, 8), sharex=True)
     fig.suptitle(
-        "SID 3-Voice PWM Output Filter Simulation\n"
-        "Saw C4 + Pulse E4 + Tri G4 \u2014 "
-        "2nd-order RC LPF (R=3.3k\u03a9, C=4.7nF) + Cac=1\u00b5F + Rload=10k\u03a9",
+        f"SID PWM Output Filter Simulation\n"
+        f"{label} \u2014 "
+        f"2nd-order RC LPF (R=3.3k\u03a9, C=4.7nF) + Cac=1\u00b5F + Rload=10k\u03a9",
         fontsize=12,
     )
 
@@ -192,9 +239,8 @@ def main():
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    out_path = os.path.join(sim_dir, "pwm_filter_output.png")
-    plt.savefig(out_path, dpi=150, bbox_inches="tight")
-    print(f"Plot saved: {out_path}")
+    plt.savefig(png_out, dpi=150, bbox_inches="tight")
+    print(f"Plot saved: {png_out}")
 
 
 if __name__ == "__main__":
