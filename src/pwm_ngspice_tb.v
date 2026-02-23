@@ -8,14 +8,14 @@
 // Usage in ngspice:
 //   Vpwm pwm_in gnd PWL file="pwm_output.pwl"
 //
-// The output swings between 0 V and VDD (default 1.2 V for sg13g2).
+// The output swings between 0 V and VDDIO (3.3 V for sg13g2 I/O bank).
 // Rise/fall time is 2 ns (adjustable via EDGE_NS parameter).
 //==============================================================================
 
 module pwm_ngspice_tb;
 
     // --- Parameters ---
-    localparam real VDD     = 1.2;     // Output high voltage (sg13g2)
+    localparam real VDD     = 3.3;     // I/O bank voltage (sg13g2 VDDIO)
     localparam real EDGE_NS = 2.0;     // Rise/fall time in ns
     localparam      SIM_CYCLES = 2_000_000;  // ~400 us at 5 MHz
 

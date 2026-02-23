@@ -166,8 +166,8 @@ def main():
     ax = axes[0]
     ax.plot(time_us_d, v_in_d, color="#2196F3", linewidth=0.2)
     ax.set_ylabel("Voltage (V)")
-    ax.set_ylim(-0.1, 1.4)
-    ax.set_title("uo_out[0] \u2014 Raw PWM (1.2 V, ~19.6 kHz carrier)", fontsize=10)
+    ax.set_ylim(-0.1, 3.6)
+    ax.set_title("uo_out[0] \u2014 Raw PWM (3.3 V VDDIO, ~19.6 kHz carrier)", fontsize=10)
     ax.grid(True, alpha=0.3)
 
     # Panel 2: Filter stages

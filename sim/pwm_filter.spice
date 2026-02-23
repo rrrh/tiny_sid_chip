@@ -8,7 +8,7 @@
 *                     GND        GND
 *
 * R1=R2=3.3k, C1=C2=4.7nF, Cac=1uF
-* VDD = 1.2V (IHP sg13g2)
+* VDDIO = 3.3V (IHP sg13g2 I/O bank)
 
 .title SID PWM Output Filter Simulation
 
