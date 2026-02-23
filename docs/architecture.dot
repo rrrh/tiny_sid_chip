@@ -73,7 +73,7 @@ digraph architecture {
     subgraph cluster_pipeline {
         label=<
             <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
-                <TR><TD><B>Shared Voice Pipeline</B> (time-multiplexed, 3 voices @ 16.67 MHz each)</TD></TR>
+                <TR><TD><B>Shared Voice Pipeline</B> (time-multiplexed, 3 voices @ 1.667 MHz each)</TD></TR>
             </TABLE>
         >;
         style=rounded;
@@ -85,17 +85,7 @@ digraph architecture {
             label=<
                 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
                     <TR><TD BGCOLOR="#a9dfbf"><B>Voice Round-Robin</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">vidx: 0→1→2→0→…<BR/>@ 50 MHz</FONT></TD></TR>
-                </TABLE>
-            >,
-            shape=plain
-        ];
-
-        prescaler [
-            label=<
-                <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
-                    <TR><TD BGCOLOR="#a9dfbf"><B>Acc Prescaler</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">4-bit ÷16 counter<BR/>eff. rate = 1.042 MHz/voice<BR/>~15.9 Hz resolution</FONT></TD></TR>
+                    <TR><TD><FONT POINT-SIZE="8">vidx: 0→1→2→0→…<BR/>@ 5 MHz</FONT></TD></TR>
                 </TABLE>
             >,
             shape=plain
@@ -105,7 +95,7 @@ digraph architecture {
             label=<
                 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
                     <TR><TD BGCOLOR="#a9dfbf"><B>Phase Accumulator</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">16-bit per voice (×3)<BR/>acc += freq when prescaler==0</FONT></TD></TR>
+                    <TR><TD><FONT POINT-SIZE="8">16-bit per voice (×3)<BR/>acc += freq every cycle<BR/>~25.4 Hz resolution</FONT></TD></TR>
                 </TABLE>
             >,
             shape=plain
@@ -116,7 +106,7 @@ digraph architecture {
                 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
                     <TR><TD BGCOLOR="#a9dfbf" COLSPAN="2"><B>Waveform Generator</B></TD></TR>
                     <TR>
-                        <TD><FONT POINT-SIZE="8">Sawtooth: acc[15:8]<BR/>Triangle: acc[14:7] ^ fold<BR/>Pulse: acc[15:8] &gt; PW<BR/>Noise: shared 4-bit LFSR</FONT></TD>
+                        <TD><FONT POINT-SIZE="8">Sawtooth: acc[15:8]<BR/>Triangle: acc[14:7] ^ fold<BR/>Pulse: acc[15:8] &gt; PW<BR/>Noise: shared 8-bit LFSR</FONT></TD>
                         <TD><FONT POINT-SIZE="8">OR-combine<BR/>enabled<BR/>waveforms<BR/>→ 8-bit mux</FONT></TD>
                     </TR>
                 </TABLE>
@@ -165,7 +155,7 @@ digraph architecture {
         label=<
             <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
                 <TR><TD BGCOLOR="#f5cba7"><B>pwm_audio</B></TD></TR>
-                <TR><TD><FONT POINT-SIZE="8">8-bit PWM<BR/>period = 255 clocks<BR/>~196 kHz @ 50 MHz</FONT></TD></TR>
+                <TR><TD><FONT POINT-SIZE="8">8-bit PWM<BR/>period = 255 clocks<BR/>~19.6 kHz @ 5 MHz</FONT></TD></TR>
             </TABLE>
         >,
         shape=plain
@@ -197,16 +187,14 @@ digraph architecture {
 
     regs -> vidx [label="  freq, PW,\n  waveform,\n  atk/sus  ", lhead=cluster_pipeline];
 
-    vidx -> prescaler;
     vidx -> phase_acc;
-    prescaler -> phase_acc [label="  acc_update  "];
     phase_acc -> waveform [label="  cur_acc  "];
     waveform -> scale [label="  8-bit mux  "];
     adsr -> scale [label="  4-bit env  "];
     scale -> mixer [label="  voice_out\n  [11:0]  ", ltail=cluster_pipeline];
 
     mixer -> pwm [label="  mix_out\n  [7:0]  "];
-    pwm -> pwm_out [label="  1-bit PWM\n  @ ~196 kHz  "];
+    pwm -> pwm_out [label="  1-bit PWM\n  @ ~19.6 kHz  "];
 
     pwm_out -> rc_filter [style=dotted];
     rc_filter -> audio_out [style=dotted];
@@ -214,7 +202,7 @@ digraph architecture {
     // =====================================================================
     // Clock / reset
     // =====================================================================
-    clk_rst [label="clk (50 MHz)\nrst_n", shape=diamond, style=filled, fillcolor="#d7bde2"];
+    clk_rst [label="clk (5 MHz)\nrst_n", shape=diamond, style=filled, fillcolor="#d7bde2"];
     clk_rst -> we_edge   [style=dashed, color="#9b59b6", arrowhead=dot];
     clk_rst -> regs      [style=dashed, color="#9b59b6", arrowhead=dot];
     clk_rst -> vidx      [style=dashed, color="#9b59b6", arrowhead=dot];
