@@ -14,11 +14,11 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer implemented in a sing
 **Architecture:**
 
 - **Flat register interface** -- rising-edge-triggered writes via `ui_in[7]` (WE), `ui_in[4:3]` (voice select), `ui_in[2:0]` (register address), `uio_in[7:0]` (data). No SPI or I2C overhead.
-- **3-voice time-multiplexed pipeline** -- a single shared compute pipeline cycles through voices 0/1/2 every clock at 50 MHz (16.67 MHz per voice). A 4-bit accumulator prescaler divides the phase update rate by 16, giving ~15.9 Hz frequency resolution with 16-bit accumulators.
-- **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 4-bit LFSR), OR-combined per voice.
-- **ADSR envelope** -- 4-bit linear envelope per voice with shared 18-bit prescaler. 13 distinct rate settings from ~1.3 ms to ~3.4 s per full traverse.
+- **3-voice time-multiplexed pipeline** -- a single shared compute pipeline cycles through voices 0/1/2 every clock at 5 MHz (1.667 MHz per voice). 16-bit phase accumulators with no prescaler provide ~25.4 Hz frequency resolution.
+- **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 8-bit LFSR), OR-combined per voice.
+- **ADSR envelope** -- 4-bit linear envelope per voice with shared 18-bit prescaler. 13 distinct rate settings from ~205 us to ~839 ms per full traverse.
 - **3-voice mixer** -- accumulates the three 12-bit voice outputs (waveform x envelope) over 3 clock cycles and shifts right by 2 to produce an 8-bit mix.
-- **PWM audio** (`pwm_audio`) -- 8-bit PWM with a 255-clock period (~196 kHz at 50 MHz).
+- **PWM audio** (`pwm_audio`) -- 8-bit PWM with a 255-clock period (~19.6 kHz at 5 MHz).
 
 **Register map (per voice, selected by `ui_in[4:3]`):**
 
@@ -35,7 +35,7 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer implemented in a sing
 **Frequency formula:**
 
 ```
-freq_reg = round(desired_Hz * 65536 / 1041667)  ≈  desired_Hz * 0.06291
+freq_reg = round(desired_Hz * 65536 / 1666667)  ≈  desired_Hz * 0.03932
 ```
 
 Attack and sustain registers are shared across all voices (written by any voice select).
@@ -60,7 +60,7 @@ A second-order (two-stage) RC low-pass filter on `uo_out[0]` recovers the analog
 ```
 uo_out[0] ---[3.3k]---+---[3.3k]---+---[1uF]---> Audio Out
                        |            |
-                     [1nF]        [1nF]
+                    [4.7nF]      [4.7nF]
                        |            |
                       GND          GND
 ```
