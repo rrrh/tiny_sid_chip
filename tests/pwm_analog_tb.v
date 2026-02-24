@@ -31,12 +31,7 @@ module pwm_analog_tb;
         .ena(ena), .clk(clk), .rst_n(rst_n)
     );
 
-    wire pwm_raw      = uo_out[0];  // unfiltered PWM (mix_out)
-    wire pwm_filtered  = uo_out[1];  // digitally filtered PWM
-
-    // Pin selector: 0 = pwm_raw (uo_out[0]), 1 = pwm_filtered (uo_out[1])
-    reg  capture_sel;
-    wire pwm_capture = capture_sel ? pwm_filtered : pwm_raw;
+    wire pwm_capture = uo_out[0];  // single PWM output (filter in signal path)
 
     // Register addresses (same as gen_wav_tb.v)
     localparam [2:0] REG_FREQ_LO  = 3'd0,
@@ -146,8 +141,6 @@ module pwm_analog_tb;
         input [255:0] filename;
         begin
             do_reset;
-            capture_sel = 0;  // select uo_out[0]
-
             // Configure voice 0
             sid_write(REG_FREQ_LO, freq_lo, 2'd0);
             sid_write(REG_FREQ_HI, freq_hi_val, 2'd0);
@@ -174,15 +167,13 @@ module pwm_analog_tb;
     endtask
 
     //==========================================================================
-    // Setup voice 0 saw 440 Hz + filter, capture uo_out[1] as PWL
+    // Setup voice 0 saw 440 Hz + filter, capture uo_out[0] as PWL
     //==========================================================================
     task capture_filter_pwl;
         input [7:0] mode_vol_val;
         input [255:0] filename;
         begin
             do_reset;
-            capture_sel = 1;  // select uo_out[1]
-
             // Voice 0: 440 Hz sawtooth
             sid_write(REG_FREQ_LO, 8'h24, 2'd0);
             sid_write(REG_FREQ_HI, 8'h00, 2'd0);
@@ -212,8 +203,6 @@ module pwm_analog_tb;
         rst_n = 0;
         ui_in = 0;
         uio_in = 0;
-        capture_sel = 0;
-
         // --- 9 waveform captures: saw/tri/pulse x 220/440/880 Hz ---
         $display("Generating: saw_220.pwl");
         capture_waveform_pwl(8'h12, 8'h00, 8'h21, "tests/saw_220.pwl");
