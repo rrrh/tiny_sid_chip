@@ -7,8 +7,8 @@
 // mixing, volume scaling) but replaces the filter math with SVF_8bit.
 //
 // Coefficient mapping:
-//   alpha1 (frequency) = fc[10:6] — 5-bit, shift-add /32
-//   alpha2 (damping)   = 15 - res — 4-bit, shift-add /8 (exact)
+//   alpha1 (frequency) = fc[10:8] — 3-bit, shift-add /8
+//   alpha2 (damping)   = (15 - res) >> 2 — 2-bit, shift-add /4
 //==============================================================================
 module filter (
     input  wire        clk,
@@ -30,11 +30,11 @@ module filter (
     wire signed [7:0] s_in = sample_in - 8'd128;
 
     // --- Coefficient mapping ---
-    // alpha1: fc[10:6] — 5-bit frequency coefficient (shift-add /32)
-    wire [4:0] alpha1 = fc[10:6];
+    // alpha1: fc[10:8] — 3-bit frequency coefficient (shift-add /8)
+    wire [2:0] alpha1 = fc[10:8];
 
-    // alpha2: q_damp = 15 - res — 4-bit damping (shift-add /8, exact)
-    wire [3:0] alpha2 = 4'd15 - res;
+    // alpha2: (15 - res) >> 2 — 2-bit damping (shift-add /4)
+    wire [1:0] alpha2 = (4'd15 - res) >> 2;
 
     // --- SVF_8bit core ---
     wire signed [7:0] hp_out, bp_out, lp_out;
@@ -51,18 +51,10 @@ module filter (
         .alpha2       (alpha2)
     );
 
-    // --- Mode output: sum selected filter outputs (SID-compatible) ---
-    wire signed [7:0] mode_lp = mode[0] ? lp_out : 8'sd0;
-    wire signed [7:0] mode_bp = mode[1] ? bp_out : 8'sd0;
-    wire signed [7:0] mode_hp = mode[2] ? hp_out : 8'sd0;
-
-    wire signed [9:0] mode_sum = {mode_lp[7], mode_lp[7], mode_lp} +
-                                  {mode_bp[7], mode_bp[7], mode_bp} +
-                                  {mode_hp[7], mode_hp[7], mode_hp};
-    // Saturate to 8-bit signed
-    wire signed [7:0] mode_out = (mode_sum > 10'sd127)  ? 8'sd127 :
-                                  (mode_sum < -10'sd128) ? -8'sd128 :
-                                  mode_sum[7:0];
+    // --- Mode output: priority mux (HP > BP > LP) ---
+    wire signed [7:0] mode_out = mode[2] ? hp_out :
+                                  mode[1] ? bp_out :
+                                  mode[0] ? lp_out : 8'sd0;
 
     // --- Select filtered or bypass ---
     // Bypass: pass sample_in unchanged (unattenuated, no volume scaling)
@@ -78,6 +70,6 @@ module filter (
 
     assign sample_out = bypass ? sample_in : scaled;
 
-    wire _unused = &{filt[3], mode[3], 1'b0};
+    wire _unused = &{filt[3], mode[3], fc[7:0], res, 1'b0};
 
 endmodule
