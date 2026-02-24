@@ -1,0 +1,52 @@
+* PWM Audio Recovery Filter — ngspice simulation
+* Third-order RC low-pass + DC blocking cap
+*
+* uo_out[0] ---[R1]---+---[R2]---+---[R3]---+---[Cac]---> Audio Out
+*                      |          |          |
+*                     [C1]       [C2]       [C3]
+*                      |          |          |
+*                     GND        GND        GND
+*
+* R1=R2=R3=3.3k, C1=C2=C3=4.7nF, Cac=1uF
+* Per-stage fc = 10.3 kHz, 3rd-order rolloff = -60 dB/decade
+* VDDIO = 3.3V (IHP sg13g2 I/O bank)
+*
+* Usage: Place a .pwl file in the same directory, then:
+*   ngspice pwm_filter.spice
+
+.title SID PWM Output Filter Simulation (3rd-order)
+
+* PWM source from Verilog simulation
+Vpwm pwm_in 0 PWL file=saw_440.pwl
+
+* First RC stage
+R1 pwm_in mid1 3.3k
+C1 mid1 0 4.7n
+
+* Second RC stage
+R2 mid1 mid2 3.3k
+C2 mid2 0 4.7n
+
+* Third RC stage
+R3 mid2 mid3 3.3k
+C3 mid3 0 4.7n
+
+* DC blocking capacitor + load resistor
+Cac mid3 audio_out 1u
+Rload audio_out 0 10k
+
+* Transient analysis
+.tran 100n 125000u
+
+* Save node voltages
+.save v(pwm_in) v(mid1) v(mid2) v(mid3) v(audio_out)
+
+* Write raw data for post-processing
+.control
+run
+set filetype=ascii
+write pwm_filter.raw v(pwm_in) v(mid1) v(mid2) v(mid3) v(audio_out)
+quit
+.endc
+
+.end

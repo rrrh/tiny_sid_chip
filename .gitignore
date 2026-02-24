@@ -20,4 +20,5 @@ tests/unit_tb
 # Simulation outputs (regenerable)
 tests/*.raw
 tests/*.wav
+tests/*.pwl
 tests/*.png
