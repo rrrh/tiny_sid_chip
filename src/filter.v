@@ -65,10 +65,9 @@ module filter (
                                   mode_sum[7:0];
 
     // --- Select filtered or bypass ---
-    wire signed [7:0] pre_vol = bypass ? s_in : mode_out;
-
-    // --- Convert to unsigned, then scale by volume ---
-    // Unsigned first so vol=0 → output 0 (true silence), matching real SID DAC.
+    // Bypass: pass sample_in unchanged (unattenuated, no volume scaling)
+    // Active: apply volume scaling to filtered output
+    wire signed [7:0] pre_vol = mode_out;
     wire [7:0] pre_u = pre_vol ^ 8'sh80;
 
     // Volume scaling: pre_u * vol / 16 (shift-add on unsigned, exact)
@@ -77,7 +76,7 @@ module filter (
                          (vol[1] ? {3'b0, pre_u[7:3]} : 8'd0) +
                          (vol[0] ? {4'b0, pre_u[7:4]} : 8'd0);
 
-    assign sample_out = scaled;
+    assign sample_out = bypass ? sample_in : scaled;
 
     wire _unused = &{filt[3], mode[3], 1'b0};
 

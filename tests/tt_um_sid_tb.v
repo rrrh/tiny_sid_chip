@@ -20,7 +20,6 @@ module tt_um_sid_tb;
     );
 
     wire pdm_out = uo_out[0];
-    wire pdm_filt = uo_out[1];
 
     // PDM-to-PCM decimation
     localparam DECIM_SHIFT = 10;
@@ -92,18 +91,7 @@ module tt_um_sid_tb;
         end
     endtask
 
-    task count_pdm_filt;
-        input integer window; output integer count;
-        reg last; integer i;
-        begin
-            count = 0; last = pdm_filt;
-            for (i = 0; i < window; i = i + 1) begin
-                @(posedge clk);
-                if (pdm_filt && !last) count = count + 1;
-                last = pdm_filt;
-            end
-        end
-    endtask
+    // Filter output now shares main PWM pin — use count_pdm for all tests
 
     integer cnt1, cnt2;
 
@@ -291,7 +279,7 @@ module tt_um_sid_tb;
         sid_write(REG_RES_FILT, 8'h00, VOICE_FILT);  // res=0, filt=0 → bypass
         sid_write(REG_MODE_VOL, 8'h1F, VOICE_FILT);   // LP mode, vol=15
         repeat (300_000) @(posedge clk);
-        count_pdm_filt(50_000, cnt1);
+        count_pdm(50_000, cnt1);
         test_num = test_num + 1;
         if (cnt1 > 5) begin $display("TEST %0d PASS: filter bypass pdm_filt=%0d", test_num, cnt1); pass_count = pass_count + 1; end
         else begin $display("TEST %0d FAIL: filter bypass pdm_filt=%0d", test_num, cnt1); fail_count = fail_count + 1; end
@@ -306,7 +294,7 @@ module tt_um_sid_tb;
         sid_write(REG_RES_FILT, 8'h01, VOICE_FILT);    // res=0, filt_en=V0
         sid_write(REG_MODE_VOL, 8'h1F, VOICE_FILT);    // LP mode, vol=15
         repeat (300_000) @(posedge clk);
-        count_pdm_filt(50_000, cnt2);
+        count_pdm(50_000, cnt2);
         test_num = test_num + 1;
         // LP with low cutoff should produce different (fewer) transitions than bypass
         $display("  bypass=%0d, LP=%0d", cnt1, cnt2);
@@ -319,7 +307,7 @@ module tt_um_sid_tb;
         $display("\n===== 13. Volume = 0 =====");
         sid_write(REG_MODE_VOL, 8'h10, VOICE_FILT);    // LP mode, vol=0
         repeat (300_000) @(posedge clk);
-        count_pdm_filt(50_000, cnt1);
+        count_pdm(50_000, cnt1);
         test_num = test_num + 1;
         // vol=0 → constant 128 output → steady ~196 PWM transitions (50% duty)
         // LP at vol=15 gave cnt2 transitions; vol=0 should differ (DC midpoint vs filtered)
@@ -335,7 +323,7 @@ module tt_um_sid_tb;
         sid_write(REG_RES_FILT, 8'h01, VOICE_FILT);    // res=0, filt_en=V0
         sid_write(REG_MODE_VOL, 8'h4F, VOICE_FILT);    // HP mode, vol=15
         repeat (300_000) @(posedge clk);
-        count_pdm_filt(50_000, cnt1);
+        count_pdm(50_000, cnt1);
         test_num = test_num + 1;
         if (cnt1 > 0) begin $display("TEST %0d PASS: HP filter pdm_filt=%0d", test_num, cnt1); pass_count = pass_count + 1; end
         else begin $display("TEST %0d FAIL: HP filter pdm_filt=%0d", test_num, cnt1); fail_count = fail_count + 1; end
@@ -346,7 +334,7 @@ module tt_um_sid_tb;
         $display("\n===== 15. BP filter =====");
         sid_write(REG_MODE_VOL, 8'h2F, VOICE_FILT);    // BP mode, vol=15
         repeat (300_000) @(posedge clk);
-        count_pdm_filt(50_000, cnt1);
+        count_pdm(50_000, cnt1);
         test_num = test_num + 1;
         if (cnt1 > 0) begin $display("TEST %0d PASS: BP filter pdm_filt=%0d", test_num, cnt1); pass_count = pass_count + 1; end
         else begin $display("TEST %0d FAIL: BP filter pdm_filt=%0d", test_num, cnt1); fail_count = fail_count + 1; end

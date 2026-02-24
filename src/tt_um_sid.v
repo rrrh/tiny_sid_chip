@@ -100,6 +100,7 @@ module tt_um_sid (
     reg [7:0]  freq_hi     [0:2];
     reg [7:0]  waveform    [0:2];
     reg [7:0]  pw_reg      [0:2];
+    reg [3:0]  pw_hi       [0:2];
     reg [7:0]  attack_reg  [0:2];
     reg [7:0]  sustain_reg [0:2];
 
@@ -130,6 +131,7 @@ module tt_um_sid (
             freq_hi[0] <= 8'd0; freq_hi[1] <= 8'd0; freq_hi[2] <= 8'd0;
             waveform[0] <= 8'd0; waveform[1] <= 8'd0; waveform[2] <= 8'd0;
             pw_reg[0] <= 8'd0; pw_reg[1] <= 8'd0; pw_reg[2] <= 8'd0;
+            pw_hi[0] <= 4'd0; pw_hi[1] <= 4'd0; pw_hi[2] <= 4'd0;
             attack_reg[0] <= 8'd0; attack_reg[1] <= 8'd0; attack_reg[2] <= 8'd0;
             sustain_reg[0] <= 8'd0; sustain_reg[1] <= 8'd0; sustain_reg[2] <= 8'd0;
             fc_lo <= 8'd0;
@@ -144,7 +146,7 @@ module tt_um_sid (
                       else                   fc_hi                  <= wr_data;
                 3'd2: if (voice_sel <= 2'd2) pw_reg[voice_sel]      <= wr_data;
                       else                   res_filt               <= wr_data;
-                3'd3: if (voice_sel <= 2'd2) ;
+                3'd3: if (voice_sel <= 2'd2) pw_hi[voice_sel]       <= wr_data[3:0];
                       else                   mode_vol               <= wr_data;
                 3'd4: if (voice_sel <= 2'd2) attack_reg[voice_sel]  <= wr_data;
                 3'd5: if (voice_sel <= 2'd2) sustain_reg[voice_sel] <= wr_data;
@@ -160,7 +162,7 @@ module tt_um_sid (
     reg [15:0] p_acc;
     reg [15:0] p_freq;
     reg [7:0]  p_waveform;
-    reg [7:0]  p_pw;
+    reg [11:0] p_pw;
     reg [7:0]  p_env;
     reg [1:0]  p_ast;
     reg        p_gate_latch;
@@ -187,7 +189,7 @@ module tt_um_sid (
             p_acc        <= 16'd0;
             p_freq       <= 16'd0;
             p_waveform   <= 8'd0;
-            p_pw         <= 8'd0;
+            p_pw         <= 12'd0;
             p_env        <= 8'd0;
             p_ast        <= 2'd0;
             p_gate_latch <= 1'b0;
@@ -199,7 +201,7 @@ module tt_um_sid (
             p_acc        <= acc[load_voice];
             p_freq       <= {freq_hi[load_voice], freq[load_voice]};
             p_waveform   <= waveform[load_voice];
-            p_pw         <= pw_reg[load_voice];
+            p_pw         <= {pw_hi[load_voice], pw_reg[load_voice]};
             p_env        <= env[load_voice];
             p_ast        <= ast[load_voice];
             p_gate_latch <= gate_latch[load_voice];
@@ -234,11 +236,16 @@ module tt_um_sid (
         input [3:0] rate;
         input [13:0] pre;
         begin
-            case (rate[3:2])
-                2'd0: env_tick_fn = &pre[3:1];
-                2'd1: env_tick_fn = &pre[6:1];
-                2'd2: env_tick_fn = &pre[9:1];
-                2'd3: env_tick_fn = &pre[13:1];
+            case (rate)
+                4'd0:    env_tick_fn = &pre[2:1];
+                4'd1:    env_tick_fn = &pre[3:1];
+                4'd2:    env_tick_fn = &pre[4:1];
+                4'd3:    env_tick_fn = &pre[5:1];
+                4'd4:    env_tick_fn = &pre[6:1];
+                4'd5:    env_tick_fn = &pre[7:1];
+                4'd6:    env_tick_fn = &pre[8:1];
+                4'd7:    env_tick_fn = &pre[9:1];
+                default: env_tick_fn = &pre[13:1];
             endcase
         end
     endfunction
@@ -251,10 +258,19 @@ module tt_um_sid (
         input [3:0] rate;
         reg [4:0] sum;
         begin
-            if (e >= 8'd54)
+            if (e >= 8'd93)
                 expo_adj = rate;
-            else begin
+            else if (e >= 8'd54) begin
+                sum = {1'b0, rate} + 5'd1;
+                expo_adj = (sum > 5'd15) ? 4'd15 : sum[3:0];
+            end else if (e >= 8'd26) begin
+                sum = {1'b0, rate} + 5'd2;
+                expo_adj = (sum > 5'd15) ? 4'd15 : sum[3:0];
+            end else if (e >= 8'd14) begin
                 sum = {1'b0, rate} + 5'd3;
+                expo_adj = (sum > 5'd15) ? 4'd15 : sum[3:0];
+            end else begin
+                sum = {1'b0, rate} + 5'd4;
                 expo_adj = (sum > 5'd15) ? 4'd15 : sum[3:0];
             end
         end
@@ -301,7 +317,7 @@ module tt_um_sid (
     wire ring_msb = p_waveform[2] ? (nxt_acc[15] ^ other_msb) : nxt_acc[15];
     wire [7:0] tri_out = {nxt_acc[14:8] ^ {7{ring_msb}}, 1'b0};
 
-    wire pulse_cmp = nxt_acc[15:8] >= p_pw;
+    wire pulse_cmp = nxt_acc[15:4] >= p_pw;
 
     reg [7:0] wave_out;
     always @(*) begin
@@ -377,12 +393,9 @@ module tt_um_sid (
         endcase
     end
 
-    // --- Volume: shift-add using top 5 env bits (32 levels) ---
-    wire [7:0] voice_out = (nxt_env[7] ? {1'b0, wave_out[7:1]} : 8'd0) +
-                            (nxt_env[6] ? {2'b0, wave_out[7:2]} : 8'd0) +
-                            (nxt_env[5] ? {3'b0, wave_out[7:3]} : 8'd0) +
-                            (nxt_env[4] ? {4'b0, wave_out[7:4]} : 8'd0) +
-                            (nxt_env[3] ? {5'b0, wave_out[7:5]} : 8'd0);
+    // --- Multiply: 8×8 = 16-bit, take upper 8 bits ---
+    wire [15:0] voice_product = wave_out * nxt_env;
+    wire [7:0]  voice_out = voice_product[15:8];
 
     //==========================================================================
     // State update on voice slots
@@ -445,22 +458,9 @@ module tt_um_sid (
         else        sample_valid <= clk_en_4m && (slot == 3'd3);
 
     //==========================================================================
-    // PWM Audio Output (8-bit, ~47.1 kHz at 12 MHz)
-    //==========================================================================
-    wire pwm_out;
-
-    pwm_audio u_pwm (
-        .clk    (clk),
-        .rst_n  (rst_n),
-        .sample (mix_out),
-        .pwm    (pwm_out)
-    );
-
-    //==========================================================================
-    // Filtered PWM Output
+    // Filter (passthrough by default — bypass when filt=0 or mode=0)
     //==========================================================================
     wire [7:0] filtered_out;
-    wire       pwm_filtered;
 
     filter u_filter (
         .clk          (clk),
@@ -475,17 +475,22 @@ module tt_um_sid (
         .sample_out   (filtered_out)
     );
 
-    pwm_audio u_pwm_filtered (
+    //==========================================================================
+    // PWM Audio Output (8-bit, ~47.1 kHz at 12 MHz)
+    //==========================================================================
+    wire pwm_out;
+
+    pwm_audio u_pwm (
         .clk    (clk),
         .rst_n  (rst_n),
         .sample (filtered_out),
-        .pwm    (pwm_filtered)
+        .pwm    (pwm_out)
     );
 
     //==========================================================================
     // Output Pin Mapping
     //==========================================================================
-    assign uo_out  = {6'b0, pwm_filtered, pwm_out};
+    assign uo_out  = {7'b0, pwm_out};
     assign uio_out = 8'b0;
     assign uio_oe  = 8'b0;
 
