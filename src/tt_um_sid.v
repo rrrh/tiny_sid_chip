@@ -196,7 +196,7 @@ module tt_um_sid (
             p_attack     <= 8'd0;
             p_sustain    <= 8'd0;
             p_prev_msb_d <= 1'b0;
-        end else if (load_en) begin
+        end else if (clk_en_4m && load_en) begin
             p_acc        <= acc[load_voice];
             p_freq       <= {freq_hi[load_voice], freq[load_voice]};
             p_waveform   <= waveform[load_voice];

@@ -66,8 +66,8 @@ async def count_pwm(dut, cycles):
 
 
 async def setup_and_reset(dut):
-    """Common setup: start 5 MHz clock and reset."""
-    clock = Clock(dut.clk, 200, unit="ns")
+    """Common setup: start 12 MHz clock and reset."""
+    clock = Clock(dut.clk, 84, unit="ns")
     cocotb.start_soon(clock.start())
     dut.ena.value = 1
     dut.ui_in.value = 0
@@ -81,7 +81,7 @@ async def setup_and_reset(dut):
 @cocotb.test()
 async def test_reset(dut):
     """Test that reset clears outputs."""
-    clock = Clock(dut.clk, 200, unit="ns")
+    clock = Clock(dut.clk, 84, unit="ns")
     cocotb.start_soon(clock.start())
     dut.ena.value = 1
     dut.ui_in.value = 0

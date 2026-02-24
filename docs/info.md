@@ -9,7 +9,7 @@ You can also include images in this folder and reference them in the markdown. E
 
 ## How it works
 
-This is a triple-voice SID (MOS 6581-inspired) synthesizer implemented in a single Verilog module. It runs at 12 MHz with a ÷3 clock enable producing a 4 MHz voice pipeline (800 kHz effective per voice). A host microcontroller writes per-voice registers through a flat memory-mapped parallel interface and the chip produces an 8-bit PWM audio output on `uo_out[0]`.
+This is a triple-voice SID (MOS 6581-inspired) synthesizer with a 12-bit Q8.4 State Variable Filter (SVF). It runs at 12 MHz with a ÷3 clock enable producing a 4 MHz voice pipeline (800 kHz effective per voice). A host microcontroller writes per-voice registers through a flat memory-mapped parallel interface and the chip produces 8-bit PWM audio outputs on `uo_out[0]` (unfiltered) and `uo_out[1]` (filtered).
 
 **Architecture:**
 
@@ -18,9 +18,10 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer implemented in a sing
 - **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 15-bit LFSR), AND-combined when multiple waveforms are selected. Sync and ring modulation are fully implemented with circular cross-voice connections (V0←V2, V1←V0, V2←V1).
 - **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, 14-bit shared prescaler (clocked at 4 MHz), exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 9 distinct rate settings from ~256 µs to ~524 ms per full traverse.
 - **3-voice mixer** -- accumulates the three 8-bit voice outputs (8×8 waveform×envelope product, upper byte) into a 10-bit accumulator and divides by 4 to produce an 8-bit mix.
-- **PWM audio** (`pwm_audio`) -- 8-bit PWM with a 255-clock period (~47.1 kHz at 12 MHz).
+- **State Variable Filter** (`filter` + `SVF_8bit`) -- 12-bit Q8.4 Chamberlin SVF with LP/BP/HP modes. Shift-add multiplies (no hardware multiplier). SID-compatible interface: 11-bit cutoff frequency, 4-bit resonance, per-voice filter routing, mode selection, and 4-bit master volume. ~1,567 cells.
+- **PWM audio** (`pwm_audio`) -- two instances: unfiltered mix on `uo_out[0]`, filtered output on `uo_out[1]`. 8-bit PWM with a 255-clock period (~47.1 kHz at 12 MHz).
 
-**Register map (all per-voice, selected by `ui_in[4:3]`):**
+**Register map (voice_sel 0-2: per-voice, voice_sel 3: filter, selected by `ui_in[4:3]`):**
 
 | Addr | Register | Description |
 |------|----------|-------------|
@@ -31,6 +32,15 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer implemented in a sing
 | 4 | attack | attack_rate[3:0] / decay_rate[7:4] (per voice) |
 | 5 | sustain | sustain_level[3:0] / release_rate[7:4] (per voice) |
 | 6 | waveform | {noise, pulse, saw, tri, test, ring, sync, gate} |
+
+**Filter registers (voice_sel = 3):**
+
+| Addr | Register | Description |
+|------|----------|-------------|
+| 0 | fc_lo | Filter cutoff low byte (bits [2:0] used) |
+| 1 | fc_hi | Filter cutoff high byte [7:0] |
+| 2 | res_filt | [7:4] resonance, [3:0] filter voice enable |
+| 3 | mode_vol | [7:4] mode (V3OFF/HP/BP/LP), [3:0] master volume |
 
 **Frequency formula:**
 

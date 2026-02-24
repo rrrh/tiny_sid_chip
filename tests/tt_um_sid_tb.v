@@ -1,13 +1,13 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// Testbench for tt_um_sid (5 MHz, 3-voice Time-Multiplexed SID)
+// Testbench for tt_um_sid (12 MHz, 3-voice Time-Multiplexed SID)
 //==============================================================================
 
 module tt_um_sid_tb;
 
     reg clk;
     initial clk = 0;
-    always #100 clk = ~clk;  // 5 MHz (200 ns period)
+    always #42 clk = ~clk;  // ~12 MHz (84 ns period)
 
     reg        rst_n, ena;
     reg  [7:0] ui_in, uio_in;
@@ -69,10 +69,13 @@ module tt_um_sid_tb;
     task sid_write;
         input [2:0] addr; input [7:0] data; input [1:0] voice;
         begin
-            ui_in[2:0] <= addr; ui_in[4:3] <= voice; uio_in <= data;
+            ui_in  = {1'b0, 2'b0, voice, addr};
+            uio_in = data;
             @(posedge clk);
-            ui_in[7] <= 1'b1; @(posedge clk);
-            ui_in[7] <= 1'b0; @(posedge clk);
+            ui_in  = {1'b1, 2'b0, voice, addr};
+            @(posedge clk);
+            ui_in  = {1'b0, 2'b0, voice, addr};
+            @(posedge clk);
         end
     endtask
 

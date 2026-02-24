@@ -12,11 +12,12 @@ test/__pycache__/
 test/results.xml
 test/gate_level_netlist.v
 
-# Vivado build artifacts
-vivado/tt_um_sid/
-vivado.jou
-vivado.log
-vivado_pid*.str
+# Compiled simulation binaries
+tests/gen_wav
+tests/unit_tb
+*.vvp
 
-# Compiled testbench binary
-tt_um_sid_tb
+# Simulation outputs (regenerable)
+tests/*.raw
+tests/*.wav
+tests/*.png
