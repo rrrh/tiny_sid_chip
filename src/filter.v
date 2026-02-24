@@ -68,7 +68,7 @@ module filter (
 
     // --- Convert to unsigned, then scale by volume ---
     // Unsigned first so vol=0 → output 0 (true silence), matching real SID DAC.
-    wire [7:0] pre_u = pre_vol + 8'd128;
+    wire [7:0] pre_u = pre_vol ^ 8'sh80;
 
     // Volume scaling: pre_u * vol / 16 (shift-add on unsigned, exact)
     wire [7:0] scaled = (vol[3] ? {1'b0, pre_u[7:1]} : 8'd0) +
