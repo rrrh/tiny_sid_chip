@@ -18,6 +18,7 @@ project:
   source_files:
     - "tt_um_sid.v"
     - "pwm_audio.v"
+    - "filter.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 pinout:
@@ -33,7 +34,7 @@ pinout:
 
   # Outputs
   uo[0]: "pwm_out"
-  uo[1]: ""
+  uo[1]: "pwm_filtered_out"
   uo[2]: ""
   uo[3]: ""
   uo[4]: ""

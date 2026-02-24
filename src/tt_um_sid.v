@@ -434,9 +434,29 @@ module tt_um_sid (
     );
 
     //==========================================================================
+    // Filtered PWM Output
+    //==========================================================================
+    wire [7:0] filtered_out;
+    wire       pwm_filtered;
+
+    filter u_filter (
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .sample_in  (mix_out),
+        .sample_out (filtered_out)
+    );
+
+    pwm_audio u_pwm_filtered (
+        .clk    (clk),
+        .rst_n  (rst_n),
+        .sample (filtered_out),
+        .pwm    (pwm_filtered)
+    );
+
+    //==========================================================================
     // Output Pin Mapping
     //==========================================================================
-    assign uo_out  = {7'b0, pwm_out};
+    assign uo_out  = {6'b0, pwm_filtered, pwm_out};
     assign uio_out = 8'b0;
     assign uio_oe  = 8'b0;
 
