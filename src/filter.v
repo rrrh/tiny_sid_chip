@@ -7,7 +7,7 @@
 // mixing, volume scaling) but replaces the filter math with SVF_8bit.
 //
 // Coefficient mapping:
-//   alpha1 (frequency) = fc[10:4] — 7-bit, shift-add /128
+//   alpha1 (frequency) = fc[10:6] — 5-bit, shift-add /32
 //   alpha2 (damping)   = 15 - res — 4-bit, shift-add /8 (exact)
 //==============================================================================
 module filter (
@@ -30,8 +30,8 @@ module filter (
     wire signed [7:0] s_in = sample_in - 8'd128;
 
     // --- Coefficient mapping ---
-    // alpha1: fc[10:4] — 7-bit frequency coefficient (shift-add /128)
-    wire [6:0] alpha1 = fc[10:4];
+    // alpha1: fc[10:6] — 5-bit frequency coefficient (shift-add /32)
+    wire [4:0] alpha1 = fc[10:6];
 
     // alpha2: q_damp = 15 - res — 4-bit damping (shift-add /8, exact)
     wire [3:0] alpha2 = 4'd15 - res;
