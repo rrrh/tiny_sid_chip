@@ -1,3 +1,4 @@
+/* verilator lint_off UNUSEDSIGNAL */
 `timescale 1ns / 1ps
 //==============================================================================
 // TT10 Wrapper — Time-Multiplexed SID Voice Synthesizer (12 MHz, 3 voices)

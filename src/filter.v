@@ -1,3 +1,4 @@
+/* verilator lint_off UNUSEDSIGNAL */
 `timescale 1ns / 1ps
 //==============================================================================
 // SID Filter Wrapper — delegates to SVF_8bit core
