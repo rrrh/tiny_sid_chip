@@ -1,18 +1,18 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// TT10 Wrapper — Time-Multiplexed SID Voice Synthesizer (5 MHz, 3 voices)
+// TT10 Wrapper — Time-Multiplexed SID Voice Synthesizer (12 MHz, 3 voices)
 //==============================================================================
-// 5 MHz time-multiplexed architecture with pipelined voice datapath.
+// 12 MHz system clock, 4 MHz voice pipeline (÷3 clock enable).
 // Pipeline register stage between voice mux read and combinatorial datapath
 // eliminates most hold violations (~200 buffers → ~10-30).
 //
-// Slot scheduling (mod-5 counter):
+// Slot scheduling (mod-5 counter, gated by clk_en_4m):
 //   Slot 3: Latch mix output, Load Voice 0 → p_regs
 //   Slot 4: Idle (p_regs hold Voice 0)
 //   Slot 0: Compute Voice 0, Load Voice 1 → p_regs
 //   Slot 1: Compute Voice 1, Load Voice 2 → p_regs
 //   Slot 2: Compute Voice 2 (no load needed)
-// Each voice accumulator updates once per 5-clock frame → 1 MHz effective.
+// Each voice accumulator updates once per 5-clock frame → 800 kHz effective.
 //
 // Yannes-aligned enhancements:
 //   1. 8-bit envelope (256 levels, 48 dB dynamic range)
@@ -25,10 +25,10 @@
 //   8. Test bit (zeros accumulator)
 //
 // Register Map:
-//   0: freq     — frequency[7:0]         (per voice)
-//   1: (reserved)
-//   2: pw       — pulse width[7:0]       (per voice)
-//   3: (reserved)
+//   0: freq_lo  — frequency[7:0]         (per voice)
+//   1: freq_hi  — frequency[15:8]        (per voice)
+//   2: pw_lo    — pulse width[7:0]       (per voice)
+//   3: pw_hi    — pulse width[11:8]      (per voice, bits [3:0] only)
 //   4: attack   — attack[3:0]/decay[7:4] (per voice)
 //   5: sustain  — sustain[3:0]/rel[7:4]  (per voice)
 //   6: waveform — SID-compatible layout   (per voice)
@@ -58,6 +58,15 @@ module tt_um_sid (
     wire [7:0] wr_data   = uio_in;
 
     //==========================================================================
+    // Clock divider: 12 MHz → 4 MHz clock enable (÷3)
+    //==========================================================================
+    reg [1:0] clk_div;
+    wire clk_en_4m = (clk_div == 2'd2);
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n) clk_div <= 2'd0;
+        else        clk_div <= (clk_div == 2'd2) ? 2'd0 : clk_div + 2'd1;
+
+    //==========================================================================
     // Write enable edge detection
     //==========================================================================
     reg wr_en_d;
@@ -72,7 +81,7 @@ module tt_um_sid (
     reg [2:0] slot;
     always @(posedge clk or negedge rst_n)
         if (!rst_n) slot <= 3'd0;
-        else        slot <= (slot == 3'd4) ? 3'd0 : slot + 3'd1;
+        else if (clk_en_4m) slot <= (slot == 3'd4) ? 3'd0 : slot + 3'd1;
 
     wire voice_active = (slot <= 3'd2);
     wire [1:0] voice_idx = slot[1:0];
@@ -81,8 +90,10 @@ module tt_um_sid (
     // Per-voice register file (3 voices)
     //==========================================================================
     reg [7:0]  freq        [0:2];
+    reg [7:0]  freq_hi     [0:2];
     reg [7:0]  waveform    [0:2];
     reg [7:0]  pw_reg      [0:2];
+    reg [3:0]  pw_hi       [0:2];
     reg [7:0]  attack_reg  [0:2];
     reg [7:0]  sustain_reg [0:2];
 
@@ -97,14 +108,18 @@ module tt_um_sid (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             freq[0] <= 8'd0; freq[1] <= 8'd0; freq[2] <= 8'd0;
+            freq_hi[0] <= 8'd0; freq_hi[1] <= 8'd0; freq_hi[2] <= 8'd0;
             waveform[0] <= 8'd0; waveform[1] <= 8'd0; waveform[2] <= 8'd0;
             pw_reg[0] <= 8'd0; pw_reg[1] <= 8'd0; pw_reg[2] <= 8'd0;
+            pw_hi[0] <= 4'd0; pw_hi[1] <= 4'd0; pw_hi[2] <= 4'd0;
             attack_reg[0] <= 8'd0; attack_reg[1] <= 8'd0; attack_reg[2] <= 8'd0;
             sustain_reg[0] <= 8'd0; sustain_reg[1] <= 8'd0; sustain_reg[2] <= 8'd0;
         end else if (wr_en_rise) begin
             case (reg_addr)
                 3'd0: if (voice_sel <= 2'd2) freq[voice_sel]        <= wr_data;
+                3'd1: if (voice_sel <= 2'd2) freq_hi[voice_sel]     <= wr_data;
                 3'd2: if (voice_sel <= 2'd2) pw_reg[voice_sel]      <= wr_data;
+                3'd3: if (voice_sel <= 2'd2) pw_hi[voice_sel]       <= wr_data[3:0];
                 3'd4: if (voice_sel <= 2'd2) attack_reg[voice_sel]  <= wr_data;
                 3'd5: if (voice_sel <= 2'd2) sustain_reg[voice_sel] <= wr_data;
                 3'd6: if (voice_sel <= 2'd2) waveform[voice_sel]    <= wr_data;
@@ -114,12 +129,12 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Pipeline registers (~69 FFs)
+    // Pipeline registers (~81 FFs, loaded at 4 MHz rate)
     //==========================================================================
     reg [15:0] p_acc;
-    reg [7:0]  p_freq;
+    reg [15:0] p_freq;
     reg [7:0]  p_waveform;
-    reg [7:0]  p_pw;
+    reg [11:0] p_pw;
     reg [7:0]  p_env;
     reg [1:0]  p_ast;
     reg        p_gate_latch;
@@ -144,9 +159,9 @@ module tt_um_sid (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             p_acc        <= 16'd0;
-            p_freq       <= 8'd0;
+            p_freq       <= 16'd0;
             p_waveform   <= 8'd0;
-            p_pw         <= 8'd0;
+            p_pw         <= 12'd0;
             p_env        <= 8'd0;
             p_ast        <= 2'd0;
             p_gate_latch <= 1'b0;
@@ -154,11 +169,11 @@ module tt_um_sid (
             p_attack     <= 8'd0;
             p_sustain    <= 8'd0;
             p_prev_msb_d <= 1'b0;
-        end else if (load_en) begin
+        end else if (clk_en_4m && load_en) begin
             p_acc        <= acc[load_voice];
-            p_freq       <= freq[load_voice];
+            p_freq       <= {freq_hi[load_voice], freq[load_voice]};
             p_waveform   <= waveform[load_voice];
-            p_pw         <= pw_reg[load_voice];
+            p_pw         <= {pw_hi[load_voice], pw_reg[load_voice]};
             p_env        <= env[load_voice];
             p_ast        <= ast[load_voice];
             p_gate_latch <= gate_latch[load_voice];
@@ -175,7 +190,7 @@ module tt_um_sid (
     reg [13:1] adsr_pre_hi;
     always @(posedge clk or negedge rst_n)
         if (!rst_n) adsr_pre_hi <= 13'd0;
-        else        adsr_pre_hi <= adsr_pre_hi + 1'b1;
+        else if (clk_en_4m) adsr_pre_hi <= adsr_pre_hi + 1'b1;
     wire [13:0] adsr_prescaler = {adsr_pre_hi, 1'b0};
 
     //==========================================================================
@@ -265,7 +280,7 @@ module tt_um_sid (
     // --- Oscillator with test bit and sync ---
     wire [15:0] nxt_acc = p_waveform[3] ? 16'd0 :       // test bit
                           sync_trigger   ? 16'd0 :       // sync
-                          p_acc + {8'd0, p_freq};
+                          p_acc + p_freq;
 
     // --- Waveform generation ---
     wire [7:0] saw_out = nxt_acc[15:8];
@@ -274,7 +289,7 @@ module tt_um_sid (
     wire ring_msb = p_waveform[2] ? (nxt_acc[15] ^ other_msb) : nxt_acc[15];
     wire [7:0] tri_out = {nxt_acc[14:8] ^ {7{ring_msb}}, 1'b0};
 
-    wire pulse_cmp = nxt_acc[15:8] >= p_pw;
+    wire pulse_cmp = nxt_acc[15:4] >= p_pw;
 
     reg [7:0] wave_out;
     always @(*) begin
@@ -365,7 +380,7 @@ module tt_um_sid (
             gate_latch[0] <= 1'b0; gate_latch[1] <= 1'b0; gate_latch[2] <= 1'b0;
             releasing[0] <= 1'b0; releasing[1] <= 1'b0; releasing[2] <= 1'b0;
             prev_msb_d[0] <= 1'b0; prev_msb_d[1] <= 1'b0; prev_msb_d[2] <= 1'b0;
-        end else if (voice_active) begin
+        end else if (clk_en_4m && voice_active) begin
             acc[voice_idx]        <= nxt_acc;
             env[voice_idx]        <= nxt_env;
             ast[voice_idx]        <= nxt_ast;
@@ -392,7 +407,7 @@ module tt_um_sid (
         if (!rst_n) begin
             mix_acc <= 10'd0;
             mix_out <= 8'd0;
-        end else begin
+        end else if (clk_en_4m) begin
             case (slot)
                 3'd0: mix_acc <= {2'b0, voice_out};
                 3'd1: mix_acc <= mix_acc + {2'b0, voice_out};
@@ -407,7 +422,7 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // PWM Audio Output (8-bit, ~19.6 kHz at 5 MHz)
+    // PWM Audio Output (8-bit, ~47.1 kHz at 12 MHz)
     //==========================================================================
     wire pwm_out;
 

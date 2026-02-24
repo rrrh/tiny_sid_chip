@@ -1,202 +1,69 @@
-// Architecture Block Diagram — Triple SID Voice Synthesizer (TT IHP 0.13µm)
-// Render: dot -Tsvg docs/architecture.dot -o docs/architecture.svg
-//         dot -Tpng docs/architecture.dot -o docs/architecture.png
-
-digraph architecture {
+digraph sid_architecture {
     rankdir=LR;
-    bgcolor="white";
-    fontname="Helvetica";
-    node [fontname="Helvetica", fontsize=11];
-    edge [fontname="Helvetica", fontsize=9];
-    compound=true;
-    newrank=true;
+    node [shape=record, fontname="Courier", fontsize=10];
+    edge [fontname="Courier", fontsize=9];
 
-    // =====================================================================
-    // External input pins
-    // =====================================================================
     subgraph cluster_inputs {
         label="Input Pins";
         style=dashed;
-        color="#888888";
-        fontsize=10;
-        fontcolor="#888888";
-
-        ui_in  [label="ui_in[7:0]\naddr/voice/WE", shape=rarrow, style=filled, fillcolor="#d4e6f1"];
-        uio_in [label="uio_in[7:0]\nwrite data",   shape=rarrow, style=filled, fillcolor="#d4e6f1"];
+        ui_in [label="ui_in[7:0]|{[2:0] reg_addr|[4:3] voice_sel|[7] wr_en}"];
+        uio_in [label="uio_in[7:0]|wr_data"];
     }
 
-    // =====================================================================
-    // Write enable edge detection
-    // =====================================================================
-    we_edge [
-        label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
-                <TR><TD BGCOLOR="#d6dbdf"><B>WE Edge Detect</B></TD></TR>
-                <TR><TD><FONT POINT-SIZE="8">ui_in[7] rising edge</FONT></TD></TR>
-            </TABLE>
-        >,
-        shape=plain
-    ];
+    subgraph cluster_clkdiv {
+        label="Clock Divider";
+        style=filled; fillcolor="#f0e0fe";
+        clk_div [label="÷3 Divider|12 MHz → 4 MHz\nclk_en_4m"];
+    }
 
-    // =====================================================================
-    // Register banks (ALL per-voice)
-    // =====================================================================
-    regs [
-        label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
-                <TR><TD BGCOLOR="#aed6f1"><B>Register Banks (all per-voice ×3)</B></TD></TR>
-                <TR><TD><FONT POINT-SIZE="8">
-                    0: freq [7:0]<BR/>
-                    2: pulse_width [7:0]<BR/>
-                    4: attack [3:0] / decay [7:4]<BR/>
-                    5: sustain [3:0] / release [7:4]<BR/>
-                    6: waveform [7:0]
-                    </FONT>
-                </TD></TR>
-                <TR><TD><FONT POINT-SIZE="8">voice_sel = ui_in[4:3] (0–2)</FONT></TD></TR>
-            </TABLE>
-        >,
-        shape=plain
-    ];
+    subgraph cluster_regfile {
+        label="Register File (x3 voices)";
+        style=filled; fillcolor="#e8f0fe";
+        regs [label="<f0>freq_lo[7:0]|<f1>freq_hi[7:0]|<pw0>pw_lo[7:0]|<pw1>pw_hi[3:0]|<ad>atk[3:0]/dec[7:4]|<sr>sus[3:0]/rel[7:4]|<wf>waveform[7:0]"];
+    }
 
-    // =====================================================================
-    // Time-multiplexed voice pipeline
-    // =====================================================================
     subgraph cluster_pipeline {
-        label=<
-            <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
-                <TR><TD><B>Pipelined Voice Datapath</B> (mod-5 slots, 1 MHz each)</TD></TR>
-            </TABLE>
-        >;
-        style=rounded;
-        color="#27ae60";
-        bgcolor="#eafaf1";
-        fontsize=10;
-
-        vidx [
-            label=<
-                <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
-                    <TR><TD BGCOLOR="#a9dfbf"><B>Mod-5 Slot Counter</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">slots 0–2: compute V0/V1/V2<BR/>slot 3: latch mix, load V0<BR/>slot 4: idle/preload<BR/>1 MHz effective per voice</FONT></TD></TR>
-                </TABLE>
-            >,
-            shape=plain
-        ];
-
-        phase_acc [
-            label=<
-                <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
-                    <TR><TD BGCOLOR="#a9dfbf"><B>Phase Accumulator</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">16-bit per voice (×3)<BR/>acc += {8'b0, freq[7:0]}<BR/>~15.3 Hz resolution<BR/>Hard sync: V0←V2, V1←V0, V2←V1</FONT></TD></TR>
-                </TABLE>
-            >,
-            shape=plain
-        ];
-
-        waveform [
-            label=<
-                <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
-                    <TR><TD BGCOLOR="#a9dfbf" COLSPAN="2"><B>Waveform Generator</B></TD></TR>
-                    <TR>
-                        <TD><FONT POINT-SIZE="8">Sawtooth: acc[15:8]<BR/>Triangle: acc[14:8]^fold (ring-mod)<BR/>Pulse: acc[15:8] ≥ PW<BR/>Noise: 15-bit LFSR [14:7]<BR/>(acc-clocked from V0)</FONT></TD>
-                        <TD><FONT POINT-SIZE="8">AND-combine<BR/>enabled<BR/>waveforms<BR/>→ 8-bit out</FONT></TD>
-                    </TR>
-                </TABLE>
-            >,
-            shape=plain
-        ];
-
-        adsr [
-            label=<
-                <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
-                    <TR><TD BGCOLOR="#a9dfbf"><B>ADSR Envelope</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">8-bit env counter per voice (×3)<BR/>14-bit shared prescaler<BR/>9 rate levels (4–8192 clk periods)<BR/>4-state FSM: IDLE/ATK/DEC/SUS<BR/>Exponential decay adjustment</FONT></TD></TR>
-                </TABLE>
-            >,
-            shape=plain
-        ];
-
-        scale [
-            label=<
-                <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
-                    <TR><TD BGCOLOR="#a9dfbf"><B>Envelope Scaling</B></TD></TR>
-                    <TR><TD><FONT POINT-SIZE="8">voice_out = (wave × env)[15:8]<BR/>8×8 → upper 8 bits</FONT></TD></TR>
-                </TABLE>
-            >,
-            shape=plain
-        ];
+        label="Pipeline Registers";
+        style=filled; fillcolor="#fef7e0";
+        p_regs [label="<pf>p_freq[15:0]|<ppw>p_pw[11:0]|<pacc>p_acc[15:0]|<pwf>p_waveform|<penv>p_env|<past>p_ast|..."];
     }
 
-    // =====================================================================
-    // Mixer
-    // =====================================================================
-    mixer [
-        label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
-                <TR><TD BGCOLOR="#f9e79f"><B>3-Voice Mixer</B></TD></TR>
-                <TR><TD><FONT POINT-SIZE="8">10-bit accumulator<BR/>sum 3 × voice_out[7:0]<BR/>mix_out = acc[9:2] (÷4)</FONT></TD></TR>
-            </TABLE>
-        >,
-        shape=plain
-    ];
+    subgraph cluster_datapath {
+        label="Voice Datapath";
+        style=filled; fillcolor="#e8fee8";
+        osc [label="Oscillator|acc + freq\n(16-bit)"];
+        wave [label="Waveform Gen|tri/saw/pulse/noise"];
+        pulse_cmp [label="Pulse Compare|acc[15:4] \>= pw\n(12-bit)"];
+        adsr [label="ADSR Envelope|8-bit, exp decay"];
+        mult [label="Multiply|wave x env"];
+    }
 
-    // =====================================================================
-    // PWM output
-    // =====================================================================
-    pwm [
-        label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
-                <TR><TD BGCOLOR="#f5cba7"><B>pwm_audio</B></TD></TR>
-                <TR><TD><FONT POINT-SIZE="8">8-bit PWM<BR/>period = 255 clocks<BR/>~19.6 kHz @ 5 MHz</FONT></TD></TR>
-            </TABLE>
-        >,
-        shape=plain
-    ];
-
-    // =====================================================================
-    // External output pins
-    // =====================================================================
-    subgraph cluster_outputs {
-        label="Output Pins";
+    subgraph cluster_output {
+        label="Output";
         style=dashed;
-        color="#888888";
-        fontsize=10;
-        fontcolor="#888888";
-
-        pwm_out [label="uo_out[0]\npwm_out", shape=rarrow, style=filled, fillcolor="#fadbd8"];
+        mix [label="3-Voice Mixer"];
+        pwm [label="PWM DAC|8-bit, ~47.1 kHz\n(12 MHz)"];
+        uo_out [label="uo_out[0]"];
     }
 
-    // --- External filter (off-chip) ---
-    rc_filter [label="3rd-order RC\nlow-pass filter\n(off-chip)", shape=trapezium, style=filled, fillcolor="#f5cba7"];
-    audio_out [label="Analog\naudio out", shape=doubleoctagon, style=filled, fillcolor="#d5f5e3"];
-
-    // =====================================================================
-    // Edges — data flow
-    // =====================================================================
-    ui_in  -> we_edge [label="  WE, addr,\n  voice_sel"];
-    uio_in -> regs    [label="  8-bit data  "];
-    we_edge -> regs   [label="  wr_en_rise  "];
-
-    regs -> vidx [label="  freq, PW,\n  waveform,\n  atk/sus  ", lhead=cluster_pipeline];
-
-    vidx -> phase_acc;
-    phase_acc -> waveform [label="  cur_acc  "];
-    waveform -> scale [label="  8-bit wave  "];
-    adsr -> scale [label="  8-bit env  "];
-    scale -> mixer [label="  voice_out\n  [7:0]  ", ltail=cluster_pipeline];
-
-    mixer -> pwm [label="  mix_out\n  [7:0]  "];
-    pwm -> pwm_out [label="  1-bit PWM\n  @ ~19.6 kHz  "];
-
-    pwm_out -> rc_filter [style=dotted];
-    rc_filter -> audio_out [style=dotted];
-
-    // =====================================================================
-    // Clock / reset
-    // =====================================================================
-    clk_rst [label="clk (5 MHz)\nrst_n", shape=diamond, style=filled, fillcolor="#d7bde2"];
-    clk_rst -> we_edge   [style=dashed, color="#9b59b6", arrowhead=dot];
-    clk_rst -> regs      [style=dashed, color="#9b59b6", arrowhead=dot];
-    clk_rst -> vidx      [style=dashed, color="#9b59b6", arrowhead=dot];
-    clk_rst -> pwm       [style=dashed, color="#9b59b6", arrowhead=dot];
+    clk_div -> p_regs [label="clk_en_4m"];
+    clk_div -> osc [label="clk_en_4m"];
+    ui_in -> regs;
+    uio_in -> regs;
+    regs:f0 -> p_regs:pf;
+    regs:f1 -> p_regs:pf;
+    regs:pw0 -> p_regs:ppw;
+    regs:pw1 -> p_regs:ppw;
+    p_regs:pf -> osc;
+    p_regs:pacc -> osc;
+    osc -> wave;
+    p_regs:ppw -> pulse_cmp;
+    osc -> pulse_cmp;
+    pulse_cmp -> wave;
+    p_regs -> adsr;
+    wave -> mult;
+    adsr -> mult;
+    mult -> mix;
+    mix -> pwm;
+    pwm -> uo_out;
 }
