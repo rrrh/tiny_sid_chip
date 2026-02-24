@@ -20,6 +20,7 @@ module tt_um_sid_tb;
     );
 
     wire pdm_out = uo_out[0];
+    wire pdm_filt = uo_out[1];
 
     // PDM-to-PCM decimation
     localparam DECIM_SHIFT = 10;
@@ -55,6 +56,11 @@ module tt_um_sid_tb;
     localparam [2:0] REG_FREQ = 3'd0, REG_PW = 3'd2,
                      REG_ATK  = 3'd4, REG_SUS = 3'd5, REG_WAV = 3'd6;
 
+    // Filter register addresses (voice_sel = 3)
+    localparam [2:0] REG_FC_LO   = 3'd0, REG_FC_HI   = 3'd1,
+                     REG_RES_FILT = 3'd2, REG_MODE_VOL = 3'd3;
+    localparam [1:0] VOICE_FILT = 2'd3;
+
     initial begin
         $dumpfile("tt_um_sid_tb.vcd");
         $dumpvars(0, tt_um_sid_tb);
@@ -79,6 +85,19 @@ module tt_um_sid_tb;
                 @(posedge clk);
                 if (pdm_out && !last) count = count + 1;
                 last = pdm_out;
+            end
+        end
+    endtask
+
+    task count_pdm_filt;
+        input integer window; output integer count;
+        reg last; integer i;
+        begin
+            count = 0; last = pdm_filt;
+            for (i = 0; i < window; i = i + 1) begin
+                @(posedge clk);
+                if (pdm_filt && !last) count = count + 1;
+                last = pdm_filt;
             end
         end
     endtask
@@ -247,6 +266,92 @@ module tt_um_sid_tb;
         test_num = test_num + 1;
         if (cnt1 > 5) begin $display("TEST %0d PASS: per-voice ADSR pdm=%0d", test_num, cnt1); pass_count = pass_count + 1; end
         else begin $display("TEST %0d FAIL: per-voice ADSR pdm=%0d", test_num, cnt1); fail_count = fail_count + 1; end
+
+        // Clean up voices before filter tests
+        sid_write(REG_WAV, 8'h00, 2'd0);
+        sid_write(REG_WAV, 8'h00, 2'd1);
+        sid_write(REG_WAV, 8'h00, 2'd2);
+        repeat (200_000) @(posedge clk);
+
+        //==================================================================
+        // 11. Filter bypass — vol=15, no filter enabled → audio passes
+        //==================================================================
+        $display("\n===== 11. Filter bypass (vol=15) =====");
+        // Set up V0 sawtooth
+        sid_write(REG_FREQ, FREQ_C4, 2'd0);
+        sid_write(REG_ATK, 8'h00, 2'd0);
+        sid_write(REG_SUS, 8'h0F, 2'd0);
+        sid_write(REG_WAV, SAW | GATE, 2'd0);
+        // Filter: no voices routed (filt=0), LP mode, vol=15
+        sid_write(REG_FC_LO, 8'h00, VOICE_FILT);
+        sid_write(REG_FC_HI, 8'h00, VOICE_FILT);
+        sid_write(REG_RES_FILT, 8'h00, VOICE_FILT);  // res=0, filt=0 → bypass
+        sid_write(REG_MODE_VOL, 8'h1F, VOICE_FILT);   // LP mode, vol=15
+        repeat (300_000) @(posedge clk);
+        count_pdm_filt(50_000, cnt1);
+        test_num = test_num + 1;
+        if (cnt1 > 5) begin $display("TEST %0d PASS: filter bypass pdm_filt=%0d", test_num, cnt1); pass_count = pass_count + 1; end
+        else begin $display("TEST %0d FAIL: filter bypass pdm_filt=%0d", test_num, cnt1); fail_count = fail_count + 1; end
+
+        //==================================================================
+        // 12. Filter LP active — route V0, low cutoff → attenuated highs
+        //==================================================================
+        $display("\n===== 12. LP filter active =====");
+        // Low cutoff frequency
+        sid_write(REG_FC_LO, 8'h00, VOICE_FILT);
+        sid_write(REG_FC_HI, 8'h02, VOICE_FILT);      // fc = {0x02, 0} = 16
+        sid_write(REG_RES_FILT, 8'h01, VOICE_FILT);    // res=0, filt_en=V0
+        sid_write(REG_MODE_VOL, 8'h1F, VOICE_FILT);    // LP mode, vol=15
+        repeat (300_000) @(posedge clk);
+        count_pdm_filt(50_000, cnt2);
+        test_num = test_num + 1;
+        // LP with low cutoff should produce different (fewer) transitions than bypass
+        $display("  bypass=%0d, LP=%0d", cnt1, cnt2);
+        if (cnt2 != cnt1) begin $display("TEST %0d PASS: LP filter changes output", test_num); pass_count = pass_count + 1; end
+        else begin $display("TEST %0d FAIL: LP filter has no effect", test_num); fail_count = fail_count + 1; end
+
+        //==================================================================
+        // 13. Volume control — vol=0 outputs DC midpoint (128)
+        //==================================================================
+        $display("\n===== 13. Volume = 0 =====");
+        sid_write(REG_MODE_VOL, 8'h10, VOICE_FILT);    // LP mode, vol=0
+        repeat (300_000) @(posedge clk);
+        count_pdm_filt(50_000, cnt1);
+        test_num = test_num + 1;
+        // vol=0 → constant 128 output → steady ~196 PWM transitions (50% duty)
+        // LP at vol=15 gave cnt2 transitions; vol=0 should differ (DC midpoint vs filtered)
+        if (cnt1 != cnt2) begin $display("TEST %0d PASS: vol=0 changes output (%0d vs LP=%0d)", test_num, cnt1, cnt2); pass_count = pass_count + 1; end
+        else begin $display("TEST %0d FAIL: vol=0 same as LP (%0d)", test_num, cnt1); fail_count = fail_count + 1; end
+
+        //==================================================================
+        // 14. HP filter — route V0, high-pass mode
+        //==================================================================
+        $display("\n===== 14. HP filter =====");
+        sid_write(REG_FC_LO, 8'h00, VOICE_FILT);
+        sid_write(REG_FC_HI, 8'h10, VOICE_FILT);      // fc = {0x10, 0} = 128
+        sid_write(REG_RES_FILT, 8'h01, VOICE_FILT);    // res=0, filt_en=V0
+        sid_write(REG_MODE_VOL, 8'h4F, VOICE_FILT);    // HP mode, vol=15
+        repeat (300_000) @(posedge clk);
+        count_pdm_filt(50_000, cnt1);
+        test_num = test_num + 1;
+        if (cnt1 > 0) begin $display("TEST %0d PASS: HP filter pdm_filt=%0d", test_num, cnt1); pass_count = pass_count + 1; end
+        else begin $display("TEST %0d FAIL: HP filter pdm_filt=%0d", test_num, cnt1); fail_count = fail_count + 1; end
+
+        //==================================================================
+        // 15. BP filter — bandpass mode
+        //==================================================================
+        $display("\n===== 15. BP filter =====");
+        sid_write(REG_MODE_VOL, 8'h2F, VOICE_FILT);    // BP mode, vol=15
+        repeat (300_000) @(posedge clk);
+        count_pdm_filt(50_000, cnt1);
+        test_num = test_num + 1;
+        if (cnt1 > 0) begin $display("TEST %0d PASS: BP filter pdm_filt=%0d", test_num, cnt1); pass_count = pass_count + 1; end
+        else begin $display("TEST %0d FAIL: BP filter pdm_filt=%0d", test_num, cnt1); fail_count = fail_count + 1; end
+
+        // Clean up
+        sid_write(REG_WAV, 8'h00, 2'd0);
+        sid_write(REG_MODE_VOL, 8'h00, VOICE_FILT);
+        repeat (50_000) @(posedge clk);
 
         $display("\n====================================");
         $display("  RESULTS: %0d PASSED, %0d FAILED (of %0d)", pass_count, fail_count, test_num);

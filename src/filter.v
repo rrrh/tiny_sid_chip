@@ -60,14 +60,16 @@ module filter (
     wire signed [15:0] hp = sat16(hp_wide >>> 15);
 
     // BP_new = bp + fc * hp / 2048
-    wire signed [27:0] fc_hp  = $signed({1'b0, fc}) * hp;
-    wire signed [31:0] bp_new_wide = {bp, 16'd0} + {fc_hp, 4'd0};
-    wire signed [15:0] bp_new = sat16(bp_new_wide >>> 16);
+    wire signed [27:0] fc_hp    = $signed({1'b0, fc}) * hp;
+    wire signed [15:0] bp_delta = fc_hp >>> 11;
+    wire signed [15:0] bp_new   = sat16({{16{bp[15]}}, bp} +
+                                        {{16{bp_delta[15]}}, bp_delta});
 
     // LP_new = lp + fc * bp_new / 2048
-    wire signed [27:0] fc_bp  = $signed({1'b0, fc}) * bp_new;
-    wire signed [31:0] lp_new_wide = {lp, 16'd0} + {fc_bp, 4'd0};
-    wire signed [15:0] lp_new = sat16(lp_new_wide >>> 16);
+    wire signed [27:0] fc_bp    = $signed({1'b0, fc}) * bp_new;
+    wire signed [15:0] lp_delta = fc_bp >>> 11;
+    wire signed [15:0] lp_new   = sat16({{16{lp[15]}}, lp} +
+                                        {{16{lp_delta[15]}}, lp_delta});
 
     // --- State update ---
     always @(posedge clk or negedge rst_n) begin
