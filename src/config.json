@@ -1,5 +1,5 @@
 {
-  "PL_TARGET_DENSITY_PCT": 55,
+  "PL_TARGET_DENSITY_PCT": 90,
   "FP_SIZING": "absolute",
   "DIE_AREA": "0 0 202.08 313.74",
   "CLOCK_PERIOD": 200,
