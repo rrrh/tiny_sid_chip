@@ -24,14 +24,20 @@
 //   7. Ring modulation (XOR other voice MSB into triangle)
 //   8. Test bit (zeros accumulator)
 //
-// Register Map:
-//   0: freq_lo  — frequency[7:0]         (per voice)
-//   1: freq_hi  — frequency[15:8]        (per voice)
-//   2: pw_lo    — pulse width[7:0]       (per voice)
-//   3: pw_hi    — pulse width[11:8]      (per voice, bits [3:0] only)
-//   4: attack   — attack[3:0]/decay[7:4] (per voice)
-//   5: sustain  — sustain[3:0]/rel[7:4]  (per voice)
-//   6: waveform — SID-compatible layout   (per voice)
+// Register Map (voice_sel 0–2: per-voice, voice_sel 3: global filter):
+//   Per-voice (voice_sel 0–2):
+//     0: freq_lo  — frequency[7:0]
+//     1: freq_hi  — frequency[15:8]
+//     2: pw_lo    — pulse width[7:0]
+//     3: pw_hi    — pulse width[11:8] (bits [3:0] only)
+//     4: attack   — attack[3:0]/decay[7:4]
+//     5: sustain  — sustain[3:0]/rel[7:4]
+//     6: waveform — SID-compatible layout
+//   Filter (voice_sel 3):
+//     0: fc_lo    — cutoff low [7:0] (only [2:0] used)   ($D415)
+//     1: fc_hi    — cutoff high [7:0]                     ($D416)
+//     2: res_filt — [7:4] resonance, [3:0] filt enable    ($D417)
+//     3: mode_vol — [7:4] mode (V3OFF/HP/BP/LP), [3:0] vol ($D418)
 //
 // Waveform register (SID $d404 layout):
 //   [0] gate  [1] sync  [2] ring-mod  [3] test
@@ -104,7 +110,20 @@ module tt_um_sid (
     reg        releasing  [0:2];
     reg        prev_msb_d [0:2];
 
-    // Register writes (all per-voice)
+    //--- Filter registers (voice_sel == 3) ---
+    reg [7:0] fc_lo;
+    reg [7:0] fc_hi;
+    reg [7:0] res_filt;
+    reg [7:0] mode_vol;
+
+    // Derived filter signals
+    wire [10:0] filt_fc   = {fc_hi, fc_lo[2:0]};
+    wire [3:0]  filt_res  = res_filt[7:4];
+    wire [3:0]  filt_en   = res_filt[3:0];
+    wire [3:0]  filt_mode = mode_vol[7:4];
+    wire [3:0]  filt_vol  = mode_vol[3:0];
+
+    // Register writes (per-voice and filter)
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             freq[0] <= 8'd0; freq[1] <= 8'd0; freq[2] <= 8'd0;
@@ -114,12 +133,20 @@ module tt_um_sid (
             pw_hi[0] <= 4'd0; pw_hi[1] <= 4'd0; pw_hi[2] <= 4'd0;
             attack_reg[0] <= 8'd0; attack_reg[1] <= 8'd0; attack_reg[2] <= 8'd0;
             sustain_reg[0] <= 8'd0; sustain_reg[1] <= 8'd0; sustain_reg[2] <= 8'd0;
+            fc_lo <= 8'd0;
+            fc_hi <= 8'd0;
+            res_filt <= 8'd0;
+            mode_vol <= 8'd0;
         end else if (wr_en_rise) begin
             case (reg_addr)
                 3'd0: if (voice_sel <= 2'd2) freq[voice_sel]        <= wr_data;
+                      else                   fc_lo                  <= wr_data;
                 3'd1: if (voice_sel <= 2'd2) freq_hi[voice_sel]     <= wr_data;
+                      else                   fc_hi                  <= wr_data;
                 3'd2: if (voice_sel <= 2'd2) pw_reg[voice_sel]      <= wr_data;
+                      else                   res_filt               <= wr_data;
                 3'd3: if (voice_sel <= 2'd2) pw_hi[voice_sel]       <= wr_data[3:0];
+                      else                   mode_vol               <= wr_data;
                 3'd4: if (voice_sel <= 2'd2) attack_reg[voice_sel]  <= wr_data;
                 3'd5: if (voice_sel <= 2'd2) sustain_reg[voice_sel] <= wr_data;
                 3'd6: if (voice_sel <= 2'd2) waveform[voice_sel]    <= wr_data;
@@ -422,6 +449,14 @@ module tt_um_sid (
     end
 
     //==========================================================================
+    // Sample-valid strobe: one cycle after slot 3 at 4 MHz rate
+    //==========================================================================
+    reg sample_valid;
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n) sample_valid <= 1'b0;
+        else        sample_valid <= clk_en_4m && (slot == 3'd3);
+
+    //==========================================================================
     // PWM Audio Output (8-bit, ~47.1 kHz at 12 MHz)
     //==========================================================================
     wire pwm_out;
@@ -440,10 +475,16 @@ module tt_um_sid (
     wire       pwm_filtered;
 
     filter u_filter (
-        .clk        (clk),
-        .rst_n      (rst_n),
-        .sample_in  (mix_out),
-        .sample_out (filtered_out)
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .sample_in    (mix_out),
+        .sample_valid (sample_valid),
+        .fc           (filt_fc),
+        .res          (filt_res),
+        .filt         (filt_en),
+        .mode         (filt_mode),
+        .vol          (filt_vol),
+        .sample_out   (filtered_out)
     );
 
     pwm_audio u_pwm_filtered (
