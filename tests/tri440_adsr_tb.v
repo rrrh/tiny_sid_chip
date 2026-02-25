@@ -4,8 +4,8 @@
 // Captures PWM pin transitions as PWL file for analog filter simulation.
 //
 // Voice 0: triangle waveform at 440 Hz
-// ADSR: attack=4, decay=5, sustain=8, release=5
-// Gate ON ~80 ms, then gate OFF ~45 ms (shows full ADSR envelope)
+// ADSR: attack=9, decay=9, sustain=10, release=9 (slow for visible envelope)
+// Gate ON ~1.5 s, then gate OFF ~0.5 s (shows full ADSR envelope)
 //
 // Output: tests/tri440_adsr.pwl
 //==============================================================================
@@ -15,10 +15,10 @@ module tri440_adsr_tb;
     localparam real VDD     = 3.3;
     localparam real EDGE_NS = 2.0;
 
-    // Gate ON ~80 ms  = 960,000 cycles at 12 MHz
-    // Gate OFF ~45 ms = 540,000 cycles (release phase)
-    localparam GATE_ON_CYCLES  = 960_000;
-    localparam GATE_OFF_CYCLES = 540_000;
+    // Gate ON ~1.5 s  = 18,000,000 cycles at 12 MHz
+    // Gate OFF ~0.5 s =  6,000,000 cycles (release phase)
+    localparam GATE_ON_CYCLES  = 18_000_000;
+    localparam GATE_OFF_CYCLES =  6_000_000;
     localparam SIM_CYCLES      = GATE_ON_CYCLES + GATE_OFF_CYCLES;  // ~125 ms
 
     // --- Clock and DUT ---
@@ -149,9 +149,9 @@ module tri440_adsr_tb;
         sid_write(REG_PW_LO, 8'h00, 2'd0);
         sid_write(REG_PW_HI, 8'h08, 2'd0);     // pw=0x800
 
-        // ADSR: attack=4, decay=5, sustain=8, release=5
-        sid_write(REG_ATK, 8'h45, 2'd0);        // {attack[3:0], decay[3:0]}
-        sid_write(REG_SUS, 8'h85, 2'd0);        // {sustain[3:0], release[3:0]}
+        // ADSR: attack=9, decay=9, sustain=10, release=9 (slow — visible envelope)
+        sid_write(REG_ATK, 8'h99, 2'd0);        // {attack[3:0], decay[3:0]}
+        sid_write(REG_SUS, 8'hA9, 2'd0);        // {sustain[3:0], release[3:0]}
 
         // Filter bypass: vol=15
         sid_write(REG_FC_LO, 8'h00, VOICE_FILT);
@@ -160,7 +160,7 @@ module tri440_adsr_tb;
         sid_write(REG_MODE_VOL, 8'h1F, VOICE_FILT);
 
         // Gate ON — triangle waveform (0x10) + gate (0x01) = 0x11
-        $display("Gate ON — triangle 440 Hz with ADSR (A=4 D=5 S=8 R=5)");
+        $display("Gate ON — triangle 440 Hz with ADSR (A=9 D=9 S=10 R=9)");
         sid_write(REG_WAV, 8'h11, 2'd0);
 
         // Begin capture immediately (captures attack/decay/sustain phases)
