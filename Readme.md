@@ -55,6 +55,7 @@ only a passive RC low-pass filter to produce analog audio.
 - 9-bit Q8.1 State Variable Filter (SVF) with LP/BP/HP priority mux (HP > BP > LP), shift-add multiply
 - 3-bit alpha1 (fc[10:8], 3-term /8) and 2-bit alpha2 ((15-res)>>2, 2-term /4)
 - SID-compatible filter interface: 11-bit cutoff, 4-bit resonance, per-voice routing, 4-bit volume
+- Fixed 6 dB/octave lowpass (fc ≈ 2000 Hz) before PWM output — single-pole IIR, alpha = 1/64 (single shift)
 - Single 8-bit PWM audio output on uo_out[0] (~47.1 kHz carrier at 12 MHz)
 - Flat parallel write interface (no SPI/I2C overhead)
 - Mod-5 pipeline: 800 kHz effective per voice at 4 MHz voice clock (12 MHz ÷3)
@@ -68,6 +69,7 @@ only a passive RC low-pass filter to produce analog audio.
 | `src/pwm_audio.v` | 8-bit PWM audio output (255-clock period) |
 | `src/filter.v` | SID filter wrapper: bypass, mode mixing, volume scaling |
 | `src/SVF_8bit.v` | 9-bit Q8.1 State Variable Filter core (shift-add, 3-bit alpha1, 2-bit alpha2) |
+| `src/lpf_1500.v` | Fixed 6 dB/octave lowpass (fc ≈ 2000 Hz), single-pole IIR before PWM |
 
 ---
 
@@ -83,10 +85,10 @@ only a passive RC low-pass filter to produce analog audio.
  ui_in[4:3] ──┤  │  ┌─────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐  │
  ui_in[7]   ──┤  │  │ Phase   │  │ Waveform  │  │  ADSR    │  │ Envelope │  │
               ├──┤  │ Acc     │──│ Gen       │──│ Envelope │──│ Scaling  │──┤
- uio_in ──────┤  │  │ (16-bit)│  │(saw/tri/  │  │(8-bit    │  │ (8×8→8)  │  │  ┌───────┐  ┌─────────┐
-              │  │  │  8-bit  │  │ pulse/    │  │ per      │  │          │  ├──│ Mixer │──│pwm_audio│── uo_out[0]
- Register     │  │  │  freq   │  │ noise)    │  │ voice)   │  │          │  │  │ (÷4)  │  │ (8-bit) │
- Banks        │  │  └─────────┘  └──────────┘  └──────────┘  └──────────┘  │  └───────┘  └─────────┘
+ uio_in ──────┤  │  │ (16-bit)│  │(saw/tri/  │  │(8-bit    │  │ (8×8→8)  │  │  ┌───────┐  ┌────────┐  ┌─────────┐
+              │  │  │  8-bit  │  │ pulse/    │  │ per      │  │          │  ├──│ Mixer │──│lpf_1500│──│pwm_audio│── uo_out[0]
+ Register     │  │  │  freq   │  │ noise)    │  │ voice)   │  │          │  │  │ (÷4)  │  │(1500Hz)│  │ (8-bit) │
+ Banks        │  │  └─────────┘  └──────────┘  └──────────┘  └──────────┘  │  └───────┘  └────────┘  └─────────┘
  (all per-    │  │                                                          │    12 MHz     12 MHz
   voice)      │  │  ÷3 clk_en → 4 MHz voice pipeline, 800 kHz per voice    │
               │  └─────────────────────────────────────────────────────────────┘
@@ -126,7 +128,12 @@ only a passive RC low-pass filter to produce analog audio.
    over 3 slots, then divides by 4 (right-shift by 2) to produce an 8-bit
    mix sample for the PWM module.
 
-7. `pwm_audio` converts the 8-bit mix sample into a PWM signal at
+7. A fixed single-pole IIR lowpass (`lpf_1500`) with fc ≈ 2000 Hz and
+   6 dB/octave rolloff smooths the mix before PWM conversion. It uses
+   a single arithmetic right shift (alpha = 1/64, no multiplier) with
+   a 10-bit unsigned accumulator (8.2 fixed-point).
+
+8. `pwm_audio` converts the filtered sample into a PWM signal at
    ~47.1 kHz (running at full 12 MHz). An external RC low-pass filter
    recovers analog audio.
 

@@ -19,6 +19,7 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer with a 9-bit Q8.1 Sta
 - **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, 14-bit shared prescaler (clocked at 4 MHz), exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 9 distinct rate settings from ~256 µs to ~524 ms per full traverse.
 - **3-voice mixer** -- accumulates the three 8-bit voice outputs (8×8 waveform×envelope product, upper byte) into a 10-bit accumulator and divides by 4 to produce an 8-bit mix.
 - **State Variable Filter** (`filter` + `SVF_8bit`) -- 9-bit Q8.1 Chamberlin SVF with LP/BP/HP modes via priority mux (HP > BP > LP). Shift-add multiplies with 3-bit alpha1 (fc[10:8], 3-term /8) and 2-bit alpha2 ((15-res)>>2, 2-term /4). SID-compatible interface: 11-bit cutoff frequency, 4-bit resonance, per-voice filter routing, mode selection, and 4-bit master volume.
+- **2 kHz lowpass** (`lpf_1500`) -- fixed single-pole IIR (6 dB/octave) between filter output and PWM input. Alpha = 1/64 (single shift, fc ≈ 2005 Hz), 10-bit unsigned accumulator (8.2 fixed-point), no multiplier.
 - **PWM audio** (`pwm_audio`) -- single instance on `uo_out[0]`. 8-bit PWM with a 255-clock period (~47.1 kHz at 12 MHz).
 
 **Register map (voice_sel 0-2: per-voice, voice_sel 3: filter, selected by `ui_in[4:3]`):**

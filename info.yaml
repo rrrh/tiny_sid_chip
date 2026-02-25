@@ -20,6 +20,7 @@ project:
     - "pwm_audio.v"
     - "filter.v"
     - "SVF_8bit.v"
+    - "lpf_1500.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 pinout:

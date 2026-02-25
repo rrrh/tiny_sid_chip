@@ -105,6 +105,19 @@ Input: 440 Hz sawtooth, fc_hi=0x20, res=0, filt_en=V0
 - Small high-frequency ripple visible
 - Sawtooth fundamental largely removed at this cutoff setting
 
+## Pre-PWM Lowpass Filter
+
+A fixed 6 dB/octave lowpass (`lpf_1500`) is inserted between the SID filter
+output and the PWM module. This attenuates content above ~2 kHz before
+PWM conversion, reducing aliasing artifacts in the reconstructed analog signal.
+
+- **Type**: Single-pole IIR (leaky integrator)
+- **Cutoff**: fc ≈ 2005 Hz (alpha = 1/64 at 800 kHz sample rate)
+- **Implementation**: Single arithmetic right shift — `diff >>> 6`, no multiplier, no step adder
+- **Precision**: 10-bit unsigned accumulator (8.2 fixed-point), 8-bit output
+- **Tracking**: ~4 LSB granularity (1.5%), acceptable for 8-bit SID audio
+- **Cost**: ~1 adder + 1 subtractor + 10 FFs, always active (not configurable)
+
 ## Known Limitations
 
 1. **Amplitude scaling**: Single-voice output is ~0-63 due to ÷4 mixer (designed for 3-voice mix to avoid clipping). Three simultaneous voices at max use the full 0-255 range.

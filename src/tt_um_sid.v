@@ -476,6 +476,19 @@ module tt_um_sid (
     );
 
     //==========================================================================
+    // 6 dB/octave Lowpass (fc ≈ 1500 Hz) before PWM
+    //==========================================================================
+    wire [7:0] lpf_out;
+
+    lpf_1500 u_lpf (
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .sample_valid (sample_valid),
+        .sample_in    (filtered_out),
+        .sample_out   (lpf_out)
+    );
+
+    //==========================================================================
     // PWM Audio Output (8-bit, ~47.1 kHz at 12 MHz)
     //==========================================================================
     wire pwm_out;
@@ -483,7 +496,7 @@ module tt_um_sid (
     pwm_audio u_pwm (
         .clk    (clk),
         .rst_n  (rst_n),
-        .sample (filtered_out),
+        .sample (lpf_out),
         .pwm    (pwm_out)
     );
 
