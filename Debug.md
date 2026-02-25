@@ -45,7 +45,7 @@ Captures 12 raw files at ~44,117 Hz sample rate (12 MHz / 272):
 - Still using hardware multipliers
 - **Cell count: ~2,400 cells** -- still too large
 
-### Stage 3: 12-bit Q8.4 SVF with shift-add (final)
+### Stage 3: 12-bit Q8.4 SVF with shift-add
 - 12-bit signed Q8.4 internal state (8 integer + 4 fractional bits)
 - **Shift-add multiplies**: no hardware multiplier needed
   - Frequency: 7-bit `alpha1` via 7-term shift-add (/128)
@@ -54,9 +54,18 @@ Captures 12 raw files at ~44,117 Hz sample rate (12 MHz / 272):
 - **Cell count: ~1,567 cells**
 - Total design with filter: ~88% utilization of 1x2 tile
 
-### Coefficient Mapping
-- `alpha1 = fc[10:4]` -- 7-bit frequency coefficient
-- `alpha2 = 15 - res` -- 4-bit damping (inverse of resonance)
+### Stage 4: 9-bit Q8.1 SVF with reduced terms (current)
+- 9-bit signed Q8.1 internal state (8 integer + 1 fractional bit)
+- **Reduced shift-add terms**:
+  - Frequency: 3-bit `alpha1` via 3-term shift-add (/8)
+  - Damping: 2-bit `alpha2` via 2-term shift-add (/4)
+- Priority mux mode select (HP > BP > LP) replaces 3-way sum+saturation
+- Single PWM output on `uo_out[0]` (removed separate filtered output on `uo_out[1]`)
+- **Total design: ~77% utilization** with CTS clock tree enabled
+
+### Coefficient Mapping (current)
+- `alpha1 = fc[10:8]` -- 3-bit frequency coefficient (top 3 bits of 11-bit cutoff)
+- `alpha2 = (15 - res) >> 2` -- 2-bit damping (inverse of resonance, divided by 4)
 
 ## Waveform Simulation Results
 
@@ -100,7 +109,7 @@ Input: 440 Hz sawtooth, fc_hi=0x20, res=0, filt_en=V0
 
 1. **Amplitude scaling**: Single-voice output is ~0-63 due to ÷4 mixer (designed for 3-voice mix to avoid clipping). Three simultaneous voices at max use the full 0-255 range.
 
-2. **Filter precision**: 12-bit Q8.4 arithmetic limits dynamic range vs the real SID's analog filter. Audible for extreme resonance settings.
+2. **Filter precision**: 9-bit Q8.1 arithmetic (trimmed from Q8.4 to fit area) limits dynamic range vs the real SID's analog filter. The 3-bit alpha1 provides only 8 cutoff steps and the 2-bit alpha2 provides 4 resonance levels.
 
 3. **Filter sample rate**: Filter processes at the mixer output rate (~53 kHz, once per mod-5 frame), not at the 12 MHz clock. This limits the filter's effective Nyquist.
 

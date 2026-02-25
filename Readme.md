@@ -52,12 +52,13 @@ only a passive RC low-pass filter to produce analog audio.
 - 16-bit frequency register, 16-bit phase accumulator (~12.2 Hz resolution, full audio range)
 - 15-bit LFSR noise generator, accumulator-clocked from voice 0
 - 3-voice mixer with 10-bit accumulator and ÷4 scaling
-- 12-bit Q8.4 State Variable Filter (SVF) with LP/BP/HP modes, shift-add multiply (~1,567 cells)
+- 9-bit Q8.1 State Variable Filter (SVF) with LP/BP/HP priority mux (HP > BP > LP), shift-add multiply
+- 3-bit alpha1 (fc[10:8], 3-term /8) and 2-bit alpha2 ((15-res)>>2, 2-term /4)
 - SID-compatible filter interface: 11-bit cutoff, 4-bit resonance, per-voice routing, 4-bit volume
-- 8-bit PWM audio output (~47.1 kHz carrier at 12 MHz), separate unfiltered and filtered outputs
+- Single 8-bit PWM audio output on uo_out[0] (~47.1 kHz carrier at 12 MHz)
 - Flat parallel write interface (no SPI/I2C overhead)
 - Mod-5 pipeline: 800 kHz effective per voice at 4 MHz voice clock (12 MHz ÷3)
-- Fits in a Tiny Tapeout 1x2 tile on IHP SG13G2 130nm (~88% utilization)
+- Fits in a Tiny Tapeout 1x2 tile on IHP SG13G2 130nm (~77% utilization, CTS enabled)
 
 ### Source Files
 
@@ -66,7 +67,7 @@ only a passive RC low-pass filter to produce analog audio.
 | `src/tt_um_sid.v` | Top-level: register banks, voice pipeline, mixer, filter, pin mapping |
 | `src/pwm_audio.v` | 8-bit PWM audio output (255-clock period) |
 | `src/filter.v` | SID filter wrapper: bypass, mode mixing, volume scaling |
-| `src/SVF_8bit.v` | 12-bit Q8.4 State Variable Filter core (shift-add, ~1,567 cells) |
+| `src/SVF_8bit.v` | 9-bit Q8.1 State Variable Filter core (shift-add, 3-bit alpha1, 2-bit alpha2) |
 
 ---
 
@@ -152,9 +153,8 @@ only a passive RC low-pass filter to produce analog audio.
 
 | Pin | Signal | Description |
 |-----|--------|-------------|
-| `uo_out[0]` | `pwm_out` | Unfiltered PWM audio output. Connect to RC filter. |
-| `uo_out[1]` | `pwm_filtered` | Filtered PWM audio output. Connect to RC filter. |
-| `uo_out[7:2]` | -- | Tied low. |
+| `uo_out[0]` | `pwm_out` | PWM audio output (filtered or bypass). Connect to RC filter. |
+| `uo_out[7:1]` | -- | Tied low. |
 
 ### Bidirectional Pin Direction
 
@@ -567,7 +567,7 @@ To silence the output at any time:
 | System clock | 12 MHz (83.3 ns period) |
 | Voice pipeline clock | 4 MHz (÷3 clock enable) |
 | Pipeline | Mod-5 slot counter (800 kHz effective per voice) |
-| Core utilization | ~88% |
+| Core utilization | ~77% (with CTS clock tree) |
 | Voice count | 3 (time-multiplexed) |
 | Frequency resolution | ~12.2 Hz (16-bit freq, 16-bit acc, 800 kHz effective) |
 | Envelope depth | 8-bit (256 levels, exponential decay) |
