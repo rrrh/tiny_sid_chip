@@ -41,7 +41,7 @@ module filter (
     // --- SVF_8bit core ---
     wire signed [7:0] hp_out, bp_out, lp_out;
 
-    SVF_8bit u_svf (
+    SVF_8bit #(.ENABLE_HP(0), .ENABLE_BP(0), .ENABLE_LP(0)) u_svf (
         .clk          (clk),
         .rst          (~rst_n),
         .audio_in     (s_in),
