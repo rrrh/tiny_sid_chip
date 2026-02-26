@@ -7,7 +7,8 @@
 // mixing, volume scaling) but replaces the filter math with SVF_8bit.
 //
 // Coefficient mapping:
-//   alpha1 (frequency) = fc[10:8] — 3-bit, shift-add /8
+//   alpha1 (frequency) = fc[10:0] — full 11-bit, alpha = fc/16384
+//                        fc ≈ alpha1 × 15.5 Hz (range ~15 Hz to ~32 kHz)
 //   alpha2 (damping)   = (15 - res) >> 2 — 2-bit, shift-add /4
 //==============================================================================
 module filter (
@@ -30,8 +31,8 @@ module filter (
     wire signed [7:0] s_in = sample_in - 8'd128;
 
     // --- Coefficient mapping ---
-    // alpha1: fc[10:8] — 3-bit frequency coefficient (shift-add /8)
-    wire [2:0] alpha1 = fc[10:8];
+    // alpha1: full 11-bit fc — alpha = fc / 16384
+    wire [10:0] alpha1 = fc;
 
     // alpha2: (15 - res) >> 2 — 2-bit damping (shift-add /4)
     wire [1:0] alpha2 = (4'd15 - res) >> 2;
@@ -70,6 +71,6 @@ module filter (
 
     assign sample_out = bypass ? sample_in : scaled;
 
-    wire _unused = &{filt[3], mode[3], fc[7:0], res, 1'b0};
+    wire _unused = &{filt[3], mode[3], res, 1'b0};
 
 endmodule
