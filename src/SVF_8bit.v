@@ -9,9 +9,9 @@
 //                  lp = lp + f*bp_new
 //
 // Coefficients:
-//   alpha1 [10:0] — frequency: alpha = alpha1 / 16384
-//                   fc ≈ alpha1 × fs / (2π × 16384) ≈ alpha1 × 15.5 Hz
-//                   Range: ~15.5 Hz (alpha1=1) to ~31.7 kHz (alpha1=2047)
+//   alpha1 [10:0] — frequency: alpha = alpha1 / 8192 (11-term shift-add)
+//                   fc ≈ alpha1 × fs / (2π × 8192) ≈ alpha1 × 31.1 Hz
+//                   Range: ~31 Hz (alpha1=1) to ~63.6 kHz (alpha1=2047)
 //   alpha2 [1:0]  — damping (2-bit, shift-add /4)
 //
 // Internal: 16-bit signed Q8.8.  Outputs: 8-bit signed (combinational).
@@ -39,14 +39,22 @@ module SVF_8bit #(
     //==========================================================================
     reg signed [15:0] bp_state, lp_state;
 
-    // --- Frequency multiply: val * alpha1 / 16384 ---
+    // --- Frequency shift-add: val * alpha1 / 8192 (11 terms, >>>3..>>>13) ---
     function signed [15:0] f_mul;
         input signed [15:0] val;
         input        [10:0] c;
-        reg signed [27:0] prod;
         begin
-            prod  = val * $signed({1'b0, c});
-            f_mul = prod >>> 14;
+            f_mul = (c[10] ? (val >>> 3)  : 16'sd0) +
+                    (c[9]  ? (val >>> 4)  : 16'sd0) +
+                    (c[8]  ? (val >>> 5)  : 16'sd0) +
+                    (c[7]  ? (val >>> 6)  : 16'sd0) +
+                    (c[6]  ? (val >>> 7)  : 16'sd0) +
+                    (c[5]  ? (val >>> 8)  : 16'sd0) +
+                    (c[4]  ? (val >>> 9)  : 16'sd0) +
+                    (c[3]  ? (val >>> 10) : 16'sd0) +
+                    (c[2]  ? (val >>> 11) : 16'sd0) +
+                    (c[1]  ? (val >>> 12) : 16'sd0) +
+                    (c[0]  ? (val >>> 13) : 16'sd0);
         end
     endfunction
 
