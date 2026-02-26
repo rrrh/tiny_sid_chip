@@ -4,7 +4,7 @@
 // Captures PWM output for bypass / LP / BP / HP filter modes.
 //
 // Voice 0: triangle 440 Hz, ADSR: A=9 D=9 S=10 R=9
-// Filter: fc_reg=14, alpha=14/8192, fc ≈ 435 Hz, resonance=8
+// Filter: fc[10:3]=4, alpha=4/2048, fc ≈ 498 Hz, resonance=8
 //         Voice 0 routed through filter.
 //
 // Outputs: tests/filter_bypass.pwl, filter_lp.pwl, filter_bp.pwl, filter_hp.pwl
@@ -156,10 +156,10 @@ module filter_modes_tb;
         sid_write(REG_SUS, 8'hA9, 2'd0);
 
         // --- Filter setup ---
-        // fc_reg = 14 → alpha = 14/8192, fc ≈ 435 Hz
-        // fc[10:0] = {fc_hi, fc_lo[2:0]} = {0x01, 3'b110} = 11'd14
-        sid_write(REG_FC_LO, 8'h06, VOICE_FILT);
-        sid_write(REG_FC_HI, 8'h01, VOICE_FILT);
+        // fc[10:3] = 4 → alpha = 4/2048, fc ≈ 498 Hz (closest to 440)
+        // fc[10:0] = 4<<3 = 32 = {fc_hi=0x04, fc_lo[2:0]=0b000}
+        sid_write(REG_FC_LO, 8'h00, VOICE_FILT);
+        sid_write(REG_FC_HI, 8'h04, VOICE_FILT);
 
         // Resonance = 8, voice 0 routed to filter
         sid_write(REG_RES_FILT, 8'h81, VOICE_FILT);
