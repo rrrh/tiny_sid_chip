@@ -8,8 +8,8 @@
 // mixing, volume scaling) but replaces the filter math with SVF_8bit.
 //
 // Coefficient mapping:
-//   alpha1 (frequency) = fc[10:5] — 6-bit shift-add, alpha = fc[10:5]/128
-//                        fc ≈ fc[10:5] × 1990 Hz (range ~2 kHz to ~125 kHz)
+//   alpha1 (frequency) = fc[10:5] — 6-bit shift-add, alpha = fc[10:5]/1024
+//                        fc ≈ fc[10:5] × 249 Hz (range ~249 Hz to ~15.7 kHz)
 //   alpha2 (damping)   = (15 - res) >> 2 — 2-bit, shift-add /4
 //==============================================================================
 module filter (

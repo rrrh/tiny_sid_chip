@@ -9,9 +9,9 @@
 //                  lp = lp + f*bp_new
 //
 // Coefficients:
-//   alpha1 [10:0] — frequency: alpha = fc[10:5] / 128 (6-term shift-add)
-//                   fc ≈ fc[10:5] × fs / (2π × 128) ≈ fc[10:5] × 1990 Hz
-//                   Range: ~2 kHz (fc[10:5]=1) to ~125 kHz (fc[10:5]=63)
+//   alpha1 [10:0] — frequency: alpha = fc[10:5] / 1024 (6-term shift-add)
+//                   fc ≈ fc[10:5] × fs / (2π × 1024) ≈ fc[10:5] × 249 Hz
+//                   Range: ~249 Hz (fc[10:5]=1) to ~15.7 kHz (fc[10:5]=63)
 //   alpha2 [1:0]  — damping (2-bit, shift-add /4)
 //
 // Internal: 9-bit signed Q8.1.  Outputs: 8-bit signed (combinational).
@@ -39,17 +39,17 @@ module SVF_8bit #(
     //==========================================================================
     reg signed [8:0] bp_state, lp_state;
 
-    // --- Frequency shift-add: val * fc[10:5] / 128 (6 terms, >>>2..>>>7) ---
+    // --- Frequency shift-add: val * fc[10:5] / 1024 (6 terms, >>>5..>>>10) ---
     function signed [8:0] f_mul;
         input signed [8:0] val;
         input        [10:0] c;
         begin
-            f_mul = (c[10] ? (val >>> 2) : 9'sd0) +
-                    (c[9]  ? (val >>> 3) : 9'sd0) +
-                    (c[8]  ? (val >>> 4) : 9'sd0) +
-                    (c[7]  ? (val >>> 5) : 9'sd0) +
-                    (c[6]  ? (val >>> 6) : 9'sd0) +
-                    (c[5]  ? (val >>> 7) : 9'sd0);
+            f_mul = (c[10] ? (val >>> 5)  : 9'sd0) +
+                    (c[9]  ? (val >>> 6)  : 9'sd0) +
+                    (c[8]  ? (val >>> 7)  : 9'sd0) +
+                    (c[7]  ? (val >>> 8)  : 9'sd0) +
+                    (c[6]  ? (val >>> 9)  : 9'sd0) +
+                    (c[5]  ? (val >>> 10) : 9'sd0);
         end
     endfunction
 
