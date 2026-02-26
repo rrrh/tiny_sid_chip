@@ -1,13 +1,13 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// Testbench for tt_um_sid (12 MHz, 3-voice Time-Multiplexed SID)
+// Testbench for tt_um_sid (24 MHz, 3-voice Time-Multiplexed SID)
 //==============================================================================
 
 module tt_um_sid_tb;
 
     reg clk;
     initial clk = 0;
-    always #42 clk = ~clk;  // ~12 MHz (84 ns period)
+    always #21 clk = ~clk;  // ~24 MHz (42 ns period)
 
     reg        rst_n, ena;
     reg  [7:0] ui_in, uio_in;

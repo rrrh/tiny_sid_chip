@@ -7,7 +7,7 @@
 // Output is high for `sample` clocks out of every 255 clocks.
 // sample=0 → always off, sample=255 → always on.
 //
-// At 12 MHz clock: PWM frequency = 12 MHz / 255 ≈ 47.1 kHz.
+// At 24 MHz clock: PWM frequency = 24 MHz / 255 ≈ 94.1 kHz.
 //
 // Based on MichaelBell/tt08-pwm-example.
 //==============================================================================

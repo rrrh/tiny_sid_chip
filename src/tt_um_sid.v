@@ -1,9 +1,9 @@
 /* verilator lint_off UNUSEDSIGNAL */
 `timescale 1ns / 1ps
 //==============================================================================
-// TT10 Wrapper — Time-Multiplexed SID Voice Synthesizer (12 MHz, 3 voices)
+// TT10 Wrapper — Time-Multiplexed SID Voice Synthesizer (24 MHz, 3 voices)
 //==============================================================================
-// 12 MHz system clock, 4 MHz voice pipeline (÷3 clock enable).
+// 24 MHz system clock, 4 MHz voice pipeline (÷6 clock enable).
 // Pipeline register stage between voice mux read and combinatorial datapath
 // eliminates most hold violations (~200 buffers → ~10-30).
 //
@@ -65,13 +65,13 @@ module tt_um_sid (
     wire [7:0] wr_data   = uio_in;
 
     //==========================================================================
-    // Clock divider: 12 MHz → 4 MHz clock enable (÷3)
+    // Clock divider: 24 MHz → 4 MHz clock enable (÷6)
     //==========================================================================
-    reg [1:0] clk_div;
-    wire clk_en_4m = (clk_div == 2'd2);
+    reg [2:0] clk_div;
+    wire clk_en_4m = (clk_div == 3'd5);
     always @(posedge clk or negedge rst_n)
-        if (!rst_n) clk_div <= 2'd0;
-        else        clk_div <= (clk_div == 2'd2) ? 2'd0 : clk_div + 2'd1;
+        if (!rst_n) clk_div <= 3'd0;
+        else        clk_div <= (clk_div == 3'd5) ? 3'd0 : clk_div + 3'd1;
 
     //==========================================================================
     // Write enable edge detection
@@ -489,7 +489,7 @@ module tt_um_sid (
     );
 
     //==========================================================================
-    // PWM Audio Output (8-bit, ~47.1 kHz at 12 MHz)
+    // PWM Audio Output (8-bit, ~94.1 kHz at 24 MHz)
     //==========================================================================
     wire pwm_out;
 

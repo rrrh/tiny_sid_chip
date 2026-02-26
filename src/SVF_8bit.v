@@ -15,7 +15,11 @@
 //
 //==============================================================================
 
-module SVF_8bit (
+module SVF_8bit #(
+    parameter ENABLE_HP = 1,
+    parameter ENABLE_BP = 1,
+    parameter ENABLE_LP = 1
+) (
     input  wire        clk,
     input  wire        rst,
     input  wire signed [7:0] audio_in,
@@ -66,6 +70,8 @@ module SVF_8bit (
     // Filter Datapath (combinational)
     //==========================================================================
 
+generate if (ENABLE_HP || ENABLE_BP || ENABLE_LP) begin : gen_filter
+
     // Scale input to Q8.1
     wire signed [8:0] in_scaled = {audio_in, 1'b0};
 
@@ -86,9 +92,9 @@ module SVF_8bit (
                                       {f_bp[8], f_bp});
 
     // 8-bit outputs (integer part of Q8.1)
-    assign audio_out_hp = hp[8:1];
-    assign audio_out_bp = bp_new[8:1];
-    assign audio_out_lp = lp_new[8:1];
+    if (ENABLE_HP) assign audio_out_hp = hp[8:1];
+    if (ENABLE_BP) assign audio_out_bp = bp_new[8:1];
+    if (ENABLE_LP) assign audio_out_lp = lp_new[8:1];
 
     //==========================================================================
     // State Update
@@ -102,5 +108,22 @@ module SVF_8bit (
             lp_state <= lp_new;
         end
     end
+
+end endgenerate
+
+    // Tie off disabled outputs
+    generate
+        if (!ENABLE_HP) assign audio_out_hp = 8'sd0;
+        if (!ENABLE_BP) assign audio_out_bp = 8'sd0;
+        if (!ENABLE_LP) assign audio_out_lp = 8'sd0;
+        if (!(ENABLE_HP || ENABLE_BP || ENABLE_LP)) begin : gen_no_filter
+            always @(posedge clk) begin
+                if (rst) begin
+                    bp_state <= 9'd0;
+                    lp_state <= 9'd0;
+                end
+            end
+        end
+    endgenerate
 
 endmodule

@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// Triangle 440 Hz + ADSR Envelope Testbench (12 MHz)
+// Triangle 440 Hz + ADSR Envelope Testbench (24 MHz)
 // Captures PWM pin transitions as PWL file for analog filter simulation.
 //
 // Voice 0: triangle waveform at 440 Hz
@@ -15,16 +15,21 @@ module tri440_adsr_tb;
     localparam real VDD     = 3.3;
     localparam real EDGE_NS = 2.0;
 
-    // Gate ON ~1.5 s  = 18,000,000 cycles at 12 MHz
-    // Gate OFF ~0.5 s =  6,000,000 cycles (release phase)
-    localparam GATE_ON_CYCLES  = 18_000_000;
-    localparam GATE_OFF_CYCLES =  6_000_000;
-    localparam SIM_CYCLES      = GATE_ON_CYCLES + GATE_OFF_CYCLES;  // ~125 ms
+`ifdef GL_TEST
+    // GL mode: shorter for speed (~1.5 s total)
+    localparam GATE_ON_CYCLES  = 24_000_000;  // 1.0 s
+    localparam GATE_OFF_CYCLES = 12_000_000;  // 0.5 s
+`else
+    // RTL mode: full 2 s
+    localparam GATE_ON_CYCLES  = 36_000_000;  // 1.5 s
+    localparam GATE_OFF_CYCLES = 12_000_000;  // 0.5 s
+`endif
+    localparam SIM_CYCLES      = GATE_ON_CYCLES + GATE_OFF_CYCLES;
 
     // --- Clock and DUT ---
     reg clk;
     initial clk = 0;
-    always #42 clk = ~clk;  // ~12 MHz (83.33 ns period)
+    always #21 clk = ~clk;  // ~24 MHz (41.67 ns period)
 
     reg        rst_n, ena;
     reg  [7:0] ui_in, uio_in;
@@ -61,13 +66,15 @@ module tri440_adsr_tb;
         input [7:0] data;
         input [1:0] voice;
         begin
+            @(negedge clk);
             ui_in  = {1'b0, 2'b00, voice, addr};
             uio_in = data;
-            @(posedge clk);
+            @(negedge clk);
             ui_in[7] = 1'b1;
-            @(posedge clk);
+            @(negedge clk);
+            @(negedge clk);
             ui_in[7] = 1'b0;
-            @(posedge clk);
+            @(negedge clk);
         end
     endtask
 
@@ -153,11 +160,11 @@ module tri440_adsr_tb;
         sid_write(REG_ATK, 8'h99, 2'd0);        // {attack[3:0], decay[3:0]}
         sid_write(REG_SUS, 8'hA9, 2'd0);        // {sustain[3:0], release[3:0]}
 
-        // Filter bypass: vol=15
+        // Filter bypass: vol=15, no filter mode bits
         sid_write(REG_FC_LO, 8'h00, VOICE_FILT);
         sid_write(REG_FC_HI, 8'h00, VOICE_FILT);
         sid_write(REG_RES_FILT, 8'h00, VOICE_FILT);
-        sid_write(REG_MODE_VOL, 8'h1F, VOICE_FILT);
+        sid_write(REG_MODE_VOL, 8'h0F, VOICE_FILT);
 
         // Gate ON — triangle waveform (0x10) + gate (0x01) = 0x11
         $display("Gate ON — triangle 440 Hz with ADSR (A=9 D=9 S=10 R=9)");
