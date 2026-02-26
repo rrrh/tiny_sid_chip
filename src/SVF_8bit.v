@@ -1,3 +1,4 @@
+/* verilator lint_off WIDTHTRUNC */
 `timescale 1ns / 1ps
 //==============================================================================
 // State Variable Filter (SVF) - 8-bit Audio
@@ -94,9 +95,9 @@ generate if (ENABLE_HP || ENABLE_BP || ENABLE_LP) begin : gen_filter
                                        {f_bp[15], f_bp});
 
     // 8-bit outputs (integer part of Q8.8)
-    if (ENABLE_HP) assign audio_out_hp = hp[15:8];
-    if (ENABLE_BP) assign audio_out_bp = bp_new[15:8];
-    if (ENABLE_LP) assign audio_out_lp = lp_new[15:8];
+    if (ENABLE_HP) begin : gen_hp_out assign audio_out_hp = hp[15:8]; end
+    if (ENABLE_BP) begin : gen_bp_out assign audio_out_bp = bp_new[15:8]; end
+    if (ENABLE_LP) begin : gen_lp_out assign audio_out_lp = lp_new[15:8]; end
 
     //==========================================================================
     // State Update
@@ -115,9 +116,9 @@ end endgenerate
 
     // Tie off disabled outputs
     generate
-        if (!ENABLE_HP) assign audio_out_hp = 8'sd0;
-        if (!ENABLE_BP) assign audio_out_bp = 8'sd0;
-        if (!ENABLE_LP) assign audio_out_lp = 8'sd0;
+        if (!ENABLE_HP) begin : gen_hp_tie assign audio_out_hp = 8'sd0; end
+        if (!ENABLE_BP) begin : gen_bp_tie assign audio_out_bp = 8'sd0; end
+        if (!ENABLE_LP) begin : gen_lp_tie assign audio_out_lp = 8'sd0; end
         if (!(ENABLE_HP || ENABLE_BP || ENABLE_LP)) begin : gen_no_filter
             always @(posedge clk) begin
                 if (rst) begin

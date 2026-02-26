@@ -1,3 +1,4 @@
+/* verilator lint_off UNUSEDSIGNAL */
 //==========================================================================
 // output_lpf — Single-pole IIR lowpass, fc ≈ 2000 Hz @ 1.6 MHz sample rate
 //
