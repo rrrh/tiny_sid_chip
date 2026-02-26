@@ -1,0 +1,30 @@
+library(sar_adc_8bit) {
+  comment : "Blackbox liberty for 8-bit SAR ADC hard macro";
+  delay_model : table_lookup;
+  time_unit : "1ns";
+  voltage_unit : "1V";
+  current_unit : "1mA";
+  pulling_resistance_unit : "1kohm";
+  capacitive_load_unit(1, pf);
+
+  cell(sar_adc_8bit) {
+    dont_touch : true;
+    dont_use : true;
+
+    pin(clk) { direction : input; capacitance : 0.010; clock : true; }
+    pin(rst_n) { direction : input; capacitance : 0.005; }
+    pin(vin) { direction : input; capacitance : 0.010; }
+    pin(start) { direction : input; capacitance : 0.005; }
+    pin(eoc) { direction : output; max_capacitance : 0.5; }
+    pin(dout[0]) { direction : output; max_capacitance : 0.5; }
+    pin(dout[1]) { direction : output; max_capacitance : 0.5; }
+    pin(dout[2]) { direction : output; max_capacitance : 0.5; }
+    pin(dout[3]) { direction : output; max_capacitance : 0.5; }
+    pin(dout[4]) { direction : output; max_capacitance : 0.5; }
+    pin(dout[5]) { direction : output; max_capacitance : 0.5; }
+    pin(dout[6]) { direction : output; max_capacitance : 0.5; }
+    pin(dout[7]) { direction : output; max_capacitance : 0.5; }
+    pin(vdd) { direction : inout; }
+    pin(vss) { direction : inout; }
+  }
+}

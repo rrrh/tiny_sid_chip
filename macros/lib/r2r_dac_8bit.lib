@@ -1,0 +1,26 @@
+library(r2r_dac_8bit) {
+  comment : "Blackbox liberty for R-2R DAC hard macro";
+  delay_model : table_lookup;
+  time_unit : "1ns";
+  voltage_unit : "1V";
+  current_unit : "1mA";
+  pulling_resistance_unit : "1kohm";
+  capacitive_load_unit(1, pf);
+
+  cell(r2r_dac_8bit) {
+    dont_touch : true;
+    dont_use : true;
+
+    pin(d[0]) { direction : input; capacitance : 0.005; }
+    pin(d[1]) { direction : input; capacitance : 0.005; }
+    pin(d[2]) { direction : input; capacitance : 0.005; }
+    pin(d[3]) { direction : input; capacitance : 0.005; }
+    pin(d[4]) { direction : input; capacitance : 0.005; }
+    pin(d[5]) { direction : input; capacitance : 0.005; }
+    pin(d[6]) { direction : input; capacitance : 0.005; }
+    pin(d[7]) { direction : input; capacitance : 0.005; }
+    pin(vout) { direction : output; max_capacitance : 0.5; }
+    pin(vdd) { direction : inout; }
+    pin(vss) { direction : inout; }
+  }
+}

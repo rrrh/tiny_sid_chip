@@ -1,0 +1,27 @@
+library(bias_dac_2ch) {
+  comment : "Blackbox liberty for dual-channel 4-bit R-2R bias DAC hard macro";
+  delay_model : table_lookup;
+  time_unit : "1ns";
+  voltage_unit : "1V";
+  current_unit : "1mA";
+  pulling_resistance_unit : "1kohm";
+  capacitive_load_unit(1, pf);
+
+  cell(bias_dac_2ch) {
+    dont_touch : true;
+    dont_use : true;
+
+    pin(d_fc[0]) { direction : input; capacitance : 0.005; }
+    pin(d_fc[1]) { direction : input; capacitance : 0.005; }
+    pin(d_fc[2]) { direction : input; capacitance : 0.005; }
+    pin(d_fc[3]) { direction : input; capacitance : 0.005; }
+    pin(d_q[0]) { direction : input; capacitance : 0.005; }
+    pin(d_q[1]) { direction : input; capacitance : 0.005; }
+    pin(d_q[2]) { direction : input; capacitance : 0.005; }
+    pin(d_q[3]) { direction : input; capacitance : 0.005; }
+    pin(vout_fc) { direction : output; max_capacitance : 0.5; }
+    pin(vout_q) { direction : output; max_capacitance : 0.5; }
+    pin(vdd) { direction : inout; }
+    pin(vss) { direction : inout; }
+  }
+}

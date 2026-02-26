@@ -1,0 +1,93 @@
+VERSION 5.7 ;
+BUSBITCHARS "[]" ;
+DIVIDERCHAR "/" ;
+
+MACRO svf_2nd
+  CLASS BLOCK ;
+  ORIGIN 0 0 ;
+  FOREIGN svf_2nd 0 0 ;
+  SIZE 70.000 BY 85.000 ;
+  SYMMETRY X Y ;
+
+  PIN vin
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 40.000 0.500 44.000 ;
+    END
+  END vin
+
+  PIN vout
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 69.500 40.000 70.000 44.000 ;
+    END
+  END vout
+
+  PIN sel[0]
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 9.000 0.500 11.000 ;
+    END
+  END sel[0]
+
+  PIN sel[1]
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 15.000 0.500 17.000 ;
+    END
+  END sel[1]
+
+  PIN ibias_fc
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 59.000 0.500 61.000 ;
+    END
+  END ibias_fc
+
+  PIN ibias_q
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 65.000 0.500 67.000 ;
+    END
+  END ibias_q
+
+  PIN vdd
+    DIRECTION INOUT ;
+    USE POWER ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 83.000 70.000 85.000 ;
+    END
+  END vdd
+
+  PIN vss
+    DIRECTION INOUT ;
+    USE GROUND ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 0.000 70.000 2.000 ;
+    END
+  END vss
+
+  OBS
+    LAYER Metal1 ;
+      RECT 0.500 0.500 69.500 84.500 ;
+    LAYER Metal2 ;
+      RECT 0.500 0.500 69.500 84.500 ;
+  END
+
+END svf_2nd
+
+END LIBRARY

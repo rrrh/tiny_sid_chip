@@ -1,0 +1,35 @@
+library(svf_2nd) {
+  comment : "Blackbox liberty for 2nd-order gm-C State Variable Filter hard macro";
+  delay_model : table_lookup;
+  time_unit : "1ns";
+  voltage_unit : "1V";
+  current_unit : "1mA";
+  pulling_resistance_unit : "1kohm";
+  capacitive_load_unit(1, pf);
+
+  cell(svf_2nd) {
+    dont_touch : true;
+    dont_use : true;
+
+    pin(vin) { direction : input; capacitance : 0.010; }
+    pin(vout) { direction : output; max_capacitance : 0.5; }
+    bus(sel) {
+      bus_type : bus2;
+      pin(sel[0]) { direction : input; capacitance : 0.005; }
+      pin(sel[1]) { direction : input; capacitance : 0.005; }
+    }
+    pin(ibias_fc) { direction : input; capacitance : 0.010; }
+    pin(ibias_q) { direction : input; capacitance : 0.010; }
+    pin(vdd) { direction : inout; }
+    pin(vss) { direction : inout; }
+  }
+
+  type(bus2) {
+    base_type : array;
+    data_type : bit;
+    bit_width : 2;
+    bit_from  : 1;
+    bit_to    : 0;
+    downto    : true;
+  }
+}
