@@ -3,17 +3,17 @@
 //==============================================================================
 // TT10 Wrapper — Time-Multiplexed SID Voice Synthesizer (24 MHz, 3 voices)
 //==============================================================================
-// 24 MHz system clock, 4 MHz voice pipeline (÷6 clock enable).
+// 24 MHz system clock, 8 MHz voice pipeline (÷3 clock enable).
 // Pipeline register stage between voice mux read and combinatorial datapath
 // eliminates most hold violations (~200 buffers → ~10-30).
 //
-// Slot scheduling (mod-5 counter, gated by clk_en_4m):
+// Slot scheduling (mod-5 counter, gated by clk_en_8m):
 //   Slot 3: Latch mix output, Load Voice 0 → p_regs
 //   Slot 4: Idle (p_regs hold Voice 0)
 //   Slot 0: Compute Voice 0, Load Voice 1 → p_regs
 //   Slot 1: Compute Voice 1, Load Voice 2 → p_regs
 //   Slot 2: Compute Voice 2 (no load needed)
-// Each voice accumulator updates once per 5-clock frame → 800 kHz effective.
+// Each voice accumulator updates once per 5-clock frame → 1.6 MHz effective.
 //
 // Yannes-aligned enhancements:
 //   1. 8-bit envelope (256 levels, 48 dB dynamic range)
@@ -65,13 +65,13 @@ module tt_um_sid (
     wire [7:0] wr_data   = uio_in;
 
     //==========================================================================
-    // Clock divider: 24 MHz → 4 MHz clock enable (÷6)
+    // Clock divider: 24 MHz → 8 MHz clock enable (÷3)
     //==========================================================================
-    reg [2:0] clk_div;
-    wire clk_en_4m = (clk_div == 3'd5);
+    reg [1:0] clk_div;
+    wire clk_en_8m = (clk_div == 2'd2);
     always @(posedge clk or negedge rst_n)
-        if (!rst_n) clk_div <= 3'd0;
-        else        clk_div <= (clk_div == 3'd5) ? 3'd0 : clk_div + 3'd1;
+        if (!rst_n) clk_div <= 2'd0;
+        else        clk_div <= (clk_div == 2'd2) ? 2'd0 : clk_div + 2'd1;
 
     //==========================================================================
     // Write enable edge detection
@@ -88,7 +88,7 @@ module tt_um_sid (
     reg [2:0] slot;
     always @(posedge clk or negedge rst_n)
         if (!rst_n) slot <= 3'd0;
-        else if (clk_en_4m) slot <= (slot == 3'd4) ? 3'd0 : slot + 3'd1;
+        else if (clk_en_8m) slot <= (slot == 3'd4) ? 3'd0 : slot + 3'd1;
 
     wire voice_active = (slot <= 3'd2);
     wire [1:0] voice_idx = slot[1:0];
@@ -157,7 +157,7 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Pipeline registers (~81 FFs, loaded at 4 MHz rate)
+    // Pipeline registers (~81 FFs, loaded at 8 MHz rate)
     //==========================================================================
     reg [15:0] p_acc;
     reg [15:0] p_freq;
@@ -197,7 +197,7 @@ module tt_um_sid (
             p_attack     <= 8'd0;
             p_sustain    <= 8'd0;
             p_prev_msb_d <= 1'b0;
-        end else if (clk_en_4m && load_en) begin
+        end else if (clk_en_8m && load_en) begin
             p_acc        <= acc[load_voice];
             p_freq       <= {freq_hi[load_voice], freq[load_voice]};
             p_waveform   <= waveform[load_voice];
@@ -218,7 +218,7 @@ module tt_um_sid (
     reg [13:1] adsr_pre_hi;
     always @(posedge clk or negedge rst_n)
         if (!rst_n) adsr_pre_hi <= 13'd0;
-        else if (clk_en_4m) adsr_pre_hi <= adsr_pre_hi + 1'b1;
+        else if (clk_en_8m) adsr_pre_hi <= adsr_pre_hi + 1'b1;
     wire [13:0] adsr_prescaler = {adsr_pre_hi, 1'b0};
 
     //==========================================================================
@@ -408,7 +408,7 @@ module tt_um_sid (
             gate_latch[0] <= 1'b0; gate_latch[1] <= 1'b0; gate_latch[2] <= 1'b0;
             releasing[0] <= 1'b0; releasing[1] <= 1'b0; releasing[2] <= 1'b0;
             prev_msb_d[0] <= 1'b0; prev_msb_d[1] <= 1'b0; prev_msb_d[2] <= 1'b0;
-        end else if (clk_en_4m && voice_active) begin
+        end else if (clk_en_8m && voice_active) begin
             acc[voice_idx]        <= nxt_acc;
             env[voice_idx]        <= nxt_env;
             ast[voice_idx]        <= nxt_ast;
@@ -435,7 +435,7 @@ module tt_um_sid (
         if (!rst_n) begin
             mix_acc <= 10'd0;
             mix_out <= 8'd0;
-        end else if (clk_en_4m) begin
+        end else if (clk_en_8m) begin
             case (slot)
                 3'd0: mix_acc <= {2'b0, voice_out};
                 3'd1: mix_acc <= mix_acc + {2'b0, voice_out};
@@ -450,12 +450,12 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Sample-valid strobe: one cycle after slot 3 at 4 MHz rate
+    // Sample-valid strobe: one cycle after slot 3 at 8 MHz rate
     //==========================================================================
     reg sample_valid;
     always @(posedge clk or negedge rst_n)
         if (!rst_n) sample_valid <= 1'b0;
-        else        sample_valid <= clk_en_4m && (slot == 3'd3);
+        else        sample_valid <= clk_en_8m && (slot == 3'd3);
 
     //==========================================================================
     // Filter (passthrough by default — bypass when filt=0 or mode=0)
@@ -480,7 +480,7 @@ module tt_um_sid (
     //==========================================================================
     wire [7:0] lpf_out;
 
-    lpf_1500 u_lpf (
+    output_lpf u_lpf (
         .clk          (clk),
         .rst_n        (rst_n),
         .sample_valid (sample_valid),

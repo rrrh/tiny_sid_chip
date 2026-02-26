@@ -9,18 +9,68 @@ You can also include images in this folder and reference them in the markdown. E
 
 ## How it works
 
-This is a triple-voice SID (MOS 6581-inspired) synthesizer with a 9-bit Q8.1 State Variable Filter (SVF). It runs at 12 MHz with a ÷3 clock enable producing a 4 MHz voice pipeline (800 kHz effective per voice). A host microcontroller writes per-voice registers through a flat memory-mapped parallel interface and the chip produces 8-bit PWM audio output on `uo_out[0]`.
+This is a triple-voice SID (MOS 6581-inspired) synthesizer with a 9-bit Q8.1 State Variable Filter (SVF). It runs at 24 MHz with a ÷3 clock enable producing an 8 MHz voice pipeline (1.6 MHz effective per voice). A host microcontroller writes per-voice registers through a flat memory-mapped parallel interface and the chip produces 8-bit PWM audio output on `uo_out[0]`.
 
 **Architecture:**
 
 - **Flat register interface** -- rising-edge-triggered writes via `ui_in[7]` (WE), `ui_in[4:3]` (voice select), `ui_in[2:0]` (register address), `uio_in[7:0]` (data). No SPI or I2C overhead.
-- **3-voice pipelined datapath** -- a ÷3 clock divider produces a 4 MHz clock enable from the 12 MHz system clock. A mod-5 slot counter cycles through voices 0/1/2, giving each voice an 800 kHz effective update rate. 16-bit phase accumulators with 16-bit frequency registers provide ~12.2 Hz resolution across the full audio range.
+- **3-voice pipelined datapath** -- a ÷3 clock divider produces an 8 MHz clock enable from the 24 MHz system clock. A mod-5 slot counter cycles through voices 0/1/2, giving each voice a 1.6 MHz effective update rate. 16-bit phase accumulators with 16-bit frequency registers provide ~24.4 Hz resolution across the full audio range.
 - **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 15-bit LFSR), AND-combined when multiple waveforms are selected. Sync and ring modulation are fully implemented with circular cross-voice connections (V0←V2, V1←V0, V2←V1).
-- **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, 14-bit shared prescaler (clocked at 4 MHz), exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 9 distinct rate settings from ~256 µs to ~524 ms per full traverse.
+- **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, 14-bit shared prescaler (clocked at 8 MHz), exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 9 distinct rate settings from ~128 µs to ~262 ms per full traverse.
 - **3-voice mixer** -- accumulates the three 8-bit voice outputs (8×8 waveform×envelope product, upper byte) into a 10-bit accumulator and divides by 4 to produce an 8-bit mix.
 - **State Variable Filter** (`filter` + `SVF_8bit`) -- 9-bit Q8.1 Chamberlin SVF with LP/BP/HP modes via priority mux (HP > BP > LP). Shift-add multiplies with 3-bit alpha1 (fc[10:8], 3-term /8) and 2-bit alpha2 ((15-res)>>2, 2-term /4). SID-compatible interface: 11-bit cutoff frequency, 4-bit resonance, per-voice filter routing, mode selection, and 4-bit master volume.
-- **2 kHz lowpass** (`lpf_1500`) -- fixed single-pole IIR (6 dB/octave) between filter output and PWM input. Alpha = 1/64 (single shift, fc ≈ 2005 Hz), 10-bit unsigned accumulator (8.2 fixed-point), no multiplier.
-- **PWM audio** (`pwm_audio`) -- single instance on `uo_out[0]`. 8-bit PWM with a 255-clock period (~47.1 kHz at 12 MHz).
+- **2 kHz lowpass** (`output_lpf`) -- fixed single-pole IIR (6 dB/octave) between filter output and PWM input. Alpha = 1/128 (single shift, fc ≈ 1990 Hz), 10-bit unsigned accumulator (8.2 fixed-point), no multiplier.
+- **PWM audio** (`pwm_audio`) -- single instance on `uo_out[0]`. 8-bit PWM with a 255-clock period (~94.1 kHz at 24 MHz).
+
+**Clock tree:**
+
+There is a single physical clock (`clk` at 24 MHz). All registers use `posedge clk`. Slower rates are implemented as clock enables gating register updates, not separate clock domains.
+
+```
+                         24 MHz clk
+                            │
+            ┌───────────────┼───────────────────────┐
+            │               │                       │
+            ▼               ▼                       ▼
+      ┌──────────┐    ┌──────────┐            ┌──────────┐
+      │ clk_div  │    │ wr_en_d  │            │ pwm_audio│
+      │ ÷6 ctr   │    │ edge det │            │ 8-bit ctr│
+      │ (3-bit)  │    └──────────┘            │ /255     │
+      └────┬─────┘     24 MHz                 │ 94.1 kHz │
+           │                                  └──────────┘
+           ▼                                    24 MHz
+      clk_en_4m                               (free-running)
+       (8 MHz)
+           │
+     ┌─────┼──────────────────────┐
+     │     │                      │
+     ▼     ▼                      ▼
+ ┌───────┐ ┌───────────────┐ ┌──────────┐
+ │ slot  │ │ pipeline regs │ │ adsr_pre │
+ │ mod-5 │ │ (V0/V1/V2     │ │ 14-bit   │
+ │(3-bit)│ │  load/compute)│ │ prescaler│
+ └───┬───┘ └───────────────┘ └──────────┘
+     │
+     ▼
+ voice_active ──► acc/env/ast state (slots 0-2)
+     │
+     ▼
+ mix_acc ──► mix_out (slot 3 latch)
+     │
+     ▼
+ sample_valid ──► 1 clk pulse after slot 3
+     │
+     ├──► filter (SVF)    @ 1.6 MHz
+     ├──► output_lpf (IIR) @ 1.6 MHz
+     └──► pwm_audio        @ 24 MHz (free-running)
+```
+
+| Domain | Rate | Drives |
+|--------|------|--------|
+| 24 MHz (`clk`) | 24 MHz | All flip-flops, PWM counter, write-enable edge detect |
+| 8 MHz (`clk_en_8m`) | 8 MHz | Slot counter, pipeline loads, voice state updates, mix, ADSR prescaler |
+| 1.6 MHz (`sample_valid`) | 1.6 MHz | SVF filter, output_lpf IIR (1 pulse per mod-5 frame) |
+| Noise LFSR | pitch-dependent | Edge-detected from voice 0 accumulator bit 11 |
 
 **Register map (voice_sel 0-2: per-voice, voice_sel 3: filter, selected by `ui_in[4:3]`):**
 
@@ -48,10 +98,10 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer with a 9-bit Q8.1 Sta
 The 16-bit frequency register `{freq_hi, freq_lo}` sets the oscillator pitch:
 
 ```
-f_out = freq_reg × 800,000 / 65,536  ≈  freq_reg × 12.207 Hz
+f_out = freq_reg × 1,600,000 / 65,536  ≈  freq_reg × 24.414 Hz
 ```
 
-Resolution: ~12.2 Hz. Range: 12.2 Hz (reg=1) to ~800 kHz (reg=65535). Useful audio range: 12 Hz to ~20 kHz.
+Resolution: ~24.4 Hz. Range: 24.4 Hz (reg=1) to ~1.6 MHz (reg=65535). Useful audio range: 24 Hz to ~20 kHz.
 
 **Pulse width:**
 
@@ -76,7 +126,7 @@ The write sequence for each register: set `ui_in[2:0]` = address, `ui_in[4:3]` =
 
 ## External hardware
 
-A second-order (two-stage) RC low-pass filter on `uo_out[0]` recovers analog audio from the ~47.1 kHz PWM carrier. The single PWM output carries the mixed and filtered audio (filter bypass passes unfiltered mix when filter routing is disabled):
+A second-order (two-stage) RC low-pass filter on `uo_out[0]` recovers analog audio from the ~94.1 kHz PWM carrier. The single PWM output carries the mixed and filtered audio (filter bypass passes unfiltered mix when filter routing is disabled):
 
 ```
 uo_out[0] ---[3.3k]---+---[3.3k]---+---[1uF]---> Audio Out
