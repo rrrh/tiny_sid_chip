@@ -3,7 +3,7 @@
     "r2r_dac_8bit": {
       "instances": {
         "u_dac": {
-          "location": [150, 205],
+          "location": [157, 54],
           "orientation": "N"
         }
       },
@@ -17,7 +17,7 @@
     "svf_2nd": {
       "instances": {
         "u_svf": {
-          "location": [125, 115],
+          "location": [132, 116],
           "orientation": "N"
         }
       },
@@ -31,7 +31,7 @@
     "sar_adc_8bit": {
       "instances": {
         "u_adc": {
-          "location": [145, 5],
+          "location": [154, 2],
           "orientation": "N"
         }
       },
@@ -45,7 +45,7 @@
     "bias_dac_2ch": {
       "instances": {
         "u_bias_dac": {
-          "location": [160, 270],
+          "location": [167, 203],
           "orientation": "N"
         }
       },
@@ -57,7 +57,9 @@
       }
     }
   },
-  "PL_TARGET_DENSITY_PCT": 70,
+  "PL_TARGET_DENSITY_PCT": 50,
+  "FP_MACRO_HORIZONTAL_HALO": 2,
+  "FP_MACRO_VERTICAL_HALO": 2,
   "FP_SIZING": "absolute",
   "DIE_AREA": "0 0 202.08 313.74",
   "CLOCK_PERIOD": 200,
