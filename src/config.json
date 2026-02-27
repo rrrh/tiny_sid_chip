@@ -8,17 +8,25 @@
         }
       },
       "gds": ["dir::../macros/gds/r2r_dac_8bit.gds"],
-      "lef": ["dir::../macros/lef/r2r_dac_8bit.lef"]
+      "lef": ["dir::../macros/lef/r2r_dac_8bit.lef"],
+      "nl": ["dir::../macros/nl/r2r_dac_8bit.v"],
+      "lib": {
+        "*": ["dir::../macros/lib/r2r_dac_8bit.lib"]
+      }
     },
     "svf_2nd": {
       "instances": {
-        "u_filter": {
+        "u_svf": {
           "location": [70, 195],
           "orientation": "N"
         }
       },
       "gds": ["dir::../macros/gds/svf_2nd.gds"],
-      "lef": ["dir::../macros/lef/svf_2nd.lef"]
+      "lef": ["dir::../macros/lef/svf_2nd.lef"],
+      "nl": ["dir::../macros/nl/svf_2nd.v"],
+      "lib": {
+        "*": ["dir::../macros/lib/svf_2nd.lib"]
+      }
     },
     "sar_adc_8bit": {
       "instances": {
@@ -28,7 +36,11 @@
         }
       },
       "gds": ["dir::../macros/gds/sar_adc_8bit.gds"],
-      "lef": ["dir::../macros/lef/sar_adc_8bit.lef"]
+      "lef": ["dir::../macros/lef/sar_adc_8bit.lef"],
+      "nl": ["dir::../macros/nl/sar_adc_8bit.v"],
+      "lib": {
+        "*": ["dir::../macros/lib/sar_adc_8bit.lib"]
+      }
     },
     "bias_dac_2ch": {
       "instances": {
@@ -38,7 +50,11 @@
         }
       },
       "gds": ["dir::../macros/gds/bias_dac_2ch.gds"],
-      "lef": ["dir::../macros/lef/bias_dac_2ch.lef"]
+      "lef": ["dir::../macros/lef/bias_dac_2ch.lef"],
+      "nl": ["dir::../macros/nl/bias_dac_2ch.v"],
+      "lib": {
+        "*": ["dir::../macros/lib/bias_dac_2ch.lib"]
+      }
     }
   },
   "PL_TARGET_DENSITY_PCT": 70,
