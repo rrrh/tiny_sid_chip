@@ -93,6 +93,7 @@
   "FP_IO_HLENGTH": 2,
   "FP_IO_VLENGTH": 2,
   "FP_PDN_MULTILAYER": 1,
+  "FP_PDN_UPPER_LAYER": "TopMetal1",
   "FP_PDN_MACRO_HOOKS": "u_dac vdd VDD vss VSS, u_bias_dac vdd VDD vss VSS, u_svf vdd VDD vss VSS, u_adc vdd VDD vss VSS",
   "RT_MAX_LAYER": "TopMetal1",
   "MAGIC_DEF_LABELS": 0,
