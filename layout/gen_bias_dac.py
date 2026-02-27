@@ -311,6 +311,16 @@ def build_bias_dac():
                                     nbits=NBITS)
 
     # =====================================================================
+    # Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS)
+    # =====================================================================
+    # fc channel switches (y ≈ 18)
+    for xt in [5.0, 12.0, 19.0, 26.0]:
+        draw_ptap(top, layout, xt, 16.0)
+    # q channel switches (y ≈ 2, near VSS rail)
+    for xt in [5.0, 12.0, 19.0, 26.0]:
+        draw_ptap(top, layout, xt, 2.5)
+
+    # =====================================================================
     # Vout pins (right edge, Metal2)
     # =====================================================================
 

@@ -67,8 +67,9 @@ def draw_mim_unit(cell, layout, x, y, side):
     # Metal5 bottom plate
     enc = MIM_ENC_M5
     cell.shapes(li_m5).insert(rect(x - enc, y - enc, x + side + enc, y + side + enc))
-    # TopMetal1 top plate
-    cell.shapes(li_tm1).insert(rect(x - 0.1, y - 0.1, x + side + 0.1, y + side + 0.1))
+    # TopMetal1 top plate (min TM1 width = 1.64 µm)
+    tm1_enc = max(0.1, (1.64 - side) / 2 + 0.01) if side < 1.44 else 0.1
+    cell.shapes(li_tm1).insert(rect(x - tm1_enc, y - tm1_enc, x + side + tm1_enc, y + side + tm1_enc))
 
     return (x + side / 2, y + side / 2)
 
@@ -335,9 +336,11 @@ def build_sar_adc():
         enc = MIM_ENC_M5
         top.shapes(li_m5).insert(rect(cx - enc, cy - enc,
                                        cx + w_cap + enc, cy + h_cap + enc))
-        # TopMetal1 top plate
-        top.shapes(li_tm1).insert(rect(cx - 0.1, cy - 0.1,
-                                        cx + w_cap + 0.1, cy + h_cap + 0.1))
+        # TopMetal1 top plate (min TM1 width = 1.64 µm)
+        tm1_enc_w = max(0.1, (1.64 - w_cap) / 2 + 0.01) if w_cap < 1.44 else 0.1
+        tm1_enc_h = max(0.1, (1.64 - h_cap) / 2 + 0.01) if h_cap < 1.44 else 0.1
+        top.shapes(li_tm1).insert(rect(cx - tm1_enc_w, cy - tm1_enc_h,
+                                        cx + w_cap + tm1_enc_w, cy + h_cap + tm1_enc_h))
 
         bit_areas.append({
             'bit': bit, 'nunits': nunits, 'area': area,
@@ -361,6 +364,24 @@ def build_sar_adc():
     # SAR logic (right side, below comparator)
     # =====================================================================
     sar = draw_sar_logic_block(top, layout, x=30.0, y=5.0, w=SAR_W, h=SAR_H)
+
+    # =====================================================================
+    # Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS)
+    # =====================================================================
+    # Near sample switch (x=2, y=25)
+    draw_ptap(top, layout, 2.0, 22.0)
+    draw_ptap(top, layout, 6.0, 22.0)
+    # Along comparator NMOS region (x=30-40, y=24-40)
+    for xt in [29.0, 33.0, 37.0, 41.0]:
+        draw_ptap(top, layout, xt, 26.0)
+        draw_ptap(top, layout, xt, 36.0)
+    # Along SAR logic NMOS rows (x=30-45, y=5-23, even rows)
+    for xt in [29.0, 33.0, 37.0, 41.0, 44.0]:
+        for yt in [3.5, 8.5, 13.5, 18.5]:
+            draw_ptap(top, layout, xt, yt)
+    # Near cap region NMOS (if any stray N+Activ from switches)
+    for xt in [2.0, 10.0, 18.0]:
+        draw_ptap(top, layout, xt, 2.5)
 
     # =====================================================================
     # Metal routing (simplified — key signal paths)

@@ -126,10 +126,34 @@ def rect(x1, y1, x2, y2):
     return pya.Box(um(x1), um(y1), um(x2), um(y2))
 
 def add_pin_label(cell, layer_pin, layer_lbl, box, name, layout):
-    """Add a pin rectangle and text label."""
+    """Add a pin rectangle, drawing layer, and text label."""
     li_pin = layout.layer(*layer_pin)
     li_lbl = layout.layer(*layer_lbl)
+    li_drw = layout.layer(layer_pin[0], 0)  # drawing layer (same layer num, datatype 0)
     cell.shapes(li_pin).insert(box)
+    cell.shapes(li_drw).insert(box)  # DRC requires drawing under pin
     cx = (box.left + box.right) // 2
     cy = (box.bottom + box.top) // 2
     cell.shapes(li_lbl).insert(pya.Text(name, pya.Trans(cx, cy)))
+
+
+def draw_ptap(cell, layout, x, y, w=0.36, h=0.36):
+    """Draw a P+ substrate tap (PWell tie) for latch-up protection.
+    Places pSD+Activ+Contact+Metal1 at (x,y) with given size.
+    Must be within 20µm of any NMOS (LU.b rule)."""
+    li_act  = layout.layer(*L_ACTIV)
+    li_psd  = layout.layer(*L_PSD)
+    li_cnt  = layout.layer(*L_CONT)
+    li_m1   = layout.layer(*L_METAL1)
+    # Activ
+    cell.shapes(li_act).insert(rect(x, y, x + w, y + h))
+    # pSD implant (with enclosure)
+    cell.shapes(li_psd).insert(rect(x - 0.1, y - 0.1, x + w + 0.1, y + h + 0.1))
+    # Contact (centered)
+    cx = x + (w - CONT_SIZE) / 2
+    cy = y + (h - CONT_SIZE) / 2
+    cell.shapes(li_cnt).insert(rect(cx, cy, cx + CONT_SIZE, cy + CONT_SIZE))
+    # Metal1 pad
+    cell.shapes(li_m1).insert(rect(cx - CONT_ENC_M1, cy - CONT_ENC_M1,
+                                    cx + CONT_SIZE + CONT_ENC_M1,
+                                    cy + CONT_SIZE + CONT_ENC_M1))

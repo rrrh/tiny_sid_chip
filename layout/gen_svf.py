@@ -478,6 +478,20 @@ def build_svf():
             draw_via2(top, layout, sx, 1.0)
 
     # =====================================================================
+    # Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS)
+    # =====================================================================
+    # Along OTA NMOS region (tails at y≈63, diff pairs at y≈65)
+    for xt in [2.0, 10.0, 18.0, 26.0, 34.0, 42.0, 50.0]:
+        draw_ptap(top, layout, xt, 62.0)
+    # Along bias mirror region (y≈57)
+    for xt in [2.0, 8.0, 14.0, 20.0]:
+        draw_ptap(top, layout, xt, 55.5)
+    # Near mux NMOS switches (x=42, y=6-20)
+    draw_ptap(top, layout, 41.0, 4.5)
+    draw_ptap(top, layout, 41.0, 12.0)
+    draw_ptap(top, layout, 41.0, 19.0)
+
+    # =====================================================================
     # MIM Integration Caps (C1 and C2, side by side)
     # =====================================================================
     cap_y = 30.0

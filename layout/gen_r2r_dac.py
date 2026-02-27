@@ -283,6 +283,11 @@ def build_r2r_dac():
 
         x_cursor += r_total + gap
 
+    # --- Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS) ---
+    # Taps distributed along the switch row (y ≈ 36-40)
+    for xt in [3.0, 10.0, 17.0, 24.0, 31.0, 38.0]:
+        draw_ptap(top2, layout2, xt, 36.0)
+
     # --- Vout pin (right edge, Metal2) ---
     vout_via_x = vout_contact[0]
     vout_via_y = vout_contact[1]
