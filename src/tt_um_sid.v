@@ -470,10 +470,10 @@ module tt_um_sid (
     //   mode_vol[6:4] → svf_sel[1:0] (HP>BP>LP priority, or bypass)
     //   mode_vol[3:0] → filt_vol     (digital volume scaling post-ADC)
     //==========================================================================
-    wire dac_out;           // R-2R DAC analog output
-    wire filter_out;        // SVF analog output
-    wire bias_fc;           // fc bias voltage from bias DAC
-    wire bias_q;            // Q bias voltage from bias DAC
+    (* keep *) wire dac_out;           // R-2R DAC analog output
+    (* keep *) wire filter_out;        // SVF analog output
+    (* keep *) wire bias_fc;           // fc bias voltage from bias DAC
+    (* keep *) wire bias_q;            // Q bias voltage from bias DAC
 
     // Bypass: no voices routed to filter, or no filter mode selected
     wire bypass = (filt_en[2:0] == 3'd0) || (filt_mode[2:0] == 3'd0);
