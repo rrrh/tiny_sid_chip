@@ -33,11 +33,11 @@ import math
 # Design parameters
 # ===========================================================================
 NBITS     = 8
-C_UNIT    = 30.0       # fF per unit cap
-C_UNIT_AREA = C_UNIT / MIM_CAP_DENSITY  # 20 µm² per unit
+C_UNIT    = 2.0        # fF per unit cap (kT/C noise ≈ 2.8 mV, ~7 bits)
+C_UNIT_AREA = C_UNIT / MIM_CAP_DENSITY  # ~1.33 µm² per unit
 
-MACRO_W   = 95.0
-MACRO_H   = 104.0
+MACRO_W   = 48.0
+MACRO_H   = 50.0
 
 # Cap sizes (MIM): each cap is rectangular
 # For matching, use common-centroid or at least regular array
@@ -49,8 +49,8 @@ COMP_W    = 15.0
 COMP_H    = 20.0
 
 # SAR logic area
-SAR_W     = 25.0
-SAR_H     = 20.0
+SAR_W     = 15.0
+SAR_H     = 18.0
 
 # ===========================================================================
 # Layout builders
@@ -319,7 +319,7 @@ def build_sar_adc():
         # Place caps in a column, stacking vertically
         if cap_cursor_y + h_cap + MIM_SPACE + 2 * MIM_ENC_M5 > MACRO_H - 6:
             # Move to next column
-            cap_cursor_x += 15.0
+            cap_cursor_x += 14.0
             cap_cursor_y = cap_region_y
 
         li_m5   = layout.layer(*L_METAL5)
@@ -350,17 +350,17 @@ def build_sar_adc():
     # =====================================================================
     # Sample switch (NMOS, left edge near vin pin)
     # =====================================================================
-    sw_sample = draw_nmos_transistor(top, layout, x=2.0, y=50.0, w=3.0, l=0.13)
+    sw_sample = draw_nmos_transistor(top, layout, x=2.0, y=25.0, w=3.0, l=0.13)
 
     # =====================================================================
     # Dynamic comparator (right side of macro)
     # =====================================================================
-    comp = draw_strongarm_comparator(top, layout, x=65.0, y=40.0)
+    comp = draw_strongarm_comparator(top, layout, x=30.0, y=28.0)
 
     # =====================================================================
     # SAR logic (right side, below comparator)
     # =====================================================================
-    sar = draw_sar_logic_block(top, layout, x=65.0, y=5.0, w=SAR_W, h=SAR_H)
+    sar = draw_sar_logic_block(top, layout, x=30.0, y=5.0, w=SAR_W, h=SAR_H)
 
     # =====================================================================
     # Metal routing (simplified — key signal paths)
@@ -372,10 +372,10 @@ def build_sar_adc():
 
     # M2 horizontal bus for SAR bit outputs → cap switches
     for bit in range(NBITS):
-        bus_y = 30.0 + bit * 1.5
+        bus_y = 24.0 + bit * 1.5
         # From SAR logic to cap array
         top.shapes(li_m2).insert(rect(cap_region_x, bus_y - M2_WIDTH / 2,
-                                       65.0, bus_y + M2_WIDTH / 2))
+                                       30.0, bus_y + M2_WIDTH / 2))
 
     # =====================================================================
     # Power rails
@@ -388,20 +388,20 @@ def build_sar_adc():
     # =====================================================================
     # Left edge pins
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, 8.0 - 0.5, 0.5, 8.0 + 0.5), "clk", layout)
+                  rect(0.0, 6.0 - 0.5, 0.5, 6.0 + 0.5), "clk", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, 14.0 - 0.5, 0.5, 14.0 + 0.5), "rst_n", layout)
+                  rect(0.0, 10.0 - 0.5, 0.5, 10.0 + 0.5), "rst_n", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, 20.0 - 0.5, 0.5, 20.0 + 0.5), "start", layout)
+                  rect(0.0, 14.0 - 0.5, 0.5, 14.0 + 0.5), "start", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, 52.0 - 0.5, 0.5, 52.0 + 0.5), "vin", layout)
+                  rect(0.0, 25.0 - 0.5, 0.5, 25.0 + 0.5), "vin", layout)
 
     # Right edge pins
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(MACRO_W - 0.5, 8.0 - 0.5, MACRO_W, 8.0 + 0.5), "eoc", layout)
+                  rect(MACRO_W - 0.5, 6.0 - 0.5, MACRO_W, 6.0 + 0.5), "eoc", layout)
 
     for bit in range(NBITS):
-        pin_y = 18.0 + bit * 6.0
+        pin_y = 10.0 + bit * 5.0
         add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                       rect(MACRO_W - 0.5, pin_y - 0.5, MACRO_W, pin_y + 0.5),
                       f"dout[{bit}]", layout)

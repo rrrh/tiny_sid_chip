@@ -31,7 +31,7 @@
     "sar_adc_8bit": {
       "instances": {
         "u_adc": {
-          "location": [100, 5],
+          "location": [145, 5],
           "orientation": "N"
         }
       },
