@@ -318,6 +318,10 @@ def build_r2r_dac():
     add_pin_label(top2, L_METAL3_PIN, L_METAL3_LBL,
                   rect(0.0, 0.0, MACRO_W, 2.0), "vss", layout2)
 
+    # --- PR Boundary (IHP SG13G2: layer 189/0) ---
+    li_bnd = layout2.layer(189, 0)
+    top2.shapes(li_bnd).insert(rect(0, 0, MACRO_W, MACRO_H))
+
     return layout2, top2
 
 
