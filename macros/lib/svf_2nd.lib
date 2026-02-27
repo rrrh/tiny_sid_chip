@@ -26,23 +26,11 @@ library(svf_2nd) {
 
     pin(vin) { direction : input; capacitance : 0.010; }
     pin(vout) { direction : output; max_capacitance : 0.5; }
-    bus(sel) {
-      bus_type : bus2;
-      pin(sel[0]) { direction : input; capacitance : 0.005; }
-      pin(sel[1]) { direction : input; capacitance : 0.005; }
-    }
+    pin(sel0) { direction : input; capacitance : 0.005; }
+    pin(sel1) { direction : input; capacitance : 0.005; }
     pin(ibias_fc) { direction : input; capacitance : 0.010; }
     pin(ibias_q) { direction : input; capacitance : 0.010; }
     pg_pin(vdd) { pg_type : primary_power; voltage_name : VDD; }
     pg_pin(vss) { pg_type : primary_ground; voltage_name : VSS; }
-  }
-
-  type(bus2) {
-    base_type : array;
-    data_type : bit;
-    bit_width : 2;
-    bit_from  : 1;
-    bit_to    : 0;
-    downto    : true;
   }
 }

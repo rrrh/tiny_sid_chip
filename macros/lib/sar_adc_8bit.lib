@@ -29,14 +29,14 @@ library(sar_adc_8bit) {
     pin(vin) { direction : input; capacitance : 0.010; }
     pin(start) { direction : input; capacitance : 0.005; }
     pin(eoc) { direction : output; max_capacitance : 0.5; }
-    pin(dout[0]) { direction : output; max_capacitance : 0.5; }
-    pin(dout[1]) { direction : output; max_capacitance : 0.5; }
-    pin(dout[2]) { direction : output; max_capacitance : 0.5; }
-    pin(dout[3]) { direction : output; max_capacitance : 0.5; }
-    pin(dout[4]) { direction : output; max_capacitance : 0.5; }
-    pin(dout[5]) { direction : output; max_capacitance : 0.5; }
-    pin(dout[6]) { direction : output; max_capacitance : 0.5; }
-    pin(dout[7]) { direction : output; max_capacitance : 0.5; }
+    pin(dout0) { direction : output; max_capacitance : 0.5; }
+    pin(dout1) { direction : output; max_capacitance : 0.5; }
+    pin(dout2) { direction : output; max_capacitance : 0.5; }
+    pin(dout3) { direction : output; max_capacitance : 0.5; }
+    pin(dout4) { direction : output; max_capacitance : 0.5; }
+    pin(dout5) { direction : output; max_capacitance : 0.5; }
+    pin(dout6) { direction : output; max_capacitance : 0.5; }
+    pin(dout7) { direction : output; max_capacitance : 0.5; }
     pg_pin(vdd) { pg_type : primary_power; voltage_name : VDD; }
     pg_pin(vss) { pg_type : primary_ground; voltage_name : VSS; }
   }

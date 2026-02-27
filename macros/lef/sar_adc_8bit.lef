@@ -54,77 +54,77 @@ MACRO sar_adc_8bit
     END
   END eoc
 
-  PIN dout[0]
+  PIN dout0
     DIRECTION OUTPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 47.500 9.500 48.000 10.500 ;
     END
-  END dout[0]
+  END dout0
 
-  PIN dout[1]
+  PIN dout1
     DIRECTION OUTPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 47.500 14.500 48.000 15.500 ;
     END
-  END dout[1]
+  END dout1
 
-  PIN dout[2]
+  PIN dout2
     DIRECTION OUTPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 47.500 19.500 48.000 20.500 ;
     END
-  END dout[2]
+  END dout2
 
-  PIN dout[3]
+  PIN dout3
     DIRECTION OUTPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 47.500 24.500 48.000 25.500 ;
     END
-  END dout[3]
+  END dout3
 
-  PIN dout[4]
+  PIN dout4
     DIRECTION OUTPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 47.500 29.500 48.000 30.500 ;
     END
-  END dout[4]
+  END dout4
 
-  PIN dout[5]
+  PIN dout5
     DIRECTION OUTPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 47.500 34.500 48.000 35.500 ;
     END
-  END dout[5]
+  END dout5
 
-  PIN dout[6]
+  PIN dout6
     DIRECTION OUTPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 47.500 39.500 48.000 40.500 ;
     END
-  END dout[6]
+  END dout6
 
-  PIN dout[7]
+  PIN dout7
     DIRECTION OUTPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 47.500 44.500 48.000 45.500 ;
     END
-  END dout[7]
+  END dout7
 
   PIN vdd
     DIRECTION INOUT ;

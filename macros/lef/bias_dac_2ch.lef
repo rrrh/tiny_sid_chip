@@ -9,77 +9,77 @@ MACRO bias_dac_2ch
   SIZE 35.000 BY 40.000 ;
   SYMMETRY X Y ;
 
-  PIN d_fc[0]
+  PIN dfc0
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 23.500 0.500 24.500 ;
     END
-  END d_fc[0]
+  END dfc0
 
-  PIN d_fc[1]
+  PIN dfc1
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 27.000 0.500 28.000 ;
     END
-  END d_fc[1]
+  END dfc1
 
-  PIN d_fc[2]
+  PIN dfc2
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 30.500 0.500 31.500 ;
     END
-  END d_fc[2]
+  END dfc2
 
-  PIN d_fc[3]
+  PIN dfc3
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 34.000 0.500 35.000 ;
     END
-  END d_fc[3]
+  END dfc3
 
-  PIN d_q[0]
+  PIN dq0
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 3.500 0.500 4.500 ;
     END
-  END d_q[0]
+  END dq0
 
-  PIN d_q[1]
+  PIN dq1
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 7.000 0.500 8.000 ;
     END
-  END d_q[1]
+  END dq1
 
-  PIN d_q[2]
+  PIN dq2
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 10.500 0.500 11.500 ;
     END
-  END d_q[2]
+  END dq2
 
-  PIN d_q[3]
+  PIN dq3
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 14.000 0.500 15.000 ;
     END
-  END d_q[3]
+  END dq3
 
   PIN vout_fc
     DIRECTION OUTPUT ;

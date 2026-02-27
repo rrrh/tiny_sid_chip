@@ -27,23 +27,23 @@ MACRO svf_2nd
     END
   END vout
 
-  PIN sel[0]
+  PIN sel0
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 9.000 0.500 11.000 ;
     END
-  END sel[0]
+  END sel0
 
-  PIN sel[1]
+  PIN sel1
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 15.000 0.500 17.000 ;
     END
-  END sel[1]
+  END sel1
 
   PIN ibias_fc
     DIRECTION INPUT ;

@@ -24,14 +24,14 @@ library(bias_dac_2ch) {
     dont_touch : true;
     dont_use : true;
 
-    pin(d_fc[0]) { direction : input; capacitance : 0.005; }
-    pin(d_fc[1]) { direction : input; capacitance : 0.005; }
-    pin(d_fc[2]) { direction : input; capacitance : 0.005; }
-    pin(d_fc[3]) { direction : input; capacitance : 0.005; }
-    pin(d_q[0]) { direction : input; capacitance : 0.005; }
-    pin(d_q[1]) { direction : input; capacitance : 0.005; }
-    pin(d_q[2]) { direction : input; capacitance : 0.005; }
-    pin(d_q[3]) { direction : input; capacitance : 0.005; }
+    pin(dfc0) { direction : input; capacitance : 0.005; }
+    pin(dfc1) { direction : input; capacitance : 0.005; }
+    pin(dfc2) { direction : input; capacitance : 0.005; }
+    pin(dfc3) { direction : input; capacitance : 0.005; }
+    pin(dq0) { direction : input; capacitance : 0.005; }
+    pin(dq1) { direction : input; capacitance : 0.005; }
+    pin(dq2) { direction : input; capacitance : 0.005; }
+    pin(dq3) { direction : input; capacitance : 0.005; }
     pin(vout_fc) { direction : output; max_capacitance : 0.5; }
     pin(vout_q) { direction : output; max_capacitance : 0.5; }
     pg_pin(vdd) { pg_type : primary_power; voltage_name : VDD; }

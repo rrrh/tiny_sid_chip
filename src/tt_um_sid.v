@@ -485,14 +485,15 @@ module tt_um_sid (
 
     // --- R-2R DAC: mixer output → analog ---
     r2r_dac_8bit u_dac (
-        .d    (mix_out),
+        .d0(mix_out[0]), .d1(mix_out[1]), .d2(mix_out[2]), .d3(mix_out[3]),
+        .d4(mix_out[4]), .d5(mix_out[5]), .d6(mix_out[6]), .d7(mix_out[7]),
         .vout (dac_out)
     );
 
     // --- Bias DAC: register-controlled fc and Q bias voltages ---
     bias_dac_2ch u_bias_dac (
-        .d_fc    (filt_fc[10:7]),   // top 4 bits of 11-bit cutoff register
-        .d_q     (filt_res),        // 4-bit resonance → Q control
+        .dfc0(filt_fc[7]),  .dfc1(filt_fc[8]),  .dfc2(filt_fc[9]),  .dfc3(filt_fc[10]),
+        .dq0(filt_res[0]),  .dq1(filt_res[1]),  .dq2(filt_res[2]),  .dq3(filt_res[3]),
         .vout_fc (bias_fc),
         .vout_q  (bias_q)
     );
@@ -501,7 +502,8 @@ module tt_um_sid (
     svf_2nd u_svf (
         .vin      (dac_out),
         .vout     (filter_out),
-        .sel      (svf_sel),
+        .sel0     (svf_sel[0]),
+        .sel1     (svf_sel[1]),
         .ibias_fc (bias_fc),
         .ibias_q  (bias_q)
     );
@@ -535,7 +537,8 @@ module tt_um_sid (
         .vin   (filter_out),
         .start (adc_start),
         .eoc   (adc_eoc),
-        .dout  (adc_dout)
+        .dout0(adc_dout[0]), .dout1(adc_dout[1]), .dout2(adc_dout[2]), .dout3(adc_dout[3]),
+        .dout4(adc_dout[4]), .dout5(adc_dout[5]), .dout6(adc_dout[6]), .dout7(adc_dout[7])
     );
 
     // --- Volume scaling (shift-add, same as original filter.v) ---

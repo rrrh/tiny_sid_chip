@@ -24,14 +24,14 @@ library(r2r_dac_8bit) {
     dont_touch : true;
     dont_use : true;
 
-    pin(d[0]) { direction : input; capacitance : 0.005; }
-    pin(d[1]) { direction : input; capacitance : 0.005; }
-    pin(d[2]) { direction : input; capacitance : 0.005; }
-    pin(d[3]) { direction : input; capacitance : 0.005; }
-    pin(d[4]) { direction : input; capacitance : 0.005; }
-    pin(d[5]) { direction : input; capacitance : 0.005; }
-    pin(d[6]) { direction : input; capacitance : 0.005; }
-    pin(d[7]) { direction : input; capacitance : 0.005; }
+    pin(d0) { direction : input; capacitance : 0.005; }
+    pin(d1) { direction : input; capacitance : 0.005; }
+    pin(d2) { direction : input; capacitance : 0.005; }
+    pin(d3) { direction : input; capacitance : 0.005; }
+    pin(d4) { direction : input; capacitance : 0.005; }
+    pin(d5) { direction : input; capacitance : 0.005; }
+    pin(d6) { direction : input; capacitance : 0.005; }
+    pin(d7) { direction : input; capacitance : 0.005; }
     pin(vout) { direction : output; max_capacitance : 0.5; }
     pg_pin(vdd) { pg_type : primary_power; voltage_name : VDD; }
     pg_pin(vss) { pg_type : primary_ground; voltage_name : VSS; }
