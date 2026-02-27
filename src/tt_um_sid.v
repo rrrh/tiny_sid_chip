@@ -35,10 +35,13 @@
 //     5: sustain  — sustain[3:0]/rel[7:4]
 //     6: waveform — SID-compatible layout
 //   Filter (voice_sel 3):
-//     0: fc_lo    — cutoff low [7:0] (only [2:0] used)   ($D415)
-//     1: fc_hi    — cutoff high [7:0]                     ($D416)
-//     2: res_filt — [7:4] resonance, [3:0] filt enable    ($D417)
-//     3: mode_vol — [7:4] mode (V3OFF/HP/BP/LP), [3:0] vol ($D418)
+//     0: fc_lo    — cutoff low [7:0] (fc_hi:fc_lo[2:0] → filt_fc[10:7] → DAC)  ($D415)
+//     1: fc_hi    — cutoff high [7:0]                                            ($D416)
+//     2: res_filt — [7:4] resonance → Q bias DAC, [3:0] filt enable             ($D417)
+//     3: mode_vol — [6:4] mode (HP/BP/LP), [3:0] vol                            ($D418)
+//
+//   Analog signal chain: mix → R-2R DAC → gm-C SVF → SAR ADC → vol scaling
+//   Bias DACs driven directly from register bank (flat memory, no SPI)
 //
 // Waveform register (SID $d404 layout):
 //   [0] gate  [1] sync  [2] ring-mod  [3] test
@@ -458,22 +461,98 @@ module tt_um_sid (
         else        sample_valid <= clk_en_8m && (slot == 3'd3);
 
     //==========================================================================
-    // Filter (passthrough by default — bypass when filt=0 or mode=0)
+    // Analog filter signal chain:
+    //   mix_out → R-2R DAC → analog SVF → SAR ADC → volume scaling
+    //
+    // Register mapping (voice_sel=3, flat memory — no SPI):
+    //   fc_lo/fc_hi → filt_fc[10:7] → d_fc[3:0]  (top 4 bits of 11-bit fc)
+    //   res_filt[7:4] → filt_res    → d_q[3:0]   (resonance maps to Q)
+    //   mode_vol[6:4] → svf_sel[1:0] (HP>BP>LP priority, or bypass)
+    //   mode_vol[3:0] → filt_vol     (digital volume scaling post-ADC)
     //==========================================================================
-    wire [7:0] filtered_out;
+    wire dac_out;           // R-2R DAC analog output
+    wire filter_out;        // SVF analog output
+    wire bias_fc;           // fc bias voltage from bias DAC
+    wire bias_q;            // Q bias voltage from bias DAC
 
-    filter u_filter (
-        .clk          (clk),
-        .rst_n        (rst_n),
-        .sample_in    (mix_out),
-        .sample_valid (sample_valid),
-        .fc           (filt_fc),
-        .res          (filt_res),
-        .filt         (filt_en),
-        .mode         (filt_mode),
-        .vol          (filt_vol),
-        .sample_out   (filtered_out)
+    // Bypass: no voices routed to filter, or no filter mode selected
+    wire bypass = (filt_en[2:0] == 3'd0) || (filt_mode[2:0] == 3'd0);
+
+    // SVF mode select: 00=LP, 01=BP, 10=HP, 11=bypass
+    wire [1:0] svf_sel = bypass       ? 2'b11 :
+                         filt_mode[2] ? 2'b10 :
+                         filt_mode[1] ? 2'b01 : 2'b00;
+
+    // --- R-2R DAC: mixer output → analog ---
+    r2r_dac_8bit u_dac (
+        .d    (mix_out),
+        .vdd  (1'b1),
+        .vss  (1'b0),
+        .vout (dac_out)
     );
+
+    // --- Bias DAC: register-controlled fc and Q bias voltages ---
+    bias_dac_2ch u_bias_dac (
+        .d_fc    (filt_fc[10:7]),   // top 4 bits of 11-bit cutoff register
+        .d_q     (filt_res),        // 4-bit resonance → Q control
+        .vout_fc (bias_fc),
+        .vout_q  (bias_q),
+        .vdd     (1'b1),
+        .vss     (1'b0)
+    );
+
+    // --- Analog gm-C SVF ---
+    svf_2nd u_svf (
+        .vin      (dac_out),
+        .vout     (filter_out),
+        .sel      (svf_sel),
+        .ibias_fc (bias_fc),
+        .ibias_q  (bias_q),
+        .vdd      (1'b1),
+        .vss      (1'b0)
+    );
+
+    // --- SAR ADC: analog → digital (continuous conversion) ---
+    wire       adc_eoc;
+    wire [7:0] adc_dout;
+    reg        adc_busy;
+    reg        adc_start;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            adc_busy  <= 1'b0;
+            adc_start <= 1'b0;
+        end else begin
+            if (adc_eoc) begin
+                adc_busy  <= 1'b0;
+                adc_start <= 1'b1;
+            end else if (adc_start) begin
+                adc_start <= 1'b0;
+                adc_busy  <= 1'b1;
+            end else if (!adc_busy) begin
+                adc_start <= 1'b1;
+            end
+        end
+    end
+
+    sar_adc_8bit u_adc (
+        .clk   (clk),
+        .rst_n (rst_n),
+        .vin   (filter_out),
+        .start (adc_start),
+        .vdd   (1'b1),
+        .vss   (1'b0),
+        .eoc   (adc_eoc),
+        .dout  (adc_dout)
+    );
+
+    // --- Volume scaling (shift-add, same as original filter.v) ---
+    wire [7:0] scaled = (filt_vol[3] ? {1'b0, adc_dout[7:1]} : 8'd0) +
+                        (filt_vol[2] ? {2'b0, adc_dout[7:2]} : 8'd0) +
+                        (filt_vol[1] ? {3'b0, adc_dout[7:3]} : 8'd0) +
+                        (filt_vol[0] ? {4'b0, adc_dout[7:4]} : 8'd0);
+
+    wire [7:0] filtered_out = bypass ? mix_out : scaled;
 
     //==========================================================================
     // 6 dB/octave Lowpass (fc ≈ 1500 Hz) before PWM
@@ -507,6 +586,6 @@ module tt_um_sid (
     assign uio_out = 8'b0;
     assign uio_oe  = 8'b0;
 
-    wire _unused = &{ena, ui_in[6:5], 1'b0};
+    wire _unused = &{ena, ui_in[6:5], adc_busy, 1'b0};
 
 endmodule
