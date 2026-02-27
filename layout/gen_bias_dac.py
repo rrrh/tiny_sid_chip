@@ -361,12 +361,6 @@ def build_bias_dac():
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
                   rect(0.0, 0.0, MACRO_W, 2.0), "vss", layout)
 
-    # =====================================================================
-    # Boundary
-    # =====================================================================
-    li_bnd = layout.layer(0, 0)
-    top.shapes(li_bnd).insert(rect(0, 0, MACRO_W, MACRO_H))
-
     return layout, top
 
 
