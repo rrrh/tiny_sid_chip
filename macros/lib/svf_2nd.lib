@@ -33,8 +33,8 @@ library(svf_2nd) {
     }
     pin(ibias_fc) { direction : input; capacitance : 0.010; }
     pin(ibias_q) { direction : input; capacitance : 0.010; }
-    pin(vdd) { direction : inout; }
-    pin(vss) { direction : inout; }
+    pg_pin(vdd) { pg_type : primary_power; voltage_name : VDD; }
+    pg_pin(vss) { pg_type : primary_ground; voltage_name : VSS; }
   }
 
   type(bus2) {

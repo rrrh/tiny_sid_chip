@@ -486,8 +486,6 @@ module tt_um_sid (
     // --- R-2R DAC: mixer output → analog ---
     r2r_dac_8bit u_dac (
         .d    (mix_out),
-        .vdd  (1'b1),
-        .vss  (1'b0),
         .vout (dac_out)
     );
 
@@ -496,9 +494,7 @@ module tt_um_sid (
         .d_fc    (filt_fc[10:7]),   // top 4 bits of 11-bit cutoff register
         .d_q     (filt_res),        // 4-bit resonance → Q control
         .vout_fc (bias_fc),
-        .vout_q  (bias_q),
-        .vdd     (1'b1),
-        .vss     (1'b0)
+        .vout_q  (bias_q)
     );
 
     // --- Analog gm-C SVF ---
@@ -507,9 +503,7 @@ module tt_um_sid (
         .vout     (filter_out),
         .sel      (svf_sel),
         .ibias_fc (bias_fc),
-        .ibias_q  (bias_q),
-        .vdd      (1'b1),
-        .vss      (1'b0)
+        .ibias_q  (bias_q)
     );
 
     // --- SAR ADC: analog → digital (continuous conversion) ---
@@ -540,8 +534,6 @@ module tt_um_sid (
         .rst_n (rst_n),
         .vin   (filter_out),
         .start (adc_start),
-        .vdd   (1'b1),
-        .vss   (1'b0),
         .eoc   (adc_eoc),
         .dout  (adc_dout)
     );
