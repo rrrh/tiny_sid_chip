@@ -375,11 +375,16 @@ def build_sar_adc():
     for xt in [29.0, 33.0, 37.0, 41.0]:
         draw_ptap(top, layout, xt, 26.0)
         draw_ptap(top, layout, xt, 36.0)
-    # Along SAR logic NMOS rows (x=30-45, y=5-23, even rows)
-    for xt in [29.0, 33.0, 37.0, 41.0, 44.0]:
-        for yt in [3.5, 8.5, 13.5, 18.5]:
-            draw_ptap(top, layout, xt, yt)
-    # Near cap region NMOS (if any stray N+Activ from switches)
+    # SAR logic perimeter taps (block at x=30-45, y=5-23)
+    # Place outside the dense transistor grid to avoid Activ spacing issues
+    for xt in [28.5, 34.0, 39.5, 46.0]:
+        draw_ptap(top, layout, xt, 3.5)   # below SAR logic
+        draw_ptap(top, layout, xt, 23.5)  # above SAR logic
+    # Left/right perimeter of SAR logic
+    for yt in [9.0, 15.0, 21.0]:
+        draw_ptap(top, layout, 28.5, yt)
+        draw_ptap(top, layout, 46.0, yt)
+    # Near cap region
     for xt in [2.0, 10.0, 18.0]:
         draw_ptap(top, layout, xt, 2.5)
 
