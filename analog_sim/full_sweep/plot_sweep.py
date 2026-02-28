@@ -115,6 +115,21 @@ def plot_waveform_grid(segments, outpath):
     fig.suptitle("SID Full Chain \u2014 Audio Output Waveforms (16 Frequency Points)",
                  fontsize=14, y=0.98)
 
+    # Compute global y-range across all 16 segments for uniform scaling
+    y_min, y_max = 0.0, 0.0
+    for i in range(len(FREQS)):
+        if i < len(segments) and len(segments[i]) > 0:
+            data = segments[i]
+            t = data[:, COL_TIME]
+            mask = t >= 5e-3
+            if np.any(mask):
+                audio_out = data[mask, COL_AUDIO]
+                y_min = min(y_min, audio_out.min())
+                y_max = max(y_max, audio_out.max())
+    y_margin = (y_max - y_min) * 0.05 if y_max > y_min else 0.1
+    y_min -= y_margin
+    y_max += y_margin
+
     for i, freq in enumerate(FREQS):
         row, col = divmod(i, 4)
         ax = axes[row][col]
@@ -133,6 +148,7 @@ def plot_waveform_grid(segments, outpath):
         ax.set_title(f"{freq} Hz", fontsize=10, fontweight="bold")
         ax.set_xlabel("ms", fontsize=7)
         ax.set_ylabel("V", fontsize=7)
+        ax.set_ylim(y_min, y_max)
         ax.tick_params(labelsize=7)
         ax.grid(True, alpha=0.3)
 
