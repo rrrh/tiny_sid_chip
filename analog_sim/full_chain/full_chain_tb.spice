@@ -1,0 +1,111 @@
+* Full Signal Chain Testbench: R-2R DAC -> SVF (BP) -> SAR ADC
+* IHP SG13G2 PDK — VDD=1.2V
+* 1kHz sine via behavioral DAC -> audio-band SVF bandpass -> behavioral ADC
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+.param vcm=0.6
+.param pi=3.14159265358979
+.param gm_fc=5e-6
+.param gm_q=2.5e-6
+.param c_int=800e-12
+
+* ============================================================
+* Subcircuit definitions
+* ============================================================
+
+* --- Complementary Switch (same as r2r_dac and bias_dac) ---
+.subckt cmos_sw out sel selb vhi vlo vdd vss
+XMp_hi out selb vhi vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMn_lo out selb vlo vss sg13_lv_nmos w=10e-6 l=0.13e-6
+.ends cmos_sw
+
+* --- 8-bit R-2R DAC (corrected: CMOS switches, LSB at terminated end) ---
+.subckt r2r_dac_8bit b7 b6 b5 b4 b3 b2 b1 b0 vout vdd vss
+Binv7 b7b 0 V = {vdd_val} - v(b7)
+Binv6 b6b 0 V = {vdd_val} - v(b6)
+Binv5 b5b 0 V = {vdd_val} - v(b5)
+Binv4 b4b 0 V = {vdd_val} - v(b4)
+Binv3 b3b 0 V = {vdd_val} - v(b3)
+Binv2 b2b 0 V = {vdd_val} - v(b2)
+Binv1 b1b 0 V = {vdd_val} - v(b1)
+Binv0 b0b 0 V = {vdd_val} - v(b0)
+XRterm tap0 vss vss rhigh w=2e-6 l=6.15e-6
+XR2R_0 tap0 sw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw0 sw0 b0 b0b vdd vss vdd vss cmos_sw
+XRs01 tap0 tap1 vss rhigh w=2e-6 l=3.08e-6
+XR2R_1 tap1 sw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw1 sw1 b1 b1b vdd vss vdd vss cmos_sw
+XRs12 tap1 tap2 vss rhigh w=2e-6 l=3.08e-6
+XR2R_2 tap2 sw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw2 sw2 b2 b2b vdd vss vdd vss cmos_sw
+XRs23 tap2 tap3 vss rhigh w=2e-6 l=3.08e-6
+XR2R_3 tap3 sw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw3 sw3 b3 b3b vdd vss vdd vss cmos_sw
+XRs34 tap3 tap4 vss rhigh w=2e-6 l=3.08e-6
+XR2R_4 tap4 sw4 vss rhigh w=2e-6 l=6.15e-6
+Xsw4 sw4 b4 b4b vdd vss vdd vss cmos_sw
+XRs45 tap4 tap5 vss rhigh w=2e-6 l=3.08e-6
+XR2R_5 tap5 sw5 vss rhigh w=2e-6 l=6.15e-6
+Xsw5 sw5 b5 b5b vdd vss vdd vss cmos_sw
+XRs56 tap5 tap6 vss rhigh w=2e-6 l=3.08e-6
+XR2R_6 tap6 sw6 vss rhigh w=2e-6 l=6.15e-6
+Xsw6 sw6 b6 b6b vdd vss vdd vss cmos_sw
+XRs67 tap6 vout vss rhigh w=2e-6 l=3.08e-6
+XR2R_7 vout sw7 vss rhigh w=2e-6 l=6.15e-6
+Xsw7 sw7 b7 b7b vdd vss vdd vss cmos_sw
+.ends r2r_dac_8bit
+
+* --- Ideal OTA (current-sourcing) ---
+.subckt ota_bias vinp vinn vout vcm_ref gm_val=5e-6 rbias_val=1meg
+Gm 0 vout vinp vinn {gm_val}
+Rbias vout vcm_ref {rbias_val}
+.ends ota_bias
+
+.subckt ota_int vinp vinn vout vcm_ref gm_val=5e-6 rbias_val=10meg
+Gm 0 vout vinp vinn {gm_val}
+Rbias vout vcm_ref {rbias_val}
+.ends ota_int
+
+* --- SVF (2nd-order, BP mode hardwired, audio-band) ---
+.subckt svf_bp vin vout vcm vdd vss
+XOTA1 vin lp hp vcm ota_bias gm_val={gm_fc} rbias_val=1meg
+XOTA4 vcm bp hp vcm ota_bias gm_val={gm_q} rbias_val=1meg
+XOTA2 hp bp bp vcm ota_int gm_val={gm_fc} rbias_val=10meg
+XOTA3 bp lp lp vcm ota_int gm_val={gm_fc} rbias_val=10meg
+C1 bp vss {c_int}
+C2 lp vss {c_int}
+Rout bp vout 100
+.ends svf_bp
+
+* ============================================================
+* Testbench Top Level
+* ============================================================
+Vdd vdd 0 {vdd_val}
+Vcm vcm_node 0 {vcm}
+
+* --- DAC Stimulus: behavioral quantized 1kHz sine (at SVF center) ---
+Bsine_code sine_code 0 V = floor(128 + 100*sin(2*{pi}*1000*time) + 0.5)
+Bdac_ideal dac_out 0 V = v(sine_code) / 255 * {vdd_val}
+
+* --- SVF Filter (BP mode) ---
+Xsvf dac_out svf_out vcm_node vdd 0 svf_bp
+
+* --- SAR ADC (simplified behavioral) ---
+Badc_code adc_code 0 V = floor(v(svf_out) / {vdd_val} * 255 + 0.5)
+Badc_analog adc_recon 0 V = v(adc_code) / 255 * {vdd_val}
+
+.control
+  echo "=== Full Chain Simulation: DAC -> SVF -> ADC ==="
+  echo "1kHz sine, audio-band BP filter, 5ms transient"
+
+  tran 10u 5m
+
+  wrdata full_chain_out.dat v(dac_out) v(svf_out) v(adc_recon)
+
+  echo "=== Full Chain Simulation Complete ==="
+
+.endc
+
+.end

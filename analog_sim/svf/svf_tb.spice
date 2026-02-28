@@ -1,0 +1,179 @@
+* State-Variable Filter (gm-C SVF) Testbench
+* IHP SG13G2 PDK — VDD=1.2V
+* Audio-band gm-C SVF: f0 ~ 1kHz
+* Ideal behavioral Gm cells (current-sourcing, lossy integrators)
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+.param vcm=0.6
+.param gm_fc=5e-6
+.param gm_q=2.5e-6
+.param c_int=800e-12
+
+* ============================================================
+* Ideal OTA subcircuits (current-SOURCING: Gm 0 vout)
+* When Vinp > Vinn, current flows INTO vout -> Vout rises
+* Pins: vinp vinn vout vcm_ref
+* ============================================================
+
+* OTA for summing/damping nodes — Rbias to vcm for DC bias
+.subckt ota_bias vinp vinn vout vcm_ref gm_val=5e-6 rbias_val=1meg
+Gm 0 vout vinp vinn {gm_val}
+Rbias vout vcm_ref {rbias_val}
+.ends ota_bias
+
+* OTA for lossy integrators — with vinn=vout (external) for stable feedback
+.subckt ota_int vinp vinn vout vcm_ref gm_val=5e-6 rbias_val=10meg
+Gm 0 vout vinp vinn {gm_val}
+Rbias vout vcm_ref {rbias_val}
+.ends ota_int
+
+* ============================================================
+* 2nd-Order SVF (lossy gm-C integrators, audio band)
+*
+* f0 = gm_fc / (2*pi*C) ~ 5uA/V / (2*pi*800pF) ~ 1 kHz
+* Q set by gm_q/gm_fc ratio and R_HP
+* ============================================================
+.subckt svf_2nd vin vout sel1 sel0 vcm vdd vss
+
+* --- OTA instances ---
+* OTA1 (summing): gm_fc*(vin - lp) -> current into HP
+XOTA1 vin lp hp vcm ota_bias gm_val={gm_fc} rbias_val=1meg
+
+* OTA4 (damping): gm_q*(vcm - bp) -> current into HP
+XOTA4 vcm bp hp vcm ota_bias gm_val={gm_q} rbias_val=1meg
+
+* OTA2 (lossy integrator): gm_fc*(hp - bp) -> charges C1 -> BP
+XOTA2 hp bp bp vcm ota_int gm_val={gm_fc} rbias_val=10meg
+
+* OTA3 (lossy integrator): gm_fc*(bp - lp) -> charges C2 -> LP
+XOTA3 bp lp lp vcm ota_int gm_val={gm_fc} rbias_val=10meg
+
+* --- Integration capacitors (800pF each, ideal elements) ---
+* cap_cmim at this value would be ~730um per side; use ideal C for behavioral model
+C1 bp vss {c_int}
+C2 lp vss {c_int}
+
+* --- Notch output (HP + LP via resistive sum) ---
+Rnotch_hp hp notch 10meg
+Rnotch_lp lp notch 10meg
+
+* --- 4:1 Output Mux (behavioral) ---
+Bsel_hp  sel_hp  0 V = (1.2 - v(sel1)) * (1.2 - v(sel0)) / 1.44
+Bsel_bp  sel_bp  0 V = (1.2 - v(sel1)) * v(sel0) / 1.44
+Bsel_lp  sel_lp  0 V = v(sel1) * (1.2 - v(sel0)) / 1.44
+Bsel_not sel_not 0 V = v(sel1) * v(sel0) / 1.44
+
+Bmux vmux 0 V = v(hp)*v(sel_hp) + v(bp)*v(sel_bp) + v(lp)*v(sel_lp) + v(notch)*v(sel_not)
+Rmux vmux vout 100
+
+.ends svf_2nd
+
+* ============================================================
+* Testbench
+* ============================================================
+Vdd vdd 0 {vdd_val}
+Vcm vcm_node 0 {vcm}
+
+Vin vin 0 dc {vcm} ac 0.1
+
+Vsel1 sel1 0 0
+Vsel0 sel0 0 {vdd_val}
+
+Xsvf vin svf_out sel1 sel0 vcm_node vdd 0 svf_2nd
+
+Rout svf_out 0 1meg
+
+.control
+  shell rm -f svf_bp_ac.dat svf_lp_ac.dat svf_hp_ac.dat svf_tran.dat
+
+  * =============================================
+  * Test 1: DC operating point
+  * =============================================
+  echo "=== SVF DC Operating Point ==="
+  op
+  echo "  HP: $&v(xsvf.hp)"
+  echo "  BP: $&v(xsvf.bp)"
+  echo "  LP: $&v(xsvf.lp)"
+  echo "  svf_out: $&v(svf_out)"
+  destroy all
+
+  * =============================================
+  * Test 2: BP AC response (audio band)
+  * =============================================
+  echo "=== BP AC Response ==="
+  alter vsel1 = 0
+  alter vsel0 = 1.2
+  ac dec 50 1 100k
+  meas ac bp_peak max vdb(svf_out)
+  echo "  BP peak gain: $&bp_peak dB"
+
+  let freq_vec = frequency
+  let vdb_bp = vdb(svf_out)
+  let i = 0
+  while i < length(freq_vec)
+    let fval = freq_vec[i]
+    let gval = vdb_bp[i]
+    echo "$&fval $&gval" >> svf_bp_ac.dat
+    let i = i + 1
+  end
+  destroy all
+
+  * =============================================
+  * Test 3: LP AC response
+  * =============================================
+  echo "=== LP AC Response ==="
+  alter vsel1 = 1.2
+  alter vsel0 = 0
+  ac dec 50 1 100k
+  let vdb_lp = vdb(svf_out)
+  let lp_dc = vdb_lp[0]
+  echo "  LP DC gain: $&lp_dc dB"
+
+  let freq_vec = frequency
+  let i = 0
+  while i < length(freq_vec)
+    let fval = freq_vec[i]
+    let gval = vdb_lp[i]
+    echo "$&fval $&gval" >> svf_lp_ac.dat
+    let i = i + 1
+  end
+  destroy all
+
+  * =============================================
+  * Test 4: HP AC response
+  * =============================================
+  echo "=== HP AC Response ==="
+  alter vsel1 = 0
+  alter vsel0 = 0
+  ac dec 50 1 100k
+  let vdb_hp = vdb(svf_out)
+  let hp_hf = vdb_hp[length(vdb_hp)-1]
+  echo "  HP high-freq gain: $&hp_hf dB"
+
+  let freq_vec = frequency
+  let i = 0
+  while i < length(freq_vec)
+    let fval = freq_vec[i]
+    let gval = vdb_hp[i]
+    echo "$&fval $&gval" >> svf_hp_ac.dat
+    let i = i + 1
+  end
+  destroy all
+
+  * =============================================
+  * Test 5: Transient (BP, 1kHz sine at filter center)
+  * =============================================
+  echo "=== Transient Test (BP, 1kHz) ==="
+  alter vin dc = 0.6 ac = 0
+  alter @vin[sin] = [ 0.6 0.05 1k ]
+  tran 10u 5m
+  wrdata svf_tran.dat v(vin) v(xsvf.bp) v(xsvf.lp) v(xsvf.hp)
+  destroy all
+
+  echo "=== SVF Simulation Complete ==="
+
+.endc
+
+.end
