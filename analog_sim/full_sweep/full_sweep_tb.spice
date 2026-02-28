@@ -88,9 +88,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "250 $&pp" >> sweep_gain.dat
   wrdata seg_00.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -103,9 +103,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "330 $&pp" >> sweep_gain.dat
   wrdata seg_01.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -118,9 +118,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "400 $&pp" >> sweep_gain.dat
   wrdata seg_02.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -133,9 +133,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "500 $&pp" >> sweep_gain.dat
   wrdata seg_03.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -148,9 +148,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "660 $&pp" >> sweep_gain.dat
   wrdata seg_04.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -163,9 +163,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "800 $&pp" >> sweep_gain.dat
   wrdata seg_05.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -178,9 +178,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "1000 $&pp" >> sweep_gain.dat
   wrdata seg_06.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -193,9 +193,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "1300 $&pp" >> sweep_gain.dat
   wrdata seg_07.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -208,9 +208,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "2000 $&pp" >> sweep_gain.dat
   wrdata seg_08.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -223,9 +223,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "2700 $&pp" >> sweep_gain.dat
   wrdata seg_09.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -238,9 +238,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "4000 $&pp" >> sweep_gain.dat
   wrdata seg_10.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -253,9 +253,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "5300 $&pp" >> sweep_gain.dat
   wrdata seg_11.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -268,9 +268,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "8000 $&pp" >> sweep_gain.dat
   wrdata seg_12.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -283,9 +283,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "10600 $&pp" >> sweep_gain.dat
   wrdata seg_13.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -298,9 +298,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "12700 $&pp" >> sweep_gain.dat
   wrdata seg_14.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
@@ -313,9 +313,9 @@ Rload audio_out 0 10k
   alter rfb  = $&rval
   alter rq   = $&rval
   alter rin2 = $&rval
-  tran 0.5u 10m
-  meas tran ao_max max v(audio_out) from=5m to=10m
-  meas tran ao_min min v(audio_out) from=5m to=10m
+  tran 0.5u 60m
+  meas tran ao_max max v(audio_out) from=50m to=60m
+  meas tran ao_min min v(audio_out) from=50m to=60m
   let pp = ao_max - ao_min
   echo "16000 $&pp" >> sweep_gain.dat
   wrdata seg_15.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)

@@ -116,19 +116,18 @@ def plot_waveform_grid(segments, outpath):
                  fontsize=14, y=0.98)
 
     # Compute global y-range across all 16 segments for uniform scaling
-    # Subtract DC mean from audio_out (AC coupling cap doesn't fully settle
-    # in 10ms sim; real circuit has pre-charged cap in steady state)
+    # Plot last 10ms of each segment (after 50ms AC coupling cap settling)
     y_min, y_max = 0.0, 0.0
     for i in range(len(FREQS)):
         if i < len(segments) and len(segments[i]) > 0:
             data = segments[i]
             t = data[:, COL_TIME]
-            mask = t >= 5e-3
+            t_max = t[-1]
+            mask = t >= (t_max - 10e-3)
             if np.any(mask):
                 audio_out = data[mask, COL_AUDIO]
-                ac = audio_out - audio_out.mean()
-                y_min = min(y_min, ac.min())
-                y_max = max(y_max, ac.max())
+                y_min = min(y_min, audio_out.min())
+                y_max = max(y_max, audio_out.max())
     y_margin = (y_max - y_min) * 0.05 if y_max > y_min else 0.1
     y_min -= y_margin
     y_max += y_margin
@@ -141,13 +140,13 @@ def plot_waveform_grid(segments, outpath):
             data = segments[i]
             t = data[:, COL_TIME]
             audio_out = data[:, COL_AUDIO]
+            t_max = t[-1]
 
-            # Last 5ms, DC-subtracted
-            mask = t >= 5e-3
+            # Last 10ms (settled region)
+            mask = t >= (t_max - 10e-3)
             if np.any(mask):
-                t_ms = (t[mask] - 5e-3) * 1e3
-                ac = audio_out[mask] - audio_out[mask].mean()
-                ax.plot(t_ms, ac, color="#E91E63", linewidth=0.5)
+                t_ms = (t[mask] - t[mask][0]) * 1e3
+                ax.plot(t_ms, audio_out[mask], color="#E91E63", linewidth=0.5)
 
         ax.set_title(f"{freq} Hz", fontsize=10, fontweight="bold")
         ax.set_xlabel("ms", fontsize=7)
@@ -174,10 +173,11 @@ def plot_pwm_recovery(segments, outpath):
     mid1 = data[:, COL_MID1]
     audio_out = data[:, COL_AUDIO]
 
-    # 2ms window in settled region
-    mask = (t >= 6e-3) & (t <= 8e-3)
+    # 2ms window in settled region (last 2ms of segment)
+    t_max = t[-1]
+    mask = (t >= (t_max - 2e-3)) & (t <= t_max)
     if not np.any(mask):
-        mask = (t >= 5e-3) & (t <= 7e-3)
+        mask = (t >= (t_max - 4e-3)) & (t <= (t_max - 2e-3))
 
     if not np.any(mask):
         print("  WARNING: No data in 1kHz window for PWM recovery plot")
@@ -241,9 +241,10 @@ def plot_summary(segments, freqs, gains, outpath):
     if len(segments) > 6 and len(segments[6]) > 0:
         data = segments[6]
         t = data[:, COL_TIME]
-        mask = (t >= 5e-3) & (t <= 8e-3)
+        t_max = t[-1]
+        mask = (t >= (t_max - 5e-3)) & (t <= t_max)
         if np.any(mask):
-            t_ms = (t[mask] - 5e-3) * 1e3
+            t_ms = (t[mask] - t[mask][0]) * 1e3
             ax.plot(t_ms, data[mask, COL_VIN],
                     label="SVF Input", linewidth=0.8, alpha=0.7)
             ax.plot(t_ms, data[mask, COL_LP],
@@ -259,32 +260,32 @@ def plot_summary(segments, freqs, gains, outpath):
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
 
-    # (1,0) 250 Hz waveform (DC-subtracted)
+    # (1,0) 250 Hz waveform (last 10ms, settled)
     ax = axes[1][0]
     if len(segments) > 0 and len(segments[0]) > 0:
         data = segments[0]
         t = data[:, COL_TIME]
-        mask = t >= 5e-3
+        t_max = t[-1]
+        mask = t >= (t_max - 10e-3)
         if np.any(mask):
-            t_ms = (t[mask] - 5e-3) * 1e3
-            ac = data[mask, COL_AUDIO] - data[mask, COL_AUDIO].mean()
-            ax.plot(t_ms, ac, color="#4CAF50", linewidth=0.6)
+            t_ms = (t[mask] - t[mask][0]) * 1e3
+            ax.plot(t_ms, data[mask, COL_AUDIO], color="#4CAF50", linewidth=0.6)
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Voltage (V)")
     ax.set_title("Audio Output \u2014 250 Hz")
     ax.axhline(0, color="gray", linewidth=0.5, linestyle="--")
     ax.grid(True, alpha=0.3)
 
-    # (1,1) 16000 Hz waveform (DC-subtracted)
+    # (1,1) 16000 Hz waveform (last 10ms, settled)
     ax = axes[1][1]
     if len(segments) > 15 and len(segments[15]) > 0:
         data = segments[15]
         t = data[:, COL_TIME]
-        mask = t >= 5e-3
+        t_max = t[-1]
+        mask = t >= (t_max - 10e-3)
         if np.any(mask):
-            t_ms = (t[mask] - 5e-3) * 1e3
-            ac = data[mask, COL_AUDIO] - data[mask, COL_AUDIO].mean()
-            ax.plot(t_ms, ac, color="#9C27B0", linewidth=0.6)
+            t_ms = (t[mask] - t[mask][0]) * 1e3
+            ax.plot(t_ms, data[mask, COL_AUDIO], color="#9C27B0", linewidth=0.6)
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Voltage (V)")
     ax.set_title("Audio Output \u2014 16 kHz")
