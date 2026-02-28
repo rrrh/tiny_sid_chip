@@ -1,0 +1,164 @@
+* Dual 4-bit Bias DAC Testbench
+* IHP SG13G2 PDK — VDD=1.2V
+* Complementary-switch R-2R for fc and Q bias control
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+
+* ============================================================
+* Complementary Switch
+* ============================================================
+.subckt cmos_sw out sel selb vhi vlo vdd vss
+* sel=VDD → out=vhi; sel=0 → out=vlo
+* PMOS passes vhi when selb=0 (bit=1); NMOS passes vlo when selb=VDD (bit=0)
+XMp_hi out selb vhi vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMn_lo out selb vlo vss sg13_lv_nmos w=10e-6 l=0.13e-6
+.ends cmos_sw
+
+* ============================================================
+* Dual 4-bit Bias DAC (complementary switches)
+* ============================================================
+.subckt bias_dac_2ch dfc3 dfc2 dfc1 dfc0 dq3 dq2 dq1 dq0 vout_fc vout_q vdd vss
+
+* === FC channel inverters ===
+Binv_fc3 dfc3b 0 V = {vdd_val} - v(dfc3)
+Binv_fc2 dfc2b 0 V = {vdd_val} - v(dfc2)
+Binv_fc1 dfc1b 0 V = {vdd_val} - v(dfc1)
+Binv_fc0 dfc0b 0 V = {vdd_val} - v(dfc0)
+
+* === FC channel R-2R (LSB at terminated end, MSB at output) ===
+XRterm_fc ftap0 vss vss rhigh w=2e-6 l=6.15e-6
+
+XR2R_fc0 ftap0 fsw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw_fc0 fsw0 dfc0 dfc0b vdd vss vdd vss cmos_sw
+XRs_fc01 ftap0 ftap1 vss rhigh w=2e-6 l=3.08e-6
+
+XR2R_fc1 ftap1 fsw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw_fc1 fsw1 dfc1 dfc1b vdd vss vdd vss cmos_sw
+XRs_fc12 ftap1 ftap2 vss rhigh w=2e-6 l=3.08e-6
+
+XR2R_fc2 ftap2 fsw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw_fc2 fsw2 dfc2 dfc2b vdd vss vdd vss cmos_sw
+XRs_fc23 ftap2 vout_fc vss rhigh w=2e-6 l=3.08e-6
+
+XR2R_fc3 vout_fc fsw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw_fc3 fsw3 dfc3 dfc3b vdd vss vdd vss cmos_sw
+
+* === Q channel inverters ===
+Binv_q3 dq3b 0 V = {vdd_val} - v(dq3)
+Binv_q2 dq2b 0 V = {vdd_val} - v(dq2)
+Binv_q1 dq1b 0 V = {vdd_val} - v(dq1)
+Binv_q0 dq0b 0 V = {vdd_val} - v(dq0)
+
+* === Q channel R-2R (LSB at terminated end, MSB at output) ===
+XRterm_q qtap0 vss vss rhigh w=2e-6 l=6.15e-6
+
+XR2R_q0 qtap0 qsw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw_q0 qsw0 dq0 dq0b vdd vss vdd vss cmos_sw
+XRs_q01 qtap0 qtap1 vss rhigh w=2e-6 l=3.08e-6
+
+XR2R_q1 qtap1 qsw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw_q1 qsw1 dq1 dq1b vdd vss vdd vss cmos_sw
+XRs_q12 qtap1 qtap2 vss rhigh w=2e-6 l=3.08e-6
+
+XR2R_q2 qtap2 qsw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw_q2 qsw2 dq2 dq2b vdd vss vdd vss cmos_sw
+XRs_q23 qtap2 vout_q vss rhigh w=2e-6 l=3.08e-6
+
+XR2R_q3 vout_q qsw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw_q3 qsw3 dq3 dq3b vdd vss vdd vss cmos_sw
+
+.ends bias_dac_2ch
+
+* ============================================================
+* Testbench
+* ============================================================
+Vdd vdd 0 {vdd_val}
+Vss vss 0 0
+
+Vdfc3 dfc3 0 0
+Vdfc2 dfc2 0 0
+Vdfc1 dfc1 0 0
+Vdfc0 dfc0 0 0
+
+Vdq3 dq3 0 0
+Vdq2 dq2 0 0
+Vdq1 dq1 0 0
+Vdq0 dq0 0 0
+
+Rload_fc vout_fc 0 1meg
+Rload_q  vout_q  0 1meg
+
+Xbdac dfc3 dfc2 dfc1 dfc0 dq3 dq2 dq1 dq0 vout_fc vout_q vdd vss bias_dac_2ch
+
+.control
+  shell rm -f bias_dac_fc.dat bias_dac_q.dat
+
+  * --- FC channel sweep ---
+  echo "=== FC Channel Sweep ==="
+  alter vdq3 = 0
+  alter vdq2 = 0
+  alter vdq1 = 0
+  alter vdq0 = 0
+
+  let i = 0
+  while i < 16
+    let rem = i
+    let b3v = floor(rem / 8) * 1.2
+    let rem = rem - floor(rem / 8) * 8
+    let b2v = floor(rem / 4) * 1.2
+    let rem = rem - floor(rem / 4) * 4
+    let b1v = floor(rem / 2) * 1.2
+    let rem = rem - floor(rem / 2) * 2
+    let b0v = rem * 1.2
+
+    alter vdfc3 = $&b3v
+    alter vdfc2 = $&b2v
+    alter vdfc1 = $&b1v
+    alter vdfc0 = $&b0v
+
+    op
+    let vout_val = v(vout_fc)
+    echo "$&i $&vout_val" >> bias_dac_fc.dat
+    echo "  FC code $&i : Vout_fc = $&vout_val"
+    destroy all
+    let i = i + 1
+  end
+
+  * --- Q channel sweep ---
+  echo "=== Q Channel Sweep ==="
+  alter vdfc3 = 0
+  alter vdfc2 = 0
+  alter vdfc1 = 0
+  alter vdfc0 = 0
+
+  let i = 0
+  while i < 16
+    let rem = i
+    let b3v = floor(rem / 8) * 1.2
+    let rem = rem - floor(rem / 8) * 8
+    let b2v = floor(rem / 4) * 1.2
+    let rem = rem - floor(rem / 4) * 4
+    let b1v = floor(rem / 2) * 1.2
+    let rem = rem - floor(rem / 2) * 2
+    let b0v = rem * 1.2
+
+    alter vdq3 = $&b3v
+    alter vdq2 = $&b2v
+    alter vdq1 = $&b1v
+    alter vdq0 = $&b0v
+
+    op
+    let vout_val = v(vout_q)
+    echo "$&i $&vout_val" >> bias_dac_q.dat
+    echo "  Q code $&i : Vout_q = $&vout_val"
+    destroy all
+    let i = i + 1
+  end
+
+  echo "=== Bias DAC Sweep Complete ==="
+
+.endc
+
+.end

@@ -1,4 +1,5 @@
 /* verilator lint_off UNUSEDSIGNAL */
+/* verilator lint_off WIDTHTRUNC */
 `timescale 1ns / 1ps
 //==============================================================================
 // SID Filter Wrapper — delegates to SVF_8bit core
@@ -7,7 +8,8 @@
 // mixing, volume scaling) but replaces the filter math with SVF_8bit.
 //
 // Coefficient mapping:
-//   alpha1 (frequency) = fc[10:8] — 3-bit, shift-add /8
+//   alpha1 (frequency) = fc[10:5] — 6-bit shift-add, alpha = fc[10:5]/1024
+//                        fc ≈ fc[10:5] × 249 Hz (range ~249 Hz to ~15.7 kHz)
 //   alpha2 (damping)   = (15 - res) >> 2 — 2-bit, shift-add /4
 //==============================================================================
 module filter (
@@ -30,8 +32,8 @@ module filter (
     wire signed [7:0] s_in = sample_in - 8'd128;
 
     // --- Coefficient mapping ---
-    // alpha1: fc[10:8] — 3-bit frequency coefficient (shift-add /8)
-    wire [2:0] alpha1 = fc[10:8];
+    // alpha1: full 11-bit fc — alpha = fc / 16384
+    wire [10:0] alpha1 = fc;
 
     // alpha2: (15 - res) >> 2 — 2-bit damping (shift-add /4)
     wire [1:0] alpha2 = (4'd15 - res) >> 2;
@@ -39,7 +41,7 @@ module filter (
     // --- SVF_8bit core ---
     wire signed [7:0] hp_out, bp_out, lp_out;
 
-    SVF_8bit u_svf (
+    SVF_8bit #(.ENABLE_HP(0), .ENABLE_BP(0), .ENABLE_LP(0)) u_svf (
         .clk          (clk),
         .rst          (~rst_n),
         .audio_in     (s_in),
@@ -70,6 +72,6 @@ module filter (
 
     assign sample_out = bypass ? sample_in : scaled;
 
-    wire _unused = &{filt[3], mode[3], fc[7:0], res, 1'b0};
+    wire _unused = &{filt[3], mode[3], res, 1'b0};
 
 endmodule

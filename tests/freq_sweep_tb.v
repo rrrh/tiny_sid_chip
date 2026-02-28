@@ -1,40 +1,29 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// Frequency Sweep Testbench — Gate-Level Compatible
-// Sweeps sawtooth through multiple frequencies, captures PWM as PWL file
-// for analog filter simulation.
+// Frequency Sweep Testbench (24 MHz)
+// Sweeps Voice 0 sawtooth through 16 frequency points (matching SVF fc codes).
+// Bypass mode — no filter routing, captures raw digital→PWM output.
 //
-// Usage (RTL):
-//   iverilog -o tests/freq_sweep -g2005-sv src/tt_um_sid.v src/filter.v \
-//     src/SVF_8bit.v src/pwm_audio.v tests/freq_sweep_tb.v
-//   vvp tests/freq_sweep
+// Voice 0: sawtooth waveform, instant attack (A=0), max sustain (S=15), gate ON
+// Filter: bypass (mode_vol=0x0F, res_filt=0x00)
 //
-// Usage (GL):
-//   iverilog -o tests/freq_sweep_gl -g2012 -DGL_TEST -DFUNCTIONAL \
-//     -I src patched_stdcell.v gate_level_netlist.v tests/freq_sweep_tb.v
-//   vvp tests/freq_sweep_gl
+// Outputs: tests/sweep_0250hz.pwl through tests/sweep_16000hz.pwl
 //==============================================================================
 module freq_sweep_tb;
 
-    // --- Parameters ---
     localparam real VDD     = 3.3;
     localparam real EDGE_NS = 2.0;
 
-`ifdef GL_TEST
-    // GL: lighter sweep (~120ms sim time, ~25 min wall clock)
-    localparam STEP_CYCLES  = 120_000;  // ~10 ms per step
-    localparam ATTACK_WAIT  = 120_000;  // ~10 ms
-`else
-    // RTL: full sweep (~3.1s sim time)
-    localparam STEP_CYCLES  = 3_000_000;  // ~250 ms per step
-    localparam ATTACK_WAIT  = 200_000;    // ~17 ms
-`endif
-    localparam NUM_STEPS    = 12;
+    // Settle time per frequency point (20 osc cycles at slowest = ~80ms at 250Hz,
+    // but we use a fixed count for digital settling)
+    localparam SETTLE_CYCLES = 480_000;   // 20 ms at 24 MHz
+    // Capture duration per frequency point
+    localparam CAPTURE_CYCLES = 480_000;  // 20 ms at 24 MHz
 
     // --- Clock and DUT ---
     reg clk;
     initial clk = 0;
-    always #42 clk = ~clk;  // ~12 MHz (83.33 ns period)
+    always #21 clk = ~clk;  // ~24 MHz
 
     reg        rst_n, ena;
     reg  [7:0] ui_in, uio_in;
@@ -46,7 +35,7 @@ module freq_sweep_tb;
         .ena(ena), .clk(clk), .rst_n(rst_n)
     );
 
-    wire pwm_out = uo_out[0];
+    wire pwm_raw = uo_out[0];
 
     // Register addresses
     localparam [2:0] REG_FREQ_LO  = 3'd0,
@@ -56,32 +45,15 @@ module freq_sweep_tb;
                      REG_ATK      = 3'd4,
                      REG_SUS      = 3'd5,
                      REG_WAV      = 3'd6;
+
     localparam [2:0] REG_FC_LO    = 3'd0,
                      REG_FC_HI    = 3'd1,
                      REG_RES_FILT = 3'd2,
                      REG_MODE_VOL = 3'd3;
     localparam [1:0] VOICE_FILT   = 2'd3;
 
-    // Frequency table: 12 steps from ~110 Hz (A2) to ~2093 Hz (C7)
-    // freq_reg = f_hz * 65536 / 800000
-    reg [7:0] freq_table [0:11];
-    initial begin
-        freq_table[ 0] = 8'd9;    // ~110 Hz (A2)
-        freq_table[ 1] = 8'd11;   // ~131 Hz (C3)
-        freq_table[ 2] = 8'd14;   // ~165 Hz (E3)
-        freq_table[ 3] = 8'd18;   // ~220 Hz (A3)
-        freq_table[ 4] = 8'd27;   // ~330 Hz (E4)
-        freq_table[ 5] = 8'd36;   // ~440 Hz (A4)
-        freq_table[ 6] = 8'd54;   // ~659 Hz (E5)
-        freq_table[ 7] = 8'd72;   // ~880 Hz (A5)
-        freq_table[ 8] = 8'd86;   // ~1047 Hz (C6)
-        freq_table[ 9] = 8'd108;  // ~1319 Hz (E6)
-        freq_table[10] = 8'd144;  // ~1760 Hz (A6)
-        freq_table[11] = 8'd172;  // ~2093 Hz (C7)
-    end
-
     //==========================================================================
-    // Register write task
+    // Register write task (negedge-aligned for GL compatibility)
     //==========================================================================
     task sid_write;
         input [2:0] addr;
@@ -101,108 +73,177 @@ module freq_sweep_tb;
     endtask
 
     //==========================================================================
-    // PWL capture
+    // Reset
     //==========================================================================
-    integer pwl_fd;
-    reg     prev_pwm;
-
-    task pwl_open;
-        input [255:0] filename;
+    task do_reset;
         begin
-            pwl_fd = $fopen(filename, "w");
-            if (pwl_fd == 0) begin
+            rst_n = 0;
+            ui_in = 0;
+            uio_in = 0;
+            repeat (50) @(posedge clk);
+            rst_n = 1;
+            repeat (20) @(posedge clk);
+        end
+    endtask
+
+    //==========================================================================
+    // Capture PWM transitions to PWL file
+    //==========================================================================
+    task capture_pwl;
+        input [255:0] filename;
+        input integer num_cycles;
+        integer fd, cyc;
+        reg     prev_pwm;
+        real    t_ns, t0;
+        begin
+            fd = $fopen(filename, "w");
+            if (fd == 0) begin
                 $display("ERROR: Cannot open %0s", filename);
                 $finish;
             end
-            prev_pwm = pwm_out;
-            if (prev_pwm)
-                $fwrite(pwl_fd, "0n %0.3f\n", VDD);
-            else
-                $fwrite(pwl_fd, "0n 0\n");
-        end
-    endtask
 
-    task pwl_sample;
-        begin
-            if (pwm_out !== prev_pwm) begin
-                if (pwm_out) begin
-                    $fwrite(pwl_fd, "%0.1fn 0\n",   $realtime);
-                    $fwrite(pwl_fd, "%0.1fn %0.3f\n", $realtime + EDGE_NS, VDD);
-                end else begin
-                    $fwrite(pwl_fd, "%0.1fn %0.3f\n", $realtime, VDD);
-                    $fwrite(pwl_fd, "%0.1fn 0\n",     $realtime + EDGE_NS);
+            t0 = $realtime;  // capture start time — all timestamps relative to this
+
+            prev_pwm = pwm_raw;
+            if (prev_pwm)
+                $fwrite(fd, "0n %0.3f\n", VDD);
+            else
+                $fwrite(fd, "0n 0\n");
+
+            for (cyc = 0; cyc < num_cycles; cyc = cyc + 1) begin
+                @(posedge clk);
+                if (pwm_raw !== prev_pwm) begin
+                    t_ns = $realtime - t0;
+                    if (pwm_raw) begin
+                        $fwrite(fd, "%0.1fn 0\n",   t_ns);
+                        $fwrite(fd, "%0.1fn %0.3f\n", t_ns + EDGE_NS, VDD);
+                    end else begin
+                        $fwrite(fd, "%0.1fn %0.3f\n", t_ns, VDD);
+                        $fwrite(fd, "%0.1fn 0\n",     t_ns + EDGE_NS);
+                    end
+                    prev_pwm = pwm_raw;
                 end
-                prev_pwm = pwm_out;
             end
-        end
-    endtask
 
-    task pwl_close;
-        begin
+            t_ns = $realtime - t0;
             if (prev_pwm)
-                $fwrite(pwl_fd, "%0.1fn %0.3f\n", $realtime, VDD);
+                $fwrite(fd, "%0.1fn %0.3f\n", t_ns, VDD);
             else
-                $fwrite(pwl_fd, "%0.1fn 0\n", $realtime);
-            $fclose(pwl_fd);
+                $fwrite(fd, "%0.1fn 0\n", t_ns);
+
+            $fclose(fd);
         end
     endtask
 
     //==========================================================================
-    // Main
+    // Frequency point capture task
     //==========================================================================
-    integer step;
+    task sweep_point;
+        input [7:0] freq_lo;
+        input [7:0] freq_hi;
+        input [255:0] filename;
+        input integer freq_hz;
+        begin
+            $display("  Freq %0d Hz: reg=0x%02x%02x -> %0s",
+                     freq_hz, freq_hi, freq_lo, filename);
+            sid_write(REG_FREQ_LO, freq_lo, 2'd0);
+            sid_write(REG_FREQ_HI, freq_hi, 2'd0);
+            repeat (SETTLE_CYCLES) @(posedge clk);
+            capture_pwl(filename, CAPTURE_CYCLES);
+        end
+    endtask
 
+    //==========================================================================
+    // Main test sequence
+    //==========================================================================
     initial begin
         ena = 1;
         rst_n = 0;
         ui_in = 0;
         uio_in = 0;
 
-        // Reset
-        repeat (50) @(posedge clk);
-        rst_n = 1;
-        repeat (20) @(posedge clk);
+        do_reset;
 
-        // Configure voice 0: sawtooth, instant attack, max sustain
-        sid_write(REG_FREQ_LO, freq_table[0], 2'd0);
+        // --- Configure voice 0: sawtooth, instant ADSR ---
+        sid_write(REG_FREQ_LO, 8'h29, 2'd0);   // initial freq (1 kHz)
         sid_write(REG_FREQ_HI, 8'h00, 2'd0);
-        sid_write(REG_PW_LO, 8'h00, 2'd0);
-        sid_write(REG_PW_HI, 8'h08, 2'd0);
+        sid_write(REG_PW_LO,   8'h00, 2'd0);
+        sid_write(REG_PW_HI,   8'h08, 2'd0);   // pw=0x800 (not used for saw)
+
+        // ADSR: attack=0 (instant), decay=0, sustain=15, release=0
+        // REG_ATK = {decay[7:4], attack[3:0]}, REG_SUS = {release[7:4], sustain[3:0]}
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
 
-        // Filter: bypass (passthrough), vol=15
+        // --- Filter: bypass mode ---
         sid_write(REG_FC_LO, 8'h00, VOICE_FILT);
         sid_write(REG_FC_HI, 8'h00, VOICE_FILT);
-        sid_write(REG_RES_FILT, 8'h00, VOICE_FILT);
-        sid_write(REG_MODE_VOL, 8'h1F, VOICE_FILT);
+        sid_write(REG_RES_FILT, 8'h00, VOICE_FILT);  // no routing
+        sid_write(REG_MODE_VOL, 8'h0F, VOICE_FILT);   // bypass, vol=15
 
-        // Gate on — sawtooth
+        // --- Gate ON: sawtooth + gate ---
+        // Sawtooth = bit 5, gate = bit 0
         sid_write(REG_WAV, 8'h21, 2'd0);
+        $display("Gate ON — sawtooth waveform, bypass mode, vol=15");
 
-        // Wait for attack
-        repeat (ATTACK_WAIT) @(posedge clk);
+        // Let ADSR reach sustain (instant attack, but need a few cycles)
+        repeat (24_000) @(posedge clk);  // 1 ms
 
-        // Open PWL file
-        pwl_open("tests/freq_sweep.pwl");
+        // ===== 16-point frequency sweep =====
+        $display("Starting 16-point frequency sweep...");
 
-        for (step = 0; step < NUM_STEPS; step = step + 1) begin
-            $display("Step %0d/%0d: freq_reg=%0d (t=%0.1f ms)",
-                     step+1, NUM_STEPS, freq_table[step], $realtime/1e6);
+        // Code 0: 250 Hz — freq_reg = 10
+        sweep_point(8'h0A, 8'h00, "tests/sweep_0250hz.pwl", 250);
 
-            // Update frequency
-            sid_write(REG_FREQ_LO, freq_table[step], 2'd0);
+        // Code 1: 330 Hz — freq_reg = 13
+        sweep_point(8'h0D, 8'h00, "tests/sweep_0330hz.pwl", 330);
 
-            // Run for STEP_CYCLES
-            repeat (STEP_CYCLES) begin
-                @(posedge clk);
-                pwl_sample;
-            end
-        end
+        // Code 2: 400 Hz — freq_reg = 16
+        sweep_point(8'h10, 8'h00, "tests/sweep_0400hz.pwl", 400);
 
-        pwl_close;
-        $display("Frequency sweep complete: tests/freq_sweep.pwl");
-        $display("Total sim time: %0.1f ms", $realtime/1e6);
+        // Code 3: 500 Hz — freq_reg = 20
+        sweep_point(8'h14, 8'h00, "tests/sweep_0500hz.pwl", 500);
+
+        // Code 4: 660 Hz — freq_reg = 27
+        sweep_point(8'h1B, 8'h00, "tests/sweep_0660hz.pwl", 660);
+
+        // Code 5: 800 Hz — freq_reg = 33
+        sweep_point(8'h21, 8'h00, "tests/sweep_0800hz.pwl", 800);
+
+        // Code 6: 1000 Hz — freq_reg = 41
+        sweep_point(8'h29, 8'h00, "tests/sweep_1000hz.pwl", 1000);
+
+        // Code 7: 1300 Hz — freq_reg = 53
+        sweep_point(8'h35, 8'h00, "tests/sweep_1300hz.pwl", 1300);
+
+        // Code 8: 2000 Hz — freq_reg = 82
+        sweep_point(8'h52, 8'h00, "tests/sweep_2000hz.pwl", 2000);
+
+        // Code 9: 2700 Hz — freq_reg = 110
+        sweep_point(8'h6E, 8'h00, "tests/sweep_2700hz.pwl", 2700);
+
+        // Code 10: 4000 Hz — freq_reg = 164
+        sweep_point(8'hA4, 8'h00, "tests/sweep_4000hz.pwl", 4000);
+
+        // Code 11: 5300 Hz — freq_reg = 217
+        sweep_point(8'hD9, 8'h00, "tests/sweep_5300hz.pwl", 5300);
+
+        // Code 12: 8000 Hz — freq_reg = 328
+        sweep_point(8'h48, 8'h01, "tests/sweep_8000hz.pwl", 8000);
+
+        // Code 13: 10600 Hz — freq_reg = 434
+        sweep_point(8'hB2, 8'h01, "tests/sweep_10600hz.pwl", 10600);
+
+        // Code 14: 12700 Hz — freq_reg = 520
+        sweep_point(8'h08, 8'h02, "tests/sweep_12700hz.pwl", 12700);
+
+        // Code 15: 16000 Hz — freq_reg = 655
+        sweep_point(8'h8F, 8'h02, "tests/sweep_16000hz.pwl", 16000);
+
+        // Gate OFF
+        sid_write(REG_WAV, 8'h20, 2'd0);
+
+        $display("Frequency sweep PWL generation complete (16 files).");
         $finish;
     end
 

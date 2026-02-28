@@ -1,0 +1,7 @@
+* PDK Model Includes — IHP SG13G2 Typical Corner
+* Used by all analog testbenches
+* Note: OSDI plugins (psp103, r3_cmc, mosvar) loaded via ~/.spiceinit
+
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib mos_tt
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerRES.lib res_typ
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerCAP.lib cap_typ

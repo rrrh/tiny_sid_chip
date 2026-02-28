@@ -26,22 +26,22 @@ module gl_saw440_adsr_tb;
     localparam real VDD     = 3.3;
     localparam real EDGE_NS = 2.0;
 
-    // Timing (in 12 MHz clock cycles):
+    // Timing (in 24 MHz clock cycles):
     //   Gate-on hold  : ~1.5 s (attack + decay + sustain hold)
     //   Gate-off tail : ~1.0 s (release fade)
     //   Total         : ~2.5 s
 `ifdef GL_TEST
-    localparam GATE_ON_CYCLES  = 9_000_000;   // 750 ms (shorter for GL speed)
-    localparam GATE_OFF_CYCLES = 6_000_000;   // 500 ms
+    localparam GATE_ON_CYCLES  = 18_000_000;  // 750 ms (shorter for GL speed)
+    localparam GATE_OFF_CYCLES = 12_000_000;  // 500 ms
 `else
-    localparam GATE_ON_CYCLES  = 18_000_000;  // 1500 ms
-    localparam GATE_OFF_CYCLES = 12_000_000;  // 1000 ms
+    localparam GATE_ON_CYCLES  = 36_000_000;  // 1500 ms
+    localparam GATE_OFF_CYCLES = 24_000_000;  // 1000 ms
 `endif
 
     // --- Clock and DUT ---
     reg clk;
     initial clk = 0;
-    always #42 clk = ~clk;  // ~12 MHz
+    always #21 clk = ~clk;  // ~24 MHz
 
     reg        rst_n, ena;
     reg  [7:0] ui_in, uio_in;

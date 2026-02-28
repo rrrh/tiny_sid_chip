@@ -1,0 +1,156 @@
+VERSION 5.7 ;
+BUSBITCHARS "[]" ;
+DIVIDERCHAR "/" ;
+
+MACRO sar_adc_8bit
+  CLASS BLOCK ;
+  ORIGIN 0 0 ;
+  FOREIGN sar_adc_8bit 0 0 ;
+  SIZE 48.000 BY 50.000 ;
+  SYMMETRY X Y ;
+
+  PIN clk
+    DIRECTION INPUT ;
+    USE CLOCK ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 5.500 0.500 6.500 ;
+    END
+  END clk
+
+  PIN rst_n
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 9.500 0.500 10.500 ;
+    END
+  END rst_n
+
+  PIN vin
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 24.500 0.500 25.500 ;
+    END
+  END vin
+
+  PIN start
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 13.500 0.500 14.500 ;
+    END
+  END start
+
+  PIN eoc
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 47.500 5.500 48.000 6.500 ;
+    END
+  END eoc
+
+  PIN dout0
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 47.500 9.500 48.000 10.500 ;
+    END
+  END dout0
+
+  PIN dout1
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 47.500 14.500 48.000 15.500 ;
+    END
+  END dout1
+
+  PIN dout2
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 47.500 19.500 48.000 20.500 ;
+    END
+  END dout2
+
+  PIN dout3
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 47.500 24.500 48.000 25.500 ;
+    END
+  END dout3
+
+  PIN dout4
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 47.500 29.500 48.000 30.500 ;
+    END
+  END dout4
+
+  PIN dout5
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 47.500 34.500 48.000 35.500 ;
+    END
+  END dout5
+
+  PIN dout6
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 47.500 39.500 48.000 40.500 ;
+    END
+  END dout6
+
+  PIN dout7
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 47.500 44.500 48.000 45.500 ;
+    END
+  END dout7
+
+  PIN vdd
+    DIRECTION INOUT ;
+    USE POWER ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 48.000 48.000 50.000 ;
+    END
+  END vdd
+
+  PIN vss
+    DIRECTION INOUT ;
+    USE GROUND ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 0.000 48.000 2.000 ;
+    END
+  END vss
+
+  OBS
+    LAYER Metal1 ;
+      RECT 0.500 0.500 47.500 49.500 ;
+    LAYER Metal2 ;
+      RECT 0.500 0.500 47.500 49.500 ;
+  END
+
+END sar_adc_8bit
+
+END LIBRARY

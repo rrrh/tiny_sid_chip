@@ -1,0 +1,90 @@
+* Waveform Test: 440Hz (A4) and 880Hz (A5), filter bypass
+* IHP SG13G2 PDK — VDD=1.2V
+* DAC -> bypass (no SVF) -> ADC
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+.param vcm=0.6
+.param pi=3.14159265358979
+
+* --- Complementary Switch ---
+.subckt cmos_sw out sel selb vhi vlo vdd vss
+XMp_hi out selb vhi vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMn_lo out selb vlo vss sg13_lv_nmos w=10e-6 l=0.13e-6
+.ends cmos_sw
+
+* --- 8-bit R-2R DAC ---
+.subckt r2r_dac_8bit b7 b6 b5 b4 b3 b2 b1 b0 vout vdd vss
+Binv7 b7b 0 V = {vdd_val} - v(b7)
+Binv6 b6b 0 V = {vdd_val} - v(b6)
+Binv5 b5b 0 V = {vdd_val} - v(b5)
+Binv4 b4b 0 V = {vdd_val} - v(b4)
+Binv3 b3b 0 V = {vdd_val} - v(b3)
+Binv2 b2b 0 V = {vdd_val} - v(b2)
+Binv1 b1b 0 V = {vdd_val} - v(b1)
+Binv0 b0b 0 V = {vdd_val} - v(b0)
+XRterm tap0 vss vss rhigh w=2e-6 l=6.15e-6
+XR2R_0 tap0 sw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw0 sw0 b0 b0b vdd vss vdd vss cmos_sw
+XRs01 tap0 tap1 vss rhigh w=2e-6 l=3.08e-6
+XR2R_1 tap1 sw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw1 sw1 b1 b1b vdd vss vdd vss cmos_sw
+XRs12 tap1 tap2 vss rhigh w=2e-6 l=3.08e-6
+XR2R_2 tap2 sw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw2 sw2 b2 b2b vdd vss vdd vss cmos_sw
+XRs23 tap2 tap3 vss rhigh w=2e-6 l=3.08e-6
+XR2R_3 tap3 sw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw3 sw3 b3 b3b vdd vss vdd vss cmos_sw
+XRs34 tap3 tap4 vss rhigh w=2e-6 l=3.08e-6
+XR2R_4 tap4 sw4 vss rhigh w=2e-6 l=6.15e-6
+Xsw4 sw4 b4 b4b vdd vss vdd vss cmos_sw
+XRs45 tap4 tap5 vss rhigh w=2e-6 l=3.08e-6
+XR2R_5 tap5 sw5 vss rhigh w=2e-6 l=6.15e-6
+Xsw5 sw5 b5 b5b vdd vss vdd vss cmos_sw
+XRs56 tap5 tap6 vss rhigh w=2e-6 l=3.08e-6
+XR2R_6 tap6 sw6 vss rhigh w=2e-6 l=6.15e-6
+Xsw6 sw6 b6 b6b vdd vss vdd vss cmos_sw
+XRs67 tap6 vout vss rhigh w=2e-6 l=3.08e-6
+XR2R_7 vout sw7 vss rhigh w=2e-6 l=6.15e-6
+Xsw7 sw7 b7 b7b vdd vss vdd vss cmos_sw
+.ends r2r_dac_8bit
+
+* ============================================================
+* Testbench: 440Hz and 880Hz, filter bypassed
+* ============================================================
+Vdd vdd 0 {vdd_val}
+
+* --- DAC stimulus (behavioral quantized sine) ---
+* 440Hz (A4): amplitude 100 codes around midscale 128
+Bcode_440 code_440 0 V = floor(128 + 100*sin(2*{pi}*440*time) + 0.5)
+Bdac_440  dac_440  0 V = v(code_440) / 255 * {vdd_val}
+
+* 880Hz (A5): amplitude 100 codes around midscale 128
+Bcode_880 code_880 0 V = floor(128 + 100*sin(2*{pi}*880*time) + 0.5)
+Bdac_880  dac_880  0 V = v(code_880) / 255 * {vdd_val}
+
+* --- Filter bypass: DAC output goes directly to ADC ---
+* ADC (behavioral 8-bit quantization)
+Badc_code_440 adc_code_440 0 V = floor(v(dac_440) / {vdd_val} * 255 + 0.5)
+Badc_out_440  adc_440      0 V = v(adc_code_440) / 255 * {vdd_val}
+
+Badc_code_880 adc_code_880 0 V = floor(v(dac_880) / {vdd_val} * 255 + 0.5)
+Badc_out_880  adc_880      0 V = v(adc_code_880) / 255 * {vdd_val}
+
+.control
+  shell rm -f waveform_440.dat waveform_880.dat
+
+  echo "=== Waveform Test: 440Hz & 880Hz, Filter Bypass ==="
+
+  * 440Hz: 5 full cycles = ~11.36ms, use 12ms with 5us steps
+  tran 5u 12m
+
+  wrdata waveform_440.dat v(dac_440) v(adc_440) v(code_440)
+  wrdata waveform_880.dat v(dac_880) v(adc_880) v(code_880)
+
+  echo "=== Waveform Test Complete ==="
+
+.endc
+
+.end

@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 //==============================================================================
-// PWM Analog Output Testbench (12 MHz)
+// PWM Analog Output Testbench (24 MHz)
 // Captures PWM pin transitions as ngspice PWL files for analog filter sim.
 //
 // 9 waveform captures (uo_out[0]): saw/tri/pulse x 220/440/880 Hz
@@ -14,12 +14,12 @@ module pwm_analog_tb;
     // --- Parameters ---
     localparam real VDD     = 3.3;
     localparam real EDGE_NS = 2.0;
-    localparam      SIM_CYCLES = 1_500_000;  // ~125 ms at 12 MHz
+    localparam      SIM_CYCLES = 3_000_000;  // ~125 ms at 24 MHz
 
     // --- Clock and DUT ---
     reg clk;
     initial clk = 0;
-    always #42 clk = ~clk;  // ~12 MHz (83.33 ns period)
+    always #21 clk = ~clk;  // ~24 MHz (41.67 ns period)
 
     reg        rst_n, ena;
     reg  [7:0] ui_in, uio_in;
@@ -31,7 +31,12 @@ module pwm_analog_tb;
         .ena(ena), .clk(clk), .rst_n(rst_n)
     );
 
-    wire pwm_capture = uo_out[0];  // single PWM output (filter in signal path)
+    wire pwm_raw      = uo_out[0];  // unfiltered PWM (mix_out)
+    wire pwm_filtered  = uo_out[1];  // digitally filtered PWM
+
+    // Pin selector: 0 = pwm_raw (uo_out[0]), 1 = pwm_filtered (uo_out[1])
+    reg  capture_sel;
+    wire pwm_capture = capture_sel ? pwm_filtered : pwm_raw;
 
     // Register addresses (same as gen_wav_tb.v)
     localparam [2:0] REG_FREQ_LO  = 3'd0,
@@ -48,7 +53,7 @@ module pwm_analog_tb;
                      REG_MODE_VOL = 3'd3;
     localparam [1:0] VOICE_FILT   = 2'd3;
 
-    localparam       ATTACK_WAIT  = 200_000;
+    localparam       ATTACK_WAIT  = 400_000;
 
     //==========================================================================
     // Register write task
@@ -141,6 +146,8 @@ module pwm_analog_tb;
         input [255:0] filename;
         begin
             do_reset;
+            capture_sel = 0;  // select uo_out[0]
+
             // Configure voice 0
             sid_write(REG_FREQ_LO, freq_lo, 2'd0);
             sid_write(REG_FREQ_HI, freq_hi_val, 2'd0);
@@ -167,13 +174,15 @@ module pwm_analog_tb;
     endtask
 
     //==========================================================================
-    // Setup voice 0 saw 440 Hz + filter, capture uo_out[0] as PWL
+    // Setup voice 0 saw 440 Hz + filter, capture uo_out[1] as PWL
     //==========================================================================
     task capture_filter_pwl;
         input [7:0] mode_vol_val;
         input [255:0] filename;
         begin
             do_reset;
+            capture_sel = 1;  // select uo_out[1]
+
             // Voice 0: 440 Hz sawtooth
             sid_write(REG_FREQ_LO, 8'h24, 2'd0);
             sid_write(REG_FREQ_HI, 8'h00, 2'd0);
@@ -203,6 +212,8 @@ module pwm_analog_tb;
         rst_n = 0;
         ui_in = 0;
         uio_in = 0;
+        capture_sel = 0;
+
         // --- 9 waveform captures: saw/tri/pulse x 220/440/880 Hz ---
         $display("Generating: saw_220.pwl");
         capture_waveform_pwl(8'h12, 8'h00, 8'h21, "tests/saw_220.pwl");

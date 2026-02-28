@@ -1,0 +1,145 @@
+* 8-bit R-2R DAC Testbench
+* IHP SG13G2 PDK — VDD=1.2V
+* Complementary-switch R-2R: each 2R leg steered to VDD or VSS
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+
+* ============================================================
+* Complementary Switch Subcircuit
+* When sel=VDD: out connects to vhi (PMOS on, NMOS off)
+* When sel=0:   out connects to vlo (NMOS on, PMOS off)
+* Wide devices for low Rds(on) << R ladder
+* ============================================================
+.subckt cmos_sw out sel selb vhi vlo vdd vss
+* sel=VDD → out=vhi; sel=0 → out=vlo
+* PMOS passes vhi when selb=0 (bit=1); NMOS passes vlo when selb=VDD (bit=0)
+XMp_hi out selb vhi vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMn_lo out selb vlo vss sg13_lv_nmos w=10e-6 l=0.13e-6
+.ends cmos_sw
+
+* ============================================================
+* 8-bit R-2R DAC Subcircuit (complementary switches)
+* Pins: b7 b6 b5 b4 b3 b2 b1 b0 vout vdd vss
+*   b7=MSB, b0=LSB
+*   bit=VDD -> 2R leg to VDD, bit=0 -> 2R leg to VSS
+* ============================================================
+.subckt r2r_dac_8bit b7 b6 b5 b4 b3 b2 b1 b0 vout vdd vss
+
+* Complementary gate signals (active-low for PMOS)
+Binv7 b7b 0 V = {vdd_val} - v(b7)
+Binv6 b6b 0 V = {vdd_val} - v(b6)
+Binv5 b5b 0 V = {vdd_val} - v(b5)
+Binv4 b4b 0 V = {vdd_val} - v(b4)
+Binv3 b3b 0 V = {vdd_val} - v(b3)
+Binv2 b2b 0 V = {vdd_val} - v(b2)
+Binv1 b1b 0 V = {vdd_val} - v(b1)
+Binv0 b0b 0 V = {vdd_val} - v(b0)
+
+* Termination resistor at LSB end (2R from tap0 to VSS)
+XRterm tap0 vss vss rhigh w=2e-6 l=6.15e-6
+
+* --- Bit 0 (LSB) — at terminated end, smallest weight ---
+XR2R_0 tap0 sw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw0 sw0 b0 b0b vdd vss vdd vss cmos_sw
+XRs01 tap0 tap1 vss rhigh w=2e-6 l=3.08e-6
+
+* --- Bit 1 ---
+XR2R_1 tap1 sw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw1 sw1 b1 b1b vdd vss vdd vss cmos_sw
+XRs12 tap1 tap2 vss rhigh w=2e-6 l=3.08e-6
+
+* --- Bit 2 ---
+XR2R_2 tap2 sw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw2 sw2 b2 b2b vdd vss vdd vss cmos_sw
+XRs23 tap2 tap3 vss rhigh w=2e-6 l=3.08e-6
+
+* --- Bit 3 ---
+XR2R_3 tap3 sw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw3 sw3 b3 b3b vdd vss vdd vss cmos_sw
+XRs34 tap3 tap4 vss rhigh w=2e-6 l=3.08e-6
+
+* --- Bit 4 ---
+XR2R_4 tap4 sw4 vss rhigh w=2e-6 l=6.15e-6
+Xsw4 sw4 b4 b4b vdd vss vdd vss cmos_sw
+XRs45 tap4 tap5 vss rhigh w=2e-6 l=3.08e-6
+
+* --- Bit 5 ---
+XR2R_5 tap5 sw5 vss rhigh w=2e-6 l=6.15e-6
+Xsw5 sw5 b5 b5b vdd vss vdd vss cmos_sw
+XRs56 tap5 tap6 vss rhigh w=2e-6 l=3.08e-6
+
+* --- Bit 6 ---
+XR2R_6 tap6 sw6 vss rhigh w=2e-6 l=6.15e-6
+Xsw6 sw6 b6 b6b vdd vss vdd vss cmos_sw
+XRs67 tap6 vout vss rhigh w=2e-6 l=3.08e-6
+
+* --- Bit 7 (MSB) — at output end, largest weight ---
+XR2R_7 vout sw7 vss rhigh w=2e-6 l=6.15e-6
+Xsw7 sw7 b7 b7b vdd vss vdd vss cmos_sw
+
+.ends r2r_dac_8bit
+
+* ============================================================
+* Testbench
+* ============================================================
+Vdd vdd 0 {vdd_val}
+Vss vss 0 0
+
+Vb7 b7 0 0
+Vb6 b6 0 0
+Vb5 b5 0 0
+Vb4 b4 0 0
+Vb3 b3 0 0
+Vb2 b2 0 0
+Vb1 b1 0 0
+Vb0 b0 0 0
+
+Rload vout 0 1meg
+
+Xdac b7 b6 b5 b4 b3 b2 b1 b0 vout vdd vss r2r_dac_8bit
+
+.control
+  shell rm -f r2r_dac_transfer.dat
+
+  let i = 0
+  while i < 256
+    let rem = i
+    let b7v = floor(rem / 128) * 1.2
+    let rem = rem - floor(rem / 128) * 128
+    let b6v = floor(rem / 64) * 1.2
+    let rem = rem - floor(rem / 64) * 64
+    let b5v = floor(rem / 32) * 1.2
+    let rem = rem - floor(rem / 32) * 32
+    let b4v = floor(rem / 16) * 1.2
+    let rem = rem - floor(rem / 16) * 16
+    let b3v = floor(rem / 8) * 1.2
+    let rem = rem - floor(rem / 8) * 8
+    let b2v = floor(rem / 4) * 1.2
+    let rem = rem - floor(rem / 4) * 4
+    let b1v = floor(rem / 2) * 1.2
+    let rem = rem - floor(rem / 2) * 2
+    let b0v = rem * 1.2
+
+    alter vb7 = $&b7v
+    alter vb6 = $&b6v
+    alter vb5 = $&b5v
+    alter vb4 = $&b4v
+    alter vb3 = $&b3v
+    alter vb2 = $&b2v
+    alter vb1 = $&b1v
+    alter vb0 = $&b0v
+
+    op
+    let vout_val = v(vout)
+    echo "$&i $&vout_val" >> r2r_dac_transfer.dat
+    destroy all
+    let i = i + 1
+  end
+
+  echo "=== R-2R DAC Sweep Complete ==="
+
+.endc
+
+.end

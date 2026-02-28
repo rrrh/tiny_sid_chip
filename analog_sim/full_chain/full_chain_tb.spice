@@ -1,0 +1,142 @@
+* Full Signal Chain Testbench: R-2R DAC -> SC SVF (BP) -> SAR ADC
+* IHP SG13G2 PDK — VDD=1.2V
+* 1kHz sine via behavioral DAC -> SC SVF bandpass (CT equivalent) -> behavioral ADC
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+.param vcm=0.6
+.param vdd_sq=1.44
+.param pi=3.14159265358979
+.param f_clk=93.75e3
+.param c_sw=73.5e-15
+.param c_int=1.1e-12
+.param c_q_unit=73.5e-15
+
+* Continuous-time equivalent resistors
+.param r_eff={1/(f_clk*c_sw)}
+* Q code 4 (0100): C_Q = 4 * 73.5fF = 294fF
+.param c_q={4*c_q_unit}
+.param r_q={1/(f_clk*c_q)}
+
+* ============================================================
+* Subcircuit definitions
+* ============================================================
+
+* --- Complementary Switch (same as r2r_dac and bias_dac) ---
+.subckt cmos_sw out sel selb vhi vlo vdd vss
+XMp_hi out selb vhi vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMn_lo out selb vlo vss sg13_lv_nmos w=10e-6 l=0.13e-6
+.ends cmos_sw
+
+* --- 8-bit R-2R DAC (corrected: CMOS switches, LSB at terminated end) ---
+.subckt r2r_dac_8bit b7 b6 b5 b4 b3 b2 b1 b0 vout vdd vss
+Binv7 b7b 0 V = {vdd_val} - v(b7)
+Binv6 b6b 0 V = {vdd_val} - v(b6)
+Binv5 b5b 0 V = {vdd_val} - v(b5)
+Binv4 b4b 0 V = {vdd_val} - v(b4)
+Binv3 b3b 0 V = {vdd_val} - v(b3)
+Binv2 b2b 0 V = {vdd_val} - v(b2)
+Binv1 b1b 0 V = {vdd_val} - v(b1)
+Binv0 b0b 0 V = {vdd_val} - v(b0)
+XRterm tap0 vss vss rhigh w=2e-6 l=6.15e-6
+XR2R_0 tap0 sw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw0 sw0 b0 b0b vdd vss vdd vss cmos_sw
+XRs01 tap0 tap1 vss rhigh w=2e-6 l=3.08e-6
+XR2R_1 tap1 sw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw1 sw1 b1 b1b vdd vss vdd vss cmos_sw
+XRs12 tap1 tap2 vss rhigh w=2e-6 l=3.08e-6
+XR2R_2 tap2 sw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw2 sw2 b2 b2b vdd vss vdd vss cmos_sw
+XRs23 tap2 tap3 vss rhigh w=2e-6 l=3.08e-6
+XR2R_3 tap3 sw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw3 sw3 b3 b3b vdd vss vdd vss cmos_sw
+XRs34 tap3 tap4 vss rhigh w=2e-6 l=3.08e-6
+XR2R_4 tap4 sw4 vss rhigh w=2e-6 l=6.15e-6
+Xsw4 sw4 b4 b4b vdd vss vdd vss cmos_sw
+XRs45 tap4 tap5 vss rhigh w=2e-6 l=3.08e-6
+XR2R_5 tap5 sw5 vss rhigh w=2e-6 l=6.15e-6
+Xsw5 sw5 b5 b5b vdd vss vdd vss cmos_sw
+XRs56 tap5 tap6 vss rhigh w=2e-6 l=3.08e-6
+XR2R_6 tap6 sw6 vss rhigh w=2e-6 l=6.15e-6
+Xsw6 sw6 b6 b6b vdd vss vdd vss cmos_sw
+XRs67 tap6 vout vss rhigh w=2e-6 l=3.08e-6
+XR2R_7 vout sw7 vss rhigh w=2e-6 l=6.15e-6
+Xsw7 sw7 b7 b7b vdd vss vdd vss cmos_sw
+.ends r2r_dac_8bit
+
+* --- SC SVF BP mode (CT equivalent Tow-Thomas biquad) ---
+* Uses R = 1/(f_clk*C_sw) for SC resistor equivalence.
+* Hardwired to BP output for full chain test.
+.subckt sc_svf_bp_ct vin vout vdd vss r_eff_val=145.1e6 r_q_val=36.28e6
+
+* Integrator 1 (inverting): produces BP
+Eoa1 bp_raw 0 vcm1 vg1 10000
+Vcm1 vcm1 0 {vcm}
+Rout1 bp_raw bp 100
+Cint1 vg1 bp {c_int}
+Rin1 vin vg1 {r_eff_val}
+Rfb lp vg1 {r_eff_val}
+Rq bp vg1 {r_q_val}
+
+* Unity-gain inverter: LP_bar → LP
+Eoa_inv lp_raw 0 vcm_inv vg_inv 10000
+Vcm_inv vcm_inv 0 {vcm}
+Rout_inv lp_raw lp 100
+Rinv_in lp_bar vg_inv 100k
+Rinv_fb vg_inv lp 100k
+
+* Integrator 2 (inverting): produces LP_bar
+Eoa2 lpbar_raw 0 vcm2 vg2 10000
+Vcm2 vcm2 0 {vcm}
+Rout2 lpbar_raw lp_bar 100
+Cint2 vg2 lp_bar {c_int}
+Rin2 bp vg2 {r_eff_val}
+
+* BP output
+Rbp bp vout 100
+
+.ends sc_svf_bp_ct
+
+* ============================================================
+* Testbench Top Level
+* ============================================================
+Vdd vdd 0 {vdd_val}
+
+* --- DAC Stimulus: behavioral quantized 1kHz sine (at SVF center) ---
+Bsine_code sine_code 0 V = floor(128 + 100*sin(2*{pi}*1000*time) + 0.5)
+Bdac_ideal dac_out 0 V = v(sine_code) / 255 * {vdd_val}
+
+* --- SVF Filter (BP mode, CT equivalent, Q code 4 → Q ≈ C_sw/C_Q = 0.25) ---
+Xsvf dac_out svf_out vdd 0 sc_svf_bp_ct r_eff_val={r_eff} r_q_val={r_q}
+
+* --- SAR ADC (simplified behavioral) ---
+Badc_code adc_code 0 V = floor(v(svf_out) / {vdd_val} * 255 + 0.5)
+Badc_analog adc_recon 0 V = v(adc_code) / 255 * {vdd_val}
+
+.control
+  echo "=== Full Chain Simulation: DAC -> SC SVF (CT equiv) -> ADC ==="
+  echo "1kHz sine, SC BP filter (f0=1kHz, Q=0.25), 5ms transient"
+
+  tran 10u 5m
+
+  wrdata full_chain_out.dat v(dac_out) v(svf_out) v(adc_recon)
+
+  meas tran dac_max max v(dac_out) from=3m to=5m
+  meas tran dac_min min v(dac_out) from=3m to=5m
+  meas tran svf_max max v(svf_out) from=3m to=5m
+  meas tran svf_min min v(svf_out) from=3m to=5m
+  meas tran adc_max max v(adc_recon) from=3m to=5m
+  meas tran adc_min min v(adc_recon) from=3m to=5m
+  let dac_pp = dac_max - dac_min
+  let svf_pp = svf_max - svf_min
+  let adc_pp = adc_max - adc_min
+  echo "  DAC pk-pk: $&dac_pp V"
+  echo "  SVF pk-pk: $&svf_pp V"
+  echo "  ADC pk-pk: $&adc_pp V"
+
+  echo "=== Full Chain Simulation Complete ==="
+
+.endc
+
+.end

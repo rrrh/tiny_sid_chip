@@ -1,0 +1,40 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: * full signal chain testbench: r-2r dac -> svf (bp) -> sar adc
+
+=== Full Chain Simulation: DAC -> SVF -> ADC ===
+10MHz sine, BP filter, 1us transient
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        1.2
+vcm_node                                   0.6
+sine_code                                  128
+dac_out                               0.602353
+xsvf.hp                                 0.6014
+xsvf.lp                               0.601157
+xsvf.bp                               0.601272
+xsvf.xc1.1                            0.601272
+xsvf.xc2.1                            0.601157
+svf_out                               0.601272
+adc_code                                   128
+adc_recon                             0.602353
+badc_analog#branch                           0
+badc_code#branch                             0
+bdac_ideal#branch                            0
+bsine_code#branch                            0
+vcm#branch                         4.01411e-08
+vdd#branch                                   0
+
+
+No. of Data Rows : 1008
+=== Full Chain Simulation Complete ===
+Note: Simulation executed from .control section 

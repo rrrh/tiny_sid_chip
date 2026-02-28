@@ -1,0 +1,39 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: * waveform test: 440hz (a4) and 880hz (a5), filter bypass
+
+=== Waveform Test: 440Hz & 880Hz, Filter Bypass ===
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        1.2
+code_440                                   128
+dac_440                               0.602353
+code_880                                   128
+dac_880                               0.602353
+adc_code_440                               128
+adc_440                               0.602353
+adc_code_880                               128
+adc_880                               0.602353
+badc_out_880#branch                          0
+badc_code_880#branch                         0
+badc_out_440#branch                          0
+badc_code_440#branch                         0
+bdac_880#branch                              0
+bcode_880#branch                             0
+bdac_440#branch                              0
+bcode_440#branch                             0
+vdd#branch                                   0
+
+
+No. of Data Rows : 2408
+=== Waveform Test Complete ===
+Note: Simulation executed from .control section 

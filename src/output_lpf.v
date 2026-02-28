@@ -1,13 +1,14 @@
+/* verilator lint_off UNUSEDSIGNAL */
 //==========================================================================
-// lpf_1500 — Single-pole IIR lowpass, fc ≈ 2000 Hz @ 800 kHz sample rate
+// output_lpf — Single-pole IIR lowpass, fc ≈ 2000 Hz @ 1.6 MHz sample rate
 //
-//   y[n] = y[n-1] + (x[n] - y[n-1]) >>> 6     (alpha ≈ 1/64)
-//   fc = -fs·ln(1-1/64)/(2π) ≈ 2005 Hz
+//   y[n] = y[n-1] + (x[n] - y[n-1]) >>> 7     (alpha ≈ 1/128)
+//   fc = -fs·ln(1-1/128)/(2π) ≈ 1990 Hz
 //
 //   10-bit unsigned accumulator (8.2 fixed-point), 8-bit output.
-//   Tracking granularity: ~16 LSB (6%). Minimal area for 1×2 tile.
+//   Tracking granularity: ~32 LSB (12%). Minimal area for 1×2 tile.
 //==========================================================================
-module lpf_1500 (
+module output_lpf (
     input  wire       clk,
     input  wire       rst_n,
     input  wire       sample_valid,
@@ -19,7 +20,7 @@ module lpf_1500 (
 
     wire [9:0]        x_ext = {sample_in, 2'b0};           // input << 2
     wire signed [10:0] diff = {1'b0, x_ext} - {1'b0, acc}; // signed subtract
-    wire signed [10:0] step = diff >>> 6;                   // alpha = 1/64
+    wire signed [10:0] step = diff >>> 7;                   // alpha = 1/128
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n)

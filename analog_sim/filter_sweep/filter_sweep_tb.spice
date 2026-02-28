@@ -1,0 +1,267 @@
+* SVF Filter Characterization — LP, BP, HP modes at varying Q
+* Tow-Thomas biquad CT-equivalent, no PWM chain
+* 16 segments: 4 Q values (0.5, 1, 2, 5) × 4 cutoff frequencies (250, 500, 1000, 1500 Hz)
+* Input sine fixed at 500 Hz so LP/BP/HP show distinct behavior
+* Saves v(vin), v(lp), v(bp) per segment for post-processing
+
+.param vdd_val=1.2
+.param vcm=0.6
+.param c_int=1.1e-12
+
+* Default R_eff (1kHz, div=256)
+.param r_eff_val=145.1e6
+
+* ============================================================
+* Input sine — fixed at 500 Hz (altered per step only for initial)
+* ============================================================
+Vin vin 0 SIN({vcm} 0.47 500)
+
+* ============================================================
+* SC SVF CT-equivalent (Tow-Thomas biquad)
+*   bp = band-pass output
+*   lp = low-pass output (via inverter)
+* ============================================================
+Eoa1 bp_raw 0 vcm1 vg1 10000
+Vcm1 vcm1 0 {vcm}
+Rout1 bp_raw bp 100
+Cint1 vg1 bp {c_int}
+Rin1 vin vg1 {r_eff_val}
+Rfb lp vg1 {r_eff_val}
+Rq bp vg1 {r_eff_val}
+
+Eoa_inv lp_raw 0 vcm_inv vg_inv 10000
+Vcm_inv vcm_inv 0 {vcm}
+Rout_inv lp_raw lp 100
+Rinv_in lp_bar vg_inv 100k
+Rinv_fb vg_inv lp 100k
+
+Eoa2 lpbar_raw 0 vcm2 vg2 10000
+Vcm2 vcm2 0 {vcm}
+Rout2 lpbar_raw lp_bar 100
+Cint2 vg2 lp_bar {c_int}
+Rin2 bp vg2 {r_eff_val}
+
+* ============================================================
+* Post-SVF analog LPF (RC, fc~2kHz)
+* ============================================================
+Rlpf lp lpf_out 79.6k
+Clpf lpf_out 0 1n
+
+.option reltol=5e-3
+
+* ============================================================
+* 16 segments: Q outer loop, freq inner loop
+* R_eff = div / (24e6 * 73.5e-15)
+* Rq = Q * R_eff
+* ============================================================
+.control
+  echo "=== SVF Filter Characterization ==="
+  shell rm -f seg_??.dat
+
+  * --- Q=0.5, seg_00..03 (input always 500 Hz) ---
+
+  * seg_00: Q=0.5, fc=250 Hz, div=1024
+  let rval = 1024 / (24e6 * 73.5e-15)
+  let rq_val = 0.5 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_00.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_01: Q=0.5, 500 Hz, div=512
+  let rval = 512 / (24e6 * 73.5e-15)
+  let rq_val = 0.5 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_01.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_02: Q=0.5, 1000 Hz, div=256
+  let rval = 256 / (24e6 * 73.5e-15)
+  let rq_val = 0.5 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_02.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_03: Q=0.5, 1500 Hz, div=170
+  let rval = 170 / (24e6 * 73.5e-15)
+  let rq_val = 0.5 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_03.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * --- Q=1, seg_04..07 ---
+
+  * seg_04: Q=1, 250 Hz, div=1024
+  let rval = 1024 / (24e6 * 73.5e-15)
+  let rq_val = 1.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_04.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_05: Q=1, 500 Hz, div=512
+  let rval = 512 / (24e6 * 73.5e-15)
+  let rq_val = 1.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_05.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_06: Q=1, 1000 Hz, div=256
+  let rval = 256 / (24e6 * 73.5e-15)
+  let rq_val = 1.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_06.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_07: Q=1, 1500 Hz, div=170
+  let rval = 170 / (24e6 * 73.5e-15)
+  let rq_val = 1.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_07.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * --- Q=2, seg_08..11 ---
+
+  * seg_08: Q=2, 250 Hz, div=1024
+  let rval = 1024 / (24e6 * 73.5e-15)
+  let rq_val = 2.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_08.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_09: Q=2, 500 Hz, div=512
+  let rval = 512 / (24e6 * 73.5e-15)
+  let rq_val = 2.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_09.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_10: Q=2, 1000 Hz, div=256
+  let rval = 256 / (24e6 * 73.5e-15)
+  let rq_val = 2.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_10.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_11: Q=2, 1500 Hz, div=170
+  let rval = 170 / (24e6 * 73.5e-15)
+  let rq_val = 2.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_11.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * --- Q=5, seg_12..15 ---
+
+  * seg_12: Q=5, 250 Hz, div=1024
+  let rval = 1024 / (24e6 * 73.5e-15)
+  let rq_val = 5.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_12.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_13: Q=5, 500 Hz, div=512
+  let rval = 512 / (24e6 * 73.5e-15)
+  let rq_val = 5.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_13.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_14: Q=5, 1000 Hz, div=256
+  let rval = 256 / (24e6 * 73.5e-15)
+  let rq_val = 5.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_14.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  * seg_15: Q=5, 1500 Hz, div=170
+  let rval = 170 / (24e6 * 73.5e-15)
+  let rq_val = 5.0 * rval
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rq_val
+  alter rin2 = $&rval
+  tran 0.5u 60m
+  wrdata seg_15.dat v(vin) v(lp) v(bp)
+  destroy all
+
+  echo ""
+  echo "=== SVF Filter Characterization Complete ==="
+  echo "Run plot_filter_sweep.py to generate PNG plots."
+
+.endc
+
+.end

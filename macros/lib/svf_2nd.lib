@@ -1,0 +1,39 @@
+library(svf_2nd) {
+  comment : "Blackbox liberty for 2nd-order Switched-Capacitor SVF hard macro";
+  delay_model : table_lookup;
+  time_unit : "1ns";
+  voltage_unit : "1V";
+  current_unit : "1mA";
+  pulling_resistance_unit : "1kohm";
+  capacitive_load_unit(1, pf);
+
+  nom_process : 1;
+  nom_voltage : 1.80;
+  nom_temperature : 25;
+
+  slew_lower_threshold_pct_rise : 20;
+  slew_upper_threshold_pct_rise : 80;
+  slew_lower_threshold_pct_fall : 20;
+  slew_upper_threshold_pct_fall : 80;
+  input_threshold_pct_rise : 50;
+  input_threshold_pct_fall : 50;
+  output_threshold_pct_rise : 50;
+  output_threshold_pct_fall : 50;
+
+  cell(svf_2nd) {
+    dont_touch : true;
+    dont_use : true;
+
+    pin(vin) { direction : input; capacitance : 0.010; }
+    pin(vout) { direction : output; max_capacitance : 0.5; }
+    pin(sel0) { direction : input; capacitance : 0.005; }
+    pin(sel1) { direction : input; capacitance : 0.005; }
+    pin(sc_clk) { direction : input; capacitance : 0.005; }
+    pin(q0) { direction : input; capacitance : 0.005; }
+    pin(q1) { direction : input; capacitance : 0.005; }
+    pin(q2) { direction : input; capacitance : 0.005; }
+    pin(q3) { direction : input; capacitance : 0.005; }
+    pg_pin(vdd) { pg_type : primary_power; voltage_name : VDD; }
+    pg_pin(vss) { pg_type : primary_ground; voltage_name : VSS; }
+  }
+}

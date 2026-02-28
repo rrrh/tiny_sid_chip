@@ -1,0 +1,40 @@
+library(bias_dac_2ch) {
+  comment : "Blackbox liberty for dual-channel 4-bit R-2R bias DAC hard macro";
+  delay_model : table_lookup;
+  time_unit : "1ns";
+  voltage_unit : "1V";
+  current_unit : "1mA";
+  pulling_resistance_unit : "1kohm";
+  capacitive_load_unit(1, pf);
+
+  nom_process : 1;
+  nom_voltage : 1.80;
+  nom_temperature : 25;
+
+  slew_lower_threshold_pct_rise : 20;
+  slew_upper_threshold_pct_rise : 80;
+  slew_lower_threshold_pct_fall : 20;
+  slew_upper_threshold_pct_fall : 80;
+  input_threshold_pct_rise : 50;
+  input_threshold_pct_fall : 50;
+  output_threshold_pct_rise : 50;
+  output_threshold_pct_fall : 50;
+
+  cell(bias_dac_2ch) {
+    dont_touch : true;
+    dont_use : true;
+
+    pin(dfc0) { direction : input; capacitance : 0.005; }
+    pin(dfc1) { direction : input; capacitance : 0.005; }
+    pin(dfc2) { direction : input; capacitance : 0.005; }
+    pin(dfc3) { direction : input; capacitance : 0.005; }
+    pin(dq0) { direction : input; capacitance : 0.005; }
+    pin(dq1) { direction : input; capacitance : 0.005; }
+    pin(dq2) { direction : input; capacitance : 0.005; }
+    pin(dq3) { direction : input; capacitance : 0.005; }
+    pin(vout_fc) { direction : output; max_capacitance : 0.5; }
+    pin(vout_q) { direction : output; max_capacitance : 0.5; }
+    pg_pin(vdd) { pg_type : primary_power; voltage_name : VDD; }
+    pg_pin(vss) { pg_type : primary_ground; voltage_name : VSS; }
+  }
+}

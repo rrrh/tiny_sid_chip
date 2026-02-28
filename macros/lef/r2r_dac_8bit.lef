@@ -1,0 +1,120 @@
+VERSION 5.7 ;
+BUSBITCHARS "[]" ;
+DIVIDERCHAR "/" ;
+
+MACRO r2r_dac_8bit
+  CLASS BLOCK ;
+  ORIGIN 0 0 ;
+  FOREIGN r2r_dac_8bit 0 0 ;
+  SIZE 45.000 BY 60.000 ;
+  SYMMETRY X Y ;
+
+  PIN d0
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 3.500 0.500 4.500 ;
+    END
+  END d0
+
+  PIN d1
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 9.500 0.500 10.500 ;
+    END
+  END d1
+
+  PIN d2
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 15.500 0.500 16.500 ;
+    END
+  END d2
+
+  PIN d3
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 21.500 0.500 22.500 ;
+    END
+  END d3
+
+  PIN d4
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 27.500 0.500 28.500 ;
+    END
+  END d4
+
+  PIN d5
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 33.500 0.500 34.500 ;
+    END
+  END d5
+
+  PIN d6
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 39.500 0.500 40.500 ;
+    END
+  END d6
+
+  PIN d7
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 45.500 0.500 46.500 ;
+    END
+  END d7
+
+  PIN vout
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 44.500 29.500 45.000 30.500 ;
+    END
+  END vout
+
+  PIN vdd
+    DIRECTION INOUT ;
+    USE POWER ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 58.000 45.000 60.000 ;
+    END
+  END vdd
+
+  PIN vss
+    DIRECTION INOUT ;
+    USE GROUND ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 0.000 45.000 2.000 ;
+    END
+  END vss
+
+  OBS
+    LAYER Metal1 ;
+      RECT 0.500 0.500 44.500 59.500 ;
+    LAYER Metal2 ;
+      RECT 0.500 0.500 44.500 59.500 ;
+  END
+
+END r2r_dac_8bit
+
+END LIBRARY
