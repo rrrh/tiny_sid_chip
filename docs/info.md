@@ -9,7 +9,7 @@ You can also include images in this folder and reference them in the markdown. E
 
 ## How it works
 
-This is a triple-voice SID (MOS 6581-inspired) synthesizer with an on-chip analog gm-C State Variable Filter. It runs at 24 MHz with a ÷3 clock enable producing an 8 MHz voice pipeline (1.6 MHz effective per voice). A host microcontroller writes per-voice registers through a flat memory-mapped parallel interface and the chip produces 8-bit PWM audio output on `uo_out[0]`.
+This is a triple-voice SID (MOS 6581-inspired) synthesizer with an on-chip switched-capacitor (SC) State Variable Filter. It runs at 24 MHz with a ÷3 clock enable producing an 8 MHz voice pipeline (1.6 MHz effective per voice). A host microcontroller writes per-voice registers through a flat memory-mapped parallel interface and the chip produces 8-bit PWM audio output on `uo_out[0]`.
 
 **Architecture:**
 
@@ -18,10 +18,10 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer with an on-chip analo
 - **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 15-bit LFSR), AND-combined when multiple waveforms are selected. Sync and ring modulation are fully implemented with circular cross-voice connections (V0←V2, V1←V0, V2←V1).
 - **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, 14-bit shared prescaler (clocked at 8 MHz), exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 9 distinct rate settings from ~128 µs to ~262 ms per full traverse.
 - **3-voice mixer** -- accumulates the three 8-bit voice outputs (8×8 waveform×envelope product, upper byte) into a 10-bit accumulator and divides by 4 to produce an 8-bit mix.
-- **Analog filter chain** -- the mixed digital audio is converted to analog via an 8-bit R-2R DAC (`r2r_dac_8bit`), filtered by a 2nd-order gm-C State Variable Filter (`svf_2nd`, 4 OTAs + 2 MIM caps), and converted back to digital via an 8-bit SAR ADC (`sar_adc_8bit`). A dual-channel 4-bit bias DAC (`bias_dac_2ch`) generates the fc and Q bias voltages from register values. LP/BP/HP modes via priority mux (HP > BP > LP), with bypass when no voices are routed or no mode is selected. Digital volume scaling (shift-add) is applied post-ADC.
+- **Analog filter chain** -- the mixed digital audio is converted to analog via an 8-bit R-2R DAC (`r2r_dac_8bit`), filtered by a 2nd-order switched-capacitor State Variable Filter (`svf_2nd`, 2 OTAs + 2 MIM caps + SC resistors), and converted back to digital via an 8-bit SAR ADC (`sar_adc_8bit`). A programmable clock divider sets the SC switching frequency (fc tuning), and a 4-bit binary-weighted capacitor array sets Q directly from register values. LP/BP/HP modes via priority mux (HP > BP > LP), with bypass when no voices are routed or no mode is selected. Digital volume scaling (shift-add) is applied post-ADC.
 - **2 kHz lowpass** (`output_lpf`) -- fixed single-pole IIR (6 dB/octave) between filter output and PWM input. Alpha = 1/128 (single shift, fc ≈ 1990 Hz), 10-bit unsigned accumulator (8.2 fixed-point), no multiplier.
 - **PWM audio** (`pwm_audio`) -- single instance on `uo_out[0]`. 8-bit PWM with a 255-clock period (~94.1 kHz at 24 MHz).
-- **Analog hard macros** -- four IHP SG13G2 130nm hard macros placed on-die: `r2r_dac_8bit` (45×60 µm), `svf_2nd` (70×85 µm), `sar_adc_8bit` (95×104 µm), `bias_dac_2ch` (35×40 µm). Total macro area ~14,450 µm² (~22.8% of die).
+- **Analog hard macros** -- three IHP SG13G2 130nm hard macros placed on-die: `r2r_dac_8bit` (45×60 µm), `svf_2nd` (70×85 µm), `sar_adc_8bit` (95×104 µm). Total macro area ~13,075 µm² (~20.6% of die). FC and Q tuning are digital (clock divider + cap switches), eliminating the need for a bias DAC.
 
 **Clock tree:**
 
@@ -35,12 +35,12 @@ There is a single physical clock (`clk` at 24 MHz). All registers use `posedge c
             ▼               ▼                       ▼
       ┌──────────┐    ┌──────────┐            ┌──────────┐
       │ clk_div  │    │ wr_en_d  │            │ pwm_audio│
-      │ ÷6 ctr   │    │ edge det │            │ 8-bit ctr│
-      │ (3-bit)  │    └──────────┘            │ /255     │
+      │ ÷3 ctr   │    │ edge det │            │ 8-bit ctr│
+      │ (2-bit)  │    └──────────┘            │ /255     │
       └────┬─────┘     24 MHz                 │ 94.1 kHz │
            │                                  └──────────┘
            ▼                                    24 MHz
-      clk_en_4m                               (free-running)
+      clk_en_8m                               (free-running)
        (8 MHz)
            │
      ┌─────┼──────────────────────┐
@@ -71,7 +71,7 @@ There is a single physical clock (`clk` at 24 MHz). All registers use `posedge c
 | 24 MHz (`clk`) | 24 MHz | All flip-flops, PWM counter, write-enable edge detect |
 | 8 MHz (`clk_en_8m`) | 8 MHz | Slot counter, pipeline loads, voice state updates, mix, ADSR prescaler |
 | 1.6 MHz (`sample_valid`) | 1.6 MHz | output_lpf IIR (1 pulse per mod-5 frame) |
-| Continuous | analog | R-2R DAC → gm-C SVF → SAR ADC (free-running conversion) |
+| Continuous | analog | R-2R DAC → SC SVF → SAR ADC (free-running conversion) |
 | Noise LFSR | pitch-dependent | Edge-detected from voice 0 accumulator bit 11 |
 
 **Register map** — full address = `{voice_sel[1:0], reg_addr[2:0]}`, selected by `ui_in[4:3]` (voice_sel) and `ui_in[2:0]` (reg_addr):
@@ -116,8 +116,8 @@ There is a single physical clock (`clk` at 24 MHz). All registers use `posedge c
 
 | Register | Bits | Maps to | Destination |
 |----------|------|---------|-------------|
-| fc_lo + fc_hi | `{fc_hi, fc_lo[2:0]}` → `filt_fc[10:7]` | `d_fc[3:0]` | `bias_dac_2ch` → `ibias_fc` → SVF cutoff frequency |
-| res_filt | `[7:4]` = `filt_res[3:0]` | `d_q[3:0]` | `bias_dac_2ch` → `ibias_q` → SVF Q / resonance |
+| fc_lo + fc_hi | `{fc_hi, fc_lo[2:0]}` → `filt_fc[10:7]` | `d_fc[3:0]` | Clock divider LUT → `sc_clk` → SVF cutoff frequency |
+| res_filt | `[7:4]` = `filt_res[3:0]` | `q[3:0]` | Direct to SC SVF binary-weighted C_Q capacitor array → Q / resonance |
 | res_filt | `[3:0]` = `filt_en` | bypass control | bypass if `[2:0] == 0` (no voices routed to filter) |
 | mode_vol | `[6:4]` = `filt_mode[2:0]` | `svf_sel[1:0]` | HP(10) > BP(01) > LP(00), bypass → 11 |
 | mode_vol | `[3:0]` = `filt_vol` | volume scaling | post-ADC digital shift-add (÷16 per bit) |

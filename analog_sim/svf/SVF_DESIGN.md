@@ -269,3 +269,24 @@ it with a 10-bit counter + 16-entry divider LUT (~15 FFs + combinatorial logic).
 2. `ngspice -b full_chain/full_chain_tb.spice` — DAC → SC SVF → ADC chain
 3. `python3 layout/gen_sc_svf.py` — generate GDS
 4. `python3 layout/run_drc.py macros/gds/svf_2nd.gds` — DRC check
+
+## Simulation Results
+
+The SC SVF has been characterized via the `filter_sweep` simulation suite,
+which sweeps LP/BP/HP modes across 4 Q values (0.5, 1, 2, 5) and 4 cutoff
+frequencies (250, 500, 1000, 1500 Hz) using a fixed 500 Hz input sine —
+16 simulation segments total. Key results:
+
+- **Low-pass**: passes signal when fc > f_in, attenuates when fc < f_in;
+  resonant peak visible at Q = 5.
+- **Band-pass**: peaks at fc = f_in (500 Hz), attenuated above and below;
+  higher Q sharpens the peak.
+- **High-pass**: passes signal when fc < f_in, attenuates when fc > f_in;
+  resonant peak at Q = 5.
+
+The full analog chain (R-2R DAC → SC SVF → SAR ADC) has also been verified
+end-to-end via the `full_chain` and `full_sweep` simulations, including PWM
+recovery through a 3rd-order RC filter.
+
+See [`analog_sim/STATUS.md`](../STATUS.md) for complete results, plots, and
+pass/fail status of all analog macro simulations.
