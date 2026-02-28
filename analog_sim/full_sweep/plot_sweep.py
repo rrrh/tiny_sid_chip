@@ -116,6 +116,8 @@ def plot_waveform_grid(segments, outpath):
                  fontsize=14, y=0.98)
 
     # Compute global y-range across all 16 segments for uniform scaling
+    # Subtract DC mean from audio_out (AC coupling cap doesn't fully settle
+    # in 10ms sim; real circuit has pre-charged cap in steady state)
     y_min, y_max = 0.0, 0.0
     for i in range(len(FREQS)):
         if i < len(segments) and len(segments[i]) > 0:
@@ -124,8 +126,9 @@ def plot_waveform_grid(segments, outpath):
             mask = t >= 5e-3
             if np.any(mask):
                 audio_out = data[mask, COL_AUDIO]
-                y_min = min(y_min, audio_out.min())
-                y_max = max(y_max, audio_out.max())
+                ac = audio_out - audio_out.mean()
+                y_min = min(y_min, ac.min())
+                y_max = max(y_max, ac.max())
     y_margin = (y_max - y_min) * 0.05 if y_max > y_min else 0.1
     y_min -= y_margin
     y_max += y_margin
@@ -139,11 +142,12 @@ def plot_waveform_grid(segments, outpath):
             t = data[:, COL_TIME]
             audio_out = data[:, COL_AUDIO]
 
-            # Last 5ms
+            # Last 5ms, DC-subtracted
             mask = t >= 5e-3
             if np.any(mask):
                 t_ms = (t[mask] - 5e-3) * 1e3
-                ax.plot(t_ms, audio_out[mask], color="#E91E63", linewidth=0.5)
+                ac = audio_out[mask] - audio_out[mask].mean()
+                ax.plot(t_ms, ac, color="#E91E63", linewidth=0.5)
 
         ax.set_title(f"{freq} Hz", fontsize=10, fontweight="bold")
         ax.set_xlabel("ms", fontsize=7)
@@ -255,7 +259,7 @@ def plot_summary(segments, freqs, gains, outpath):
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
 
-    # (1,0) 250 Hz waveform
+    # (1,0) 250 Hz waveform (DC-subtracted)
     ax = axes[1][0]
     if len(segments) > 0 and len(segments[0]) > 0:
         data = segments[0]
@@ -263,14 +267,15 @@ def plot_summary(segments, freqs, gains, outpath):
         mask = t >= 5e-3
         if np.any(mask):
             t_ms = (t[mask] - 5e-3) * 1e3
-            ax.plot(t_ms, data[mask, COL_AUDIO], color="#4CAF50", linewidth=0.6)
+            ac = data[mask, COL_AUDIO] - data[mask, COL_AUDIO].mean()
+            ax.plot(t_ms, ac, color="#4CAF50", linewidth=0.6)
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Voltage (V)")
     ax.set_title("Audio Output \u2014 250 Hz")
     ax.axhline(0, color="gray", linewidth=0.5, linestyle="--")
     ax.grid(True, alpha=0.3)
 
-    # (1,1) 16000 Hz waveform
+    # (1,1) 16000 Hz waveform (DC-subtracted)
     ax = axes[1][1]
     if len(segments) > 15 and len(segments[15]) > 0:
         data = segments[15]
@@ -278,7 +283,8 @@ def plot_summary(segments, freqs, gains, outpath):
         mask = t >= 5e-3
         if np.any(mask):
             t_ms = (t[mask] - 5e-3) * 1e3
-            ax.plot(t_ms, data[mask, COL_AUDIO], color="#9C27B0", linewidth=0.6)
+            ac = data[mask, COL_AUDIO] - data[mask, COL_AUDIO].mean()
+            ax.plot(t_ms, ac, color="#9C27B0", linewidth=0.6)
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Voltage (V)")
     ax.set_title("Audio Output \u2014 16 kHz")
