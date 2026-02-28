@@ -1,0 +1,282 @@
+* Switched-Capacitor State-Variable Filter (SC-SVF) Testbench
+* IHP SG13G2 PDK — VDD=1.2V
+* Audio-band SC SVF: f0 ~ 1kHz via f_clk = 93.75 kHz
+*
+* SC-to-continuous-time equivalence:
+*   An SC resistor R_eff = 1/(f_clk * C_sw) gives the same frequency
+*   response as a continuous-time resistor in the audio band (f << f_clk/2).
+*   This testbench uses the CT equivalent for robust behavioral simulation.
+*
+* Design equations (Tow-Thomas biquad):
+*   f0 = 1/(2*pi*R_eff*C_int) = f_clk*C_sw/(2*pi*C_int) ~ 1 kHz
+*   Q  = R_Q / R_eff  (damping resistor / input resistor)
+*   BP gain at resonance = Q (unity for Q=1)
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+.param vcm=0.6
+.param vdd_sq=1.44
+
+* SC design parameters
+.param f_clk=93.75e3
+.param c_sw=73.5e-15
+.param c_int=1.1e-12
+.param c_q_unit=73.5e-15
+
+* Continuous-time equivalents
+.param r_eff={1/(f_clk*c_sw)}
+* Q code 4 (bit 2): C_Q = 4 * 73.5fF = 294fF
+.param c_q={4*c_q_unit}
+.param r_q={1/(f_clk*c_q)}
+
+* fc tuning R values (R = 1/(f_clk * C_sw) for each divider code)
+.param r_code0={1/(23437.5*c_sw)}
+.param r_code15={1/(1.5e6*c_sw)}
+
+* ============================================================
+* Opamp-RC SVF (Tow-Thomas biquad, continuous-time equivalent)
+*
+* Topology:
+*   Integrator 1 (inverting): produces BP
+*     Vin → R_eff → vg1, LP → R_eff → vg1, BP → R_Q → vg1
+*     C_int: vg1 → BP (Miller feedback)
+*     Opamp: non-inv=VCM, inv=vg1, out=BP
+*
+*   Inverter (unity gain): LP_bar → LP
+*     (Needed: two inverting integrators give positive loop gain)
+*
+*   Integrator 2 (inverting): produces LP_bar
+*     BP → R_eff → vg2, C_int: vg2 → LP_bar
+*     Opamp: non-inv=VCM, inv=vg2, out=LP_bar
+*
+* Transfer functions:
+*   BP/Vin = -s*w0*Q / (s^2 + s*w0/Q + w0^2)  [gain at w0 = Q]
+*   LP/Vin = +w0^2 / (s^2 + s*w0/Q + w0^2)     [after inverter]
+*   HP = Vin - LP  (behavioral)
+*
+*   w0 = 1/(R_eff*C_int),  Q = R_Q/R_eff
+* ============================================================
+.subckt sc_svf_ct vin vout sel1 sel0 vdd vss r_eff_val=145.1e6 r_q_val=145.1e6
+
+* ==== Integrator 1 (inverting): produces BP ====
+Eoa1 bp_raw 0 vcm1 vg1 10000
+Vcm1 vcm1 0 {vcm}
+Rout1 bp_raw bp 100
+Cint1 vg1 bp {c_int}
+
+* Input resistor (Vin → vg1)
+Rin1 vin vg1 {r_eff_val}
+* LP negative feedback resistor (LP → vg1)
+Rfb lp vg1 {r_eff_val}
+* Damping resistor (BP → vg1)
+Rq bp vg1 {r_q_val}
+
+* ==== Unity-gain inverter: LP_bar → LP ====
+Eoa_inv lp_raw 0 vcm_inv vg_inv 10000
+Vcm_inv vcm_inv 0 {vcm}
+Rout_inv lp_raw lp 100
+Rinv_in lp_bar vg_inv 100k
+Rinv_fb vg_inv lp 100k
+
+* ==== Integrator 2 (inverting): produces LP_bar ====
+Eoa2 lpbar_raw 0 vcm2 vg2 10000
+Vcm2 vcm2 0 {vcm}
+Rout2 lpbar_raw lp_bar 100
+Cint2 vg2 lp_bar {c_int}
+Rin2 bp vg2 {r_eff_val}
+
+* ==== HP output (behavioral) ====
+Bhp hp 0 V = v(vin) - v(lp)
+
+* ==== 4:1 Output Mux (behavioral) ====
+* Use pre-computed vdd_sq to avoid operator precedence issue
+Bsel_hp  sel_hp  0 V = ({vdd_val}-v(sel1))*({vdd_val}-v(sel0))/{vdd_sq}
+Bsel_bp  sel_bp  0 V = ({vdd_val}-v(sel1))*v(sel0)/{vdd_sq}
+Bsel_lp  sel_lp  0 V = v(sel1)*({vdd_val}-v(sel0))/{vdd_sq}
+Bsel_byp sel_byp 0 V = v(sel1)*v(sel0)/{vdd_sq}
+
+Bmux vmux 0 V = v(hp)*v(sel_hp)+v(bp)*v(sel_bp)+v(lp)*v(sel_lp)+v(vin)*v(sel_byp)
+Rmux vmux vout 100
+
+.ends sc_svf_ct
+
+* ============================================================
+* Testbench
+* ============================================================
+Vdd vdd 0 {vdd_val}
+
+* Input signal
+Vin vin 0 dc {vcm} ac 1
+
+* Mux select (default: BP mode, sel=01)
+Vsel1 sel1 0 0
+Vsel0 sel0 0 {vdd_val}
+
+* Main SVF instance — Q=1 (R_Q = R_eff)
+Xsvf vin svf_out sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_eff} r_q_val={r_eff}
+Rout svf_out 0 1meg
+
+* fc tuning instances (separate top-level, since alter on subckt R fails)
+* Code 0 (div=1024): f_clk=23.4 kHz → R=580.4M
+Xsvf_lo vin svf_lo sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_code0} r_q_val={r_code0}
+Rout_lo svf_lo 0 1meg
+* Code 15 (div=16): f_clk=1.5 MHz → R=9.07M
+Xsvf_hi vin svf_hi sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_code15} r_q_val={r_code15}
+Rout_hi svf_hi 0 1meg
+
+.control
+  shell rm -f sc_svf_bp_ac.dat sc_svf_lp_ac.dat sc_svf_hp_ac.dat sc_svf_tran.dat
+
+  * =============================================
+  * Test 1: DC operating point
+  * =============================================
+  op
+  echo "=== SC SVF DC Operating Point ==="
+  echo "  VG1: $&v(xsvf.vg1)  (expect ~0.6)"
+  echo "  VG2: $&v(xsvf.vg2)  (expect ~0.6)"
+  echo "  BP:  $&v(xsvf.bp)   (expect ~0.6)"
+  echo "  LP:  $&v(xsvf.lp)   (expect ~0.6)"
+  echo "  HP:  $&v(xsvf.hp)   (expect ~0.0)"
+  echo "  OUT: $&v(svf_out)   (expect ~0.6)"
+  destroy all
+
+  * =============================================
+  * Test 2: BP AC response (Q=1, sel=01)
+  * =============================================
+  echo ""
+  echo "=== BP AC Response (Q=1, code=1) ==="
+  ac dec 50 10 100k
+
+  * Measure BP peak and -3dB frequencies
+  meas ac bp_peak max vdb(svf_out)
+  let bp_3db = bp_peak - 3
+  meas ac bp_f0 when vdb(svf_out)=bp_peak rise=1
+  meas ac bp_fl when vdb(svf_out)=bp_3db rise=1
+  meas ac bp_fh when vdb(svf_out)=bp_3db fall=1
+  let bp_bw = bp_fh - bp_fl
+  let bp_q = bp_f0 / bp_bw
+  echo "  BP peak gain: $&bp_peak dB (expect ~0 dB for Q=1)"
+  echo "  BP center:    $&bp_f0 Hz (expect ~1000)"
+  echo "  BP -3dB low:  $&bp_fl Hz"
+  echo "  BP -3dB high: $&bp_fh Hz"
+  echo "  BP Q (meas):  $&bp_q (expect ~1)"
+
+  let freq_vec = frequency
+  let vdb_bp = vdb(svf_out)
+  let i = 0
+  while i < length(freq_vec)
+    let fval = freq_vec[i]
+    let gval = vdb_bp[i]
+    echo "$&fval $&gval" >> sc_svf_bp_ac.dat
+    let i = i + 1
+  end
+  destroy all
+
+  * =============================================
+  * Test 3: LP AC response (sel=10)
+  * =============================================
+  echo ""
+  echo "=== LP AC Response ==="
+  alter vsel1 = 1.2
+  alter vsel0 = 0
+  ac dec 50 10 100k
+  let freq_vec = frequency
+  let vdb_lp = vdb(svf_out)
+  let lp_dc = vdb_lp[0]
+  let lp_3db = lp_dc - 3
+  echo "  LP DC gain: $&lp_dc dB (expect ~0 dB)"
+  meas ac lp_f3db when vdb(svf_out)=lp_3db fall=1
+  echo "  LP -3dB:    $&lp_f3db Hz (expect ~1000)"
+  let i = 0
+  while i < length(freq_vec)
+    let fval = freq_vec[i]
+    let gval = vdb_lp[i]
+    echo "$&fval $&gval" >> sc_svf_lp_ac.dat
+    let i = i + 1
+  end
+  destroy all
+
+  * =============================================
+  * Test 4: HP AC response (sel=00)
+  * =============================================
+  echo ""
+  echo "=== HP AC Response ==="
+  alter vsel1 = 0
+  alter vsel0 = 0
+  ac dec 50 10 100k
+  let freq_vec = frequency
+  let vdb_hp = vdb(svf_out)
+  let hp_hf = vdb_hp[length(vdb_hp)-1]
+  let hp_3db = hp_hf - 3
+  echo "  HP high-freq gain: $&hp_hf dB (expect ~0 dB)"
+  meas ac hp_f3db when vdb(svf_out)=hp_3db cross=1
+  echo "  HP -3dB:           $&hp_f3db Hz (expect ~1000)"
+  let i = 0
+  while i < length(freq_vec)
+    let fval = freq_vec[i]
+    let gval = vdb_hp[i]
+    echo "$&fval $&gval" >> sc_svf_hp_ac.dat
+    let i = i + 1
+  end
+  destroy all
+
+  * =============================================
+  * Test 5: Transient (BP, 1kHz sine at filter center)
+  * =============================================
+  echo ""
+  echo "=== Transient Test (BP, 1kHz) ==="
+  alter vsel1 = 0
+  alter vsel0 = 1.2
+  alter vin dc = 0.6 ac = 0
+  alter @vin[sin] = [ 0.6 0.05 1k ]
+  tran 10u 10m
+  wrdata sc_svf_tran.dat v(vin) v(xsvf.bp) v(xsvf.lp) v(xsvf.hp)
+
+  meas tran bp_max max v(xsvf.bp) from=5m to=10m
+  meas tran bp_min min v(xsvf.bp) from=5m to=10m
+  meas tran lp_max max v(xsvf.lp) from=5m to=10m
+  meas tran lp_min min v(xsvf.lp) from=5m to=10m
+  let bp_pp = bp_max - bp_min
+  let lp_pp = lp_max - lp_min
+  echo "  BP pk-pk: $&bp_pp V (input: 0.1V pk-pk, expect ~0.1 for Q=1)"
+  echo "  LP pk-pk: $&lp_pp V"
+  destroy all
+
+  * =============================================
+  * Test 6: fc tuning — separate instances with different R_eff
+  * =============================================
+  echo ""
+  echo "=== fc Tuning Sweep ==="
+  alter vsel1 = 0
+  alter vsel0 = 1.2
+  alter vin dc = 0.6 ac = 1
+  alter @vin[sin] = [ 0 0 0 ]
+
+  * Code 0 (div=1024): f_clk=23.4kHz → f0~250Hz
+  ac dec 50 10 100k
+  meas ac fc_lo_peak max vdb(svf_lo)
+  meas ac fc_lo_f0 when vdb(svf_lo)=fc_lo_peak rise=1
+  echo "  Code 0  (div=1024): fc ~ $&fc_lo_f0 Hz, peak = $&fc_lo_peak dB"
+  destroy all
+
+  * Code 15 (div=16): f_clk=1.5MHz → f0~16kHz
+  ac dec 50 10 1meg
+  meas ac fc_hi_peak max vdb(svf_hi)
+  * Peak 'at=' value in output gives fc directly (~15.8 kHz expected)
+  echo "  Code 15 (div=16):  peak = $&fc_hi_peak dB (see 'at=' above for fc)"
+  destroy all
+
+  * Nominal Code 6 (div=256): f_clk=93.75kHz → f0~1kHz
+  ac dec 50 10 100k
+  meas ac fc_nom_peak max vdb(svf_out)
+  meas ac fc_nom_f0 when vdb(svf_out)=fc_nom_peak rise=1
+  echo "  Code 6  (div=256):  fc ~ $&fc_nom_f0 Hz, peak = $&fc_nom_peak dB"
+  destroy all
+
+  echo ""
+  echo "=== SC SVF Simulation Complete ==="
+
+.endc
+
+.end

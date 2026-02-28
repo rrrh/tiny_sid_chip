@@ -40,8 +40,8 @@
 //     2: res_filt — [7:4] resonance → Q bias DAC, [3:0] filt enable             ($D417)
 //     3: mode_vol — [6:4] mode (HP/BP/LP), [3:0] vol                            ($D418)
 //
-//   Analog signal chain: mix → R-2R DAC → gm-C SVF → SAR ADC → vol scaling
-//   Bias DACs driven directly from register bank (flat memory, no SPI)
+//   Analog signal chain: mix → R-2R DAC → SC SVF → SAR ADC → vol scaling
+//   SC clock divider + C_Q array driven from register bank (flat memory, no SPI)
 //
 // Waveform register (SID $d404 layout):
 //   [0] gate  [1] sync  [2] ring-mod  [3] test
@@ -462,18 +462,17 @@ module tt_um_sid (
 
     //==========================================================================
     // Analog filter signal chain:
-    //   mix_out → R-2R DAC → analog SVF → SAR ADC → volume scaling
+    //   mix_out → R-2R DAC → SC SVF → SAR ADC → volume scaling
     //
     // Register mapping (voice_sel=3, flat memory — no SPI):
-    //   fc_lo/fc_hi → filt_fc[10:7] → d_fc[3:0]  (top 4 bits of 11-bit fc)
-    //   res_filt[7:4] → filt_res    → d_q[3:0]   (resonance maps to Q)
+    //   fc_lo/fc_hi → filt_fc[10:7] → clock divider LUT → sc_clk
+    //   res_filt[3:0] → q0..q3 (C_Q cap array switches, direct)
     //   mode_vol[6:4] → svf_sel[1:0] (HP>BP>LP priority, or bypass)
     //   mode_vol[3:0] → filt_vol     (digital volume scaling post-ADC)
     //==========================================================================
     (* keep *) wire dac_out;           // R-2R DAC analog output
     (* keep *) wire filter_out;        // SVF analog output
-    (* keep *) wire bias_fc;           // fc bias voltage from bias DAC
-    (* keep *) wire bias_q;            // Q bias voltage from bias DAC
+    (* keep *) wire sc_clk;            // SC switching clock to SVF
 
     // Bypass: no voices routed to filter, or no filter mode selected
     wire bypass = (filt_en[2:0] == 3'd0) || (filt_mode[2:0] == 3'd0);
@@ -490,22 +489,60 @@ module tt_um_sid (
         .vout (dac_out)
     );
 
-    // --- Bias DAC: register-controlled fc and Q bias voltages ---
-    bias_dac_2ch u_bias_dac (
-        .dfc0(filt_fc[7]),  .dfc1(filt_fc[8]),  .dfc2(filt_fc[9]),  .dfc3(filt_fc[10]),
-        .dq0(filt_res[0]),  .dq1(filt_res[1]),  .dq2(filt_res[2]),  .dq3(filt_res[3]),
-        .vout_fc (bias_fc),
-        .vout_q  (bias_q)
-    );
+    // --- Programmable clock divider for SC SVF fc tuning ---
+    // filt_fc[10:7] selects divider ratio via LUT (16 log-spaced steps)
+    // f_clk = 24 MHz / divider → fc ≈ f_clk * C_sw / (2π * C_int)
+    // Range: ~250 Hz (code 0, ÷1024) to ~16 kHz (code 15, ÷16)
+    reg [10:0] div_ratio;
+    always @(*) begin
+        case (filt_fc[10:7])
+            4'd0:  div_ratio = 11'd1024;  // f_clk ≈ 23.4 kHz → fc ≈ 250 Hz
+            4'd1:  div_ratio = 11'd768;   // f_clk ≈ 31.3 kHz → fc ≈ 330 Hz
+            4'd2:  div_ratio = 11'd640;   // f_clk ≈ 37.5 kHz → fc ≈ 400 Hz
+            4'd3:  div_ratio = 11'd512;   // f_clk ≈ 46.9 kHz → fc ≈ 500 Hz
+            4'd4:  div_ratio = 11'd384;   // f_clk ≈ 62.5 kHz → fc ≈ 660 Hz
+            4'd5:  div_ratio = 11'd320;   // f_clk ≈ 75.0 kHz → fc ≈ 800 Hz
+            4'd6:  div_ratio = 11'd256;   // f_clk ≈ 93.8 kHz → fc ≈ 1.0 kHz
+            4'd7:  div_ratio = 11'd192;   // f_clk ≈ 125  kHz → fc ≈ 1.3 kHz
+            4'd8:  div_ratio = 11'd128;   // f_clk ≈ 188  kHz → fc ≈ 2.0 kHz
+            4'd9:  div_ratio = 11'd96;    // f_clk ≈ 250  kHz → fc ≈ 2.7 kHz
+            4'd10: div_ratio = 11'd64;    // f_clk ≈ 375  kHz → fc ≈ 4.0 kHz
+            4'd11: div_ratio = 11'd48;    // f_clk ≈ 500  kHz → fc ≈ 5.3 kHz
+            4'd12: div_ratio = 11'd32;    // f_clk ≈ 750  kHz → fc ≈ 8.0 kHz
+            4'd13: div_ratio = 11'd24;    // f_clk ≈ 1.0  MHz → fc ≈ 10.6 kHz
+            4'd14: div_ratio = 11'd20;    // f_clk ≈ 1.2  MHz → fc ≈ 12.7 kHz
+            4'd15: div_ratio = 11'd16;    // f_clk ≈ 1.5  MHz → fc ≈ 16.0 kHz
+        endcase
+    end
 
-    // --- Analog gm-C SVF ---
+    reg [10:0] clk_cnt;
+    reg       sc_clk_reg;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            clk_cnt    <= 11'd0;
+            sc_clk_reg <= 1'b0;
+        end else begin
+            if (clk_cnt >= div_ratio - 1'b1) begin
+                clk_cnt    <= 11'd0;
+                sc_clk_reg <= ~sc_clk_reg;
+            end else begin
+                clk_cnt <= clk_cnt + 1'b1;
+            end
+        end
+    end
+    assign sc_clk = sc_clk_reg;
+
+    // --- Analog SC SVF ---
     svf_2nd u_svf (
         .vin      (dac_out),
         .vout     (filter_out),
         .sel0     (svf_sel[0]),
         .sel1     (svf_sel[1]),
-        .ibias_fc (bias_fc),
-        .ibias_q  (bias_q)
+        .sc_clk   (sc_clk),
+        .q0       (filt_res[0]),
+        .q1       (filt_res[1]),
+        .q2       (filt_res[2]),
+        .q3       (filt_res[3])
     );
 
     // --- SAR ADC: analog → digital (continuous conversion) ---
@@ -581,6 +618,6 @@ module tt_um_sid (
     assign uio_out = 8'b0;
     assign uio_oe  = 8'b0;
 
-    wire _unused = &{ena, ui_in[6:5], adc_busy, 1'b0};
+    wire _unused = &{ena, ui_in[6:5], adc_busy, filt_fc[6:0], 1'b0};
 
 endmodule

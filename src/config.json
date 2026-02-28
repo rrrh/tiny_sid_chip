@@ -48,20 +48,6 @@
       "lib": {
         "*": ["dir::../macros/lib/sar_adc_8bit.lib"]
       }
-    },
-    "bias_dac_2ch": {
-      "instances": {
-        "u_bias_dac": {
-          "location": [167, 203],
-          "orientation": "N"
-        }
-      },
-      "gds": ["dir::../macros/gds/bias_dac_2ch.gds"],
-      "lef": ["dir::../macros/lef/bias_dac_2ch.lef"],
-      "nl": ["dir::../macros/nl/bias_dac_2ch.v"],
-      "lib": {
-        "*": ["dir::../macros/lib/bias_dac_2ch.lib"]
-      }
     }
   },
   "PL_TARGET_DENSITY_PCT": 50,
@@ -81,7 +67,6 @@
   "RUN_MAGIC_DRC": 0,
   "RUN_LVS": 0,
   "ERROR_ON_ILLEGAL_OVERLAPS": false,
-  "QUIT_ON_ILLEGAL_OVERLAPS": 0,
   "DESIGN_REPAIR_BUFFER_OUTPUT_PORTS": 0,
   "TOP_MARGIN_MULT": 1,
   "BOTTOM_MARGIN_MULT": 1,
@@ -89,18 +74,17 @@
   "RIGHT_MARGIN_MULT": 1,
   "GRT_ALLOW_CONGESTION": 1,
   "ERROR_ON_TR_DRC": false,
-  "ERROR_ON_ILLEGAL_OVERLAPS": false,
-  "FP_IO_HLENGTH": 2,
-  "FP_IO_VLENGTH": 2,
-  "FP_PDN_MACRO_HOOKS": "u_dac vdd VDD vss VSS, u_bias_dac vdd VDD vss VSS, u_svf vdd VDD vss VSS, u_adc vdd VDD vss VSS",
-  "FP_PDN_MULTILAYER": 0,
-  "FP_PDN_VPITCH": 38.87,
+  "IO_PIN_H_LENGTH": 2,
+  "IO_PIN_V_LENGTH": 2,
+  "PDN_MACRO_CONNECTIONS": ["u_dac vdd VDD vss VSS", "u_svf vdd VDD vss VSS", "u_adc vdd VDD vss VSS"],
+  "PDN_MULTILAYER": false,
+  "PDN_VPITCH": 38.87,
   "RT_MAX_LAYER": "TopMetal1",
   "MAGIC_DEF_LABELS": 0,
   "MAGIC_WRITE_LEF_PINONLY": 1,
   "RUN_HEURISTIC_DIODE_INSERTION": 0,
   "ERROR_ON_DISCONNECTED_PINS": false,
-  "FP_PDN_CHECK_NODES": false,
+  "ERROR_ON_PDN_VIOLATIONS": false,
   "RUN_POST_CTS_RESIZER_TIMING": false,
   "RUN_POST_GRT_DESIGN_REPAIR": false,
   "RUN_POST_GRT_RESIZER_TIMING": false

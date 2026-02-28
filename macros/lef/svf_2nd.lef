@@ -45,23 +45,50 @@ MACRO svf_2nd
     END
   END sel1
 
-  PIN ibias_fc
+  PIN sc_clk
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
         RECT 0.000 59.000 0.500 61.000 ;
     END
-  END ibias_fc
+  END sc_clk
 
-  PIN ibias_q
+  PIN q0
     DIRECTION INPUT ;
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 65.000 0.500 67.000 ;
+        RECT 0.000 63.000 0.500 65.000 ;
     END
-  END ibias_q
+  END q0
+
+  PIN q1
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 66.000 0.500 68.000 ;
+    END
+  END q1
+
+  PIN q2
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 69.000 0.500 71.000 ;
+    END
+  END q2
+
+  PIN q3
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 72.000 0.500 74.000 ;
+    END
+  END q3
 
   PIN vdd
     DIRECTION INOUT ;

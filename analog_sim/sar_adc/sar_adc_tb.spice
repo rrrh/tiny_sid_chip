@@ -1,0 +1,175 @@
+* SAR ADC Testbench
+* IHP SG13G2 PDK — VDD=1.2V
+* StrongARM comparator + binary-weighted cap DAC
+* Focus: comparator characterization + cap DAC linearity
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+
+* ============================================================
+* StrongARM Comparator Subcircuit
+* Pins: vinp vinn outp outn clk vdd vss
+* ============================================================
+.subckt strongarm_comp vinp vinn outp outn clk vdd vss
+
+* Tail current (clocked NMOS)
+XMtail vtail clk vss vss sg13_lv_nmos w=4e-6 l=0.13e-6
+
+* Input differential pair
+XMn1 dn vinp vtail vss sg13_lv_nmos w=2e-6 l=0.5e-6
+XMn2 dp vinn vtail vss sg13_lv_nmos w=2e-6 l=0.5e-6
+
+* PMOS reset switches (active low = clk_bar)
+Bclkb clkb 0 V = {vdd_val} - v(clk)
+XMp_rst1 dp clkb vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+XMp_rst2 dn clkb vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+
+* Cross-coupled NMOS latch
+XMn_cc1 outp outn dn vss sg13_lv_nmos w=1e-6 l=0.13e-6
+XMn_cc2 outn outp dp vss sg13_lv_nmos w=1e-6 l=0.13e-6
+
+* Cross-coupled PMOS latch
+XMp_cc1 outp outn vdd vdd sg13_lv_pmos w=1e-6 l=0.13e-6
+XMp_cc2 outn outp vdd vdd sg13_lv_pmos w=1e-6 l=0.13e-6
+
+* PMOS reset for output nodes
+XMp_rst3 outp clkb vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+XMp_rst4 outn clkb vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+
+.ends strongarm_comp
+
+* ============================================================
+* Binary-Weighted Cap DAC (8-bit, ideal capacitors)
+* Pins: sw7..sw0 vtop vref vss
+* ============================================================
+.subckt cap_dac_8bit sw7 sw6 sw5 sw4 sw3 sw2 sw1 sw0 vtop vref vss
+
+* Behavioral switches + capacitors for each bit
+Bvsw7 nsw7 0 V = v(sw7) > 0.6 ? v(vref) : v(vss)
+C7 vtop nsw7 256f ic=0
+
+Bvsw6 nsw6 0 V = v(sw6) > 0.6 ? v(vref) : v(vss)
+C6 vtop nsw6 128f ic=0
+
+Bvsw5 nsw5 0 V = v(sw5) > 0.6 ? v(vref) : v(vss)
+C5 vtop nsw5 64f ic=0
+
+Bvsw4 nsw4 0 V = v(sw4) > 0.6 ? v(vref) : v(vss)
+C4 vtop nsw4 32f ic=0
+
+Bvsw3 nsw3 0 V = v(sw3) > 0.6 ? v(vref) : v(vss)
+C3 vtop nsw3 16f ic=0
+
+Bvsw2 nsw2 0 V = v(sw2) > 0.6 ? v(vref) : v(vss)
+C2 vtop nsw2 8f ic=0
+
+Bvsw1 nsw1 0 V = v(sw1) > 0.6 ? v(vref) : v(vss)
+C1 vtop nsw1 4f ic=0
+
+Bvsw0 nsw0 0 V = v(sw0) > 0.6 ? v(vref) : v(vss)
+C0 vtop nsw0 2f ic=0
+
+* Dummy LSB cap for termination
+Cdummy vtop vss 2f ic=0
+
+.ends cap_dac_8bit
+
+* ============================================================
+* Test 1: Standalone Comparator Test
+* ============================================================
+Vdd_c vdd_c 0 {vdd_val}
+
+* Comparator clock — 100MHz
+Vclk_c clk_c 0 pulse(0 {vdd_val} 0 0.1n 0.1n 4.9n 10n)
+
+* Differential input
+Vcmp vinn_c 0 0.6
+Vcmm vinp_c 0 0.6
+
+Xcomp_test vinp_c vinn_c outp_c outn_c clk_c vdd_c 0 strongarm_comp
+
+* ============================================================
+* Test 2: Cap DAC linearity test (static, no SAR logic)
+* Sweep all 256 codes via .control and measure vtop
+* ============================================================
+Vdd vdd 0 {vdd_val}
+Vref vref 0 {vdd_val}
+
+* Cap DAC bit controls
+Vsw7 sw7 0 0
+Vsw6 sw6 0 0
+Vsw5 sw5 0 0
+Vsw4 sw4 0 0
+Vsw3 sw3 0 0
+Vsw2 sw2 0 0
+Vsw1 sw1 0 0
+Vsw0 sw0 0 0
+
+Xcdac sw7 sw6 sw5 sw4 sw3 sw2 sw1 sw0 vtop vref 0 cap_dac_8bit
+
+* Need a DC path for vtop to settle
+Rbias vtop 0 1T
+
+.control
+  * =============================================
+  * Test 1: Comparator transient
+  * =============================================
+  echo "=== Comparator Characterization ==="
+
+  * Transient test — comparator with small differential
+  alter vcmm = 0.601
+  alter vcmp = 0.6
+  tran 0.1n 100n
+  meas tran t_resolve trig v(clk_c) val=0.6 rise=1 targ v(outp_c) val=0.6 rise=1
+  echo "Comparator resolve time: $&t_resolve"
+  wrdata sar_comp_tran.dat v(vinp_c) v(outp_c) v(outn_c) v(clk_c)
+  destroy all
+
+  * =============================================
+  * Test 2: Cap DAC static sweep
+  * =============================================
+  echo "=== Cap DAC Static Sweep ==="
+  shell rm -f sar_adc_ramp.dat
+
+  let i = 0
+  while i < 256
+    let rem = i
+    let b7v = floor(rem / 128) * 1.2
+    let rem = rem - floor(rem / 128) * 128
+    let b6v = floor(rem / 64) * 1.2
+    let rem = rem - floor(rem / 64) * 64
+    let b5v = floor(rem / 32) * 1.2
+    let rem = rem - floor(rem / 32) * 32
+    let b4v = floor(rem / 16) * 1.2
+    let rem = rem - floor(rem / 16) * 16
+    let b3v = floor(rem / 8) * 1.2
+    let rem = rem - floor(rem / 8) * 8
+    let b2v = floor(rem / 4) * 1.2
+    let rem = rem - floor(rem / 4) * 4
+    let b1v = floor(rem / 2) * 1.2
+    let rem = rem - floor(rem / 2) * 2
+    let b0v = rem * 1.2
+
+    alter vsw7 = $&b7v
+    alter vsw6 = $&b6v
+    alter vsw5 = $&b5v
+    alter vsw4 = $&b4v
+    alter vsw3 = $&b3v
+    alter vsw2 = $&b2v
+    alter vsw1 = $&b1v
+    alter vsw0 = $&b0v
+
+    * Short transient to let caps settle
+    tran 1n 100n uic
+    let vout_val = v(vtop)
+    echo "$&i $&vout_val" >> sar_adc_ramp.dat
+    destroy all
+    let i = i + 1
+  end
+
+  echo "=== SAR ADC Simulation Complete ==="
+
+.endc
+
+.end

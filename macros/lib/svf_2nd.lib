@@ -1,5 +1,5 @@
 library(svf_2nd) {
-  comment : "Blackbox liberty for 2nd-order gm-C State Variable Filter hard macro";
+  comment : "Blackbox liberty for 2nd-order Switched-Capacitor SVF hard macro";
   delay_model : table_lookup;
   time_unit : "1ns";
   voltage_unit : "1V";
@@ -28,8 +28,11 @@ library(svf_2nd) {
     pin(vout) { direction : output; max_capacitance : 0.5; }
     pin(sel0) { direction : input; capacitance : 0.005; }
     pin(sel1) { direction : input; capacitance : 0.005; }
-    pin(ibias_fc) { direction : input; capacitance : 0.010; }
-    pin(ibias_q) { direction : input; capacitance : 0.010; }
+    pin(sc_clk) { direction : input; capacitance : 0.005; }
+    pin(q0) { direction : input; capacitance : 0.005; }
+    pin(q1) { direction : input; capacitance : 0.005; }
+    pin(q2) { direction : input; capacitance : 0.005; }
+    pin(q3) { direction : input; capacitance : 0.005; }
     pg_pin(vdd) { pg_type : primary_power; voltage_name : VDD; }
     pg_pin(vss) { pg_type : primary_ground; voltage_name : VSS; }
   }
