@@ -78,6 +78,21 @@
 
 ![Full Sweep Summary](full_sweep/full_sweep_summary.png)
 
+### filter_sweep: PASS (LP/BP/HP characterization across Q and fc)
+- SVF filter characterization: Tow-Thomas biquad CT-equivalent, no PWM chain
+- Fixed 500 Hz input sine; filter fc swept across 250, 500, 1000, 1500 Hz
+- 4 Q values (0.5, 1, 2, 5) × 4 cutoff frequencies = 16 ngspice segments
+- **Low-pass**: passes signal when fc > fin; attenuates when fc < fin; resonant peak at Q=5
+- **Band-pass**: peaks at fc=fin (500 Hz); attenuated above and below; Q sharpens peak
+- **High-pass**: passes signal when fc < fin; attenuates when fc > fin; resonant peak at Q=5
+- HP computed from sim data: HP = VCM + (Vin−VCM) − (LP−VCM) − (BP−VCM)/Q
+
+![Low-Pass Response](filter_sweep/filter_lp.png)
+
+![Band-Pass Response](filter_sweep/filter_bp.png)
+
+![High-Pass Response](filter_sweep/filter_hp.png)
+
 ### Digital Frequency Sweep (`tests/freq_sweep_tb.v`)
 - Verilog testbench sweeps Voice 0 sawtooth through 16 frequency points in bypass mode
 - Captures PWM output to PWL files, processed through RC filter simulation (`tests/sim_analog.py`)
