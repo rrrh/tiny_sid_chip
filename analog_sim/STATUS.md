@@ -58,10 +58,37 @@
 
 ![440Hz and 880Hz Waveforms](full_chain/waveform_440_880.png)
 
+### full_sweep: PASS (16-point frequency sweep, full chain + PWM recovery)
+- 16 frequency points from 250 Hz to 16 kHz (matching SVF fc divider LUT)
+- Behavioral chain: sine → SVF (Tow-Thomas CT-equiv, LP mode, Q=1) → LPF → PWM → 3rd-order RC filter
+- SVF fc tracks input frequency at each step via `alter` (R_eff = div_ratio / (24 MHz × C_sw))
+- PWM: 94.1 kHz PULSE sawtooth with tanh comparator, 3.3V output into PCB RC filter
+- RC recovery: 3×3.3kΩ + 3×4.7nF + 1µF AC coupling + 10kΩ load
+
+**Frequency response** (normalized to 1 kHz):
+- Flat passband 250–800 Hz (+0.7 to +0.8 dB)
+- -3 dB at ~2.5 kHz (dominated by 3rd-order RC at fc=10.3 kHz)
+- -17 dB at 16 kHz
+
+![Frequency Response](full_sweep/freq_response.png)
+
+![Waveform Waterfall — 16 frequency points](full_sweep/waveform_waterfall.png)
+
+![PWM Recovery Detail — 1 kHz](full_sweep/pwm_recovery.png)
+
+![Full Sweep Summary](full_sweep/full_sweep_summary.png)
+
+### Digital Frequency Sweep (`tests/freq_sweep_tb.v`)
+- Verilog testbench sweeps Voice 0 sawtooth through 16 frequency points in bypass mode
+- Captures PWM output to PWL files, processed through RC filter simulation (`tests/sim_analog.py`)
+- 16 WAV files generated with correct pitch content (191 mV peak at 250 Hz → 111 mV at 16 kHz)
+- Run all stages: `bash tests/run_freq_sweep.sh`
+
 ## Key Design Issues Found (not simulation bugs)
 1. ~~**R-2R DAC non-monotonicity**~~: FIXED — replaced NMOS-only switches with CMOS complementary switches, corrected ladder bit ordering
 2. ~~**SVF OTA bias**~~: FIXED — switched to current-sourcing OTAs with lossy integrators (vinn=vout). 5T OTA can't reach VCM=0.6V (Vtn+|Vtp|≈VDD); transistor-level needs folded-cascode
 3. **Cap DAC settling**: needs proper sample timing or longer settle time
 
 ## All Sims Run Without Errors
-`make all` completes — all 5 testbenches execute and produce output data.
+`make all` completes — all 5 macro-level testbenches execute and produce output data.
+Full system sweep: `bash tests/run_freq_sweep.sh` (digital + analog + plots).

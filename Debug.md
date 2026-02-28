@@ -33,6 +33,28 @@ Captures 12 raw files at ~44,117 Hz sample rate (12 MHz / 272):
 - 3 filter captures at 440 Hz sawtooth: LP, HP, BP
 - Each file: 5,000 samples
 
+### Frequency Sweep Testbench (`tests/freq_sweep_tb.v`)
+
+Full system frequency sweep through the digital signal chain:
+- Voice 0 sawtooth, instant ADSR (A=0, S=15), bypass mode (no filter routing)
+- 16 frequency points matching SVF fc divider codes (250 Hz – 16 kHz)
+- 20 ms settle + 20 ms PWM capture per point → 16 PWL files
+- PWL files processed through 3rd-order RC filter simulation → 16 WAV files
+
+Run: `bash tests/run_freq_sweep.sh` (also runs ngspice analog chain sweep + plots)
+
+**Status: PASS** — all 16 PWL files generated with proper PWM transitions
+
+### Analog Chain Frequency Sweep (`analog_sim/full_sweep/`)
+
+ngspice behavioral simulation of the full analog chain:
+- SVF (Tow-Thomas CT-equiv, LP mode, Q=1) → LPF → PWM → 3rd-order RC recovery filter
+- 16 separate transient runs, SVF R_eff altered per step to track input frequency
+- Frequency response flat to ~800 Hz, -3 dB at ~2.5 kHz, -17 dB at 16 kHz
+- 4 plots: freq response, 4×4 waveform grid, PWM recovery detail, summary
+
+**Status: PASS** — all 16 frequency points converge, gain measurements and plots generated
+
 ## Filter Optimization Journey
 
 ### Stage 1: 24-bit SVF (initial implementation)
