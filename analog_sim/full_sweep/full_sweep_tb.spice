@@ -1,0 +1,335 @@
+* Full System Frequency Sweep — Behavioral Analog Chain
+* SVF (CT equiv, LP mode, Q=1) → RC LPF → PWM (PULSE saw) → 3rd-order RC filter
+*
+* 16 separate transient runs, one per frequency point.
+* Each run: alter input freq + SVF R_eff, run 10ms, measure audio_out pk-pk.
+
+.param vdd_val=1.2
+.param vcm=0.6
+.param pi=3.14159265358979
+.param c_sw=73.5e-15
+.param c_int=1.1e-12
+
+* PWM parameters
+.param f_pwm=94117.647
+.param saw_tf=10n
+.param saw_pw=10n
+.param saw_tr={1/f_pwm - saw_pw - saw_tf}
+
+* Default R_eff (code 6, 1kHz)
+.param r_eff_val=145.1e6
+
+* ============================================================
+* Input sine (altered per step)
+* ============================================================
+Vin vin 0 SIN({vcm} 0.47 1000)
+
+* ============================================================
+* SC SVF CT-equivalent (Tow-Thomas biquad, LP mode, Q=1)
+* ============================================================
+Eoa1 bp_raw 0 vcm1 vg1 10000
+Vcm1 vcm1 0 {vcm}
+Rout1 bp_raw bp 100
+Cint1 vg1 bp {c_int}
+Rin1 vin vg1 {r_eff_val}
+Rfb lp vg1 {r_eff_val}
+Rq bp vg1 {r_eff_val}
+
+Eoa_inv lp_raw 0 vcm_inv vg_inv 10000
+Vcm_inv vcm_inv 0 {vcm}
+Rout_inv lp_raw lp 100
+Rinv_in lp_bar vg_inv 100k
+Rinv_fb vg_inv lp 100k
+
+Eoa2 lpbar_raw 0 vcm2 vg2 10000
+Vcm2 vcm2 0 {vcm}
+Rout2 lpbar_raw lp_bar 100
+Cint2 vg2 lp_bar {c_int}
+Rin2 bp vg2 {r_eff_val}
+
+* ============================================================
+* Post-SVF analog LPF (RC, fc≈2kHz)
+* ============================================================
+Rlpf lp lpf_out 79.6k
+Clpf lpf_out 0 1n
+
+* ============================================================
+* PWM modulator (94.1 kHz)
+* ============================================================
+Vsaw saw_ramp 0 PULSE(0 1 0 {saw_tr} {saw_tf} {saw_pw} {1/f_pwm})
+Bpwm pwm_out 0 V = 1.65 + 1.65*tanh(50*(v(lpf_out)/{vdd_val} - v(saw_ramp)))
+
+* ============================================================
+* 3rd-order RC recovery filter (PCB)
+* ============================================================
+R1 pwm_out mid1 3.3k
+C1 mid1 0 4.7n
+R2 mid1 mid2 3.3k
+C2 mid2 0 4.7n
+R3 mid2 mid3 3.3k
+C3 mid3 0 4.7n
+Cac mid3 audio_out 1u
+Rload audio_out 0 10k
+
+.option reltol=5e-3
+
+* ============================================================
+* Macro for one sweep point: alter, run, measure, save
+* R_eff = div / (24e6 * 73.5e-15)
+* ============================================================
+.control
+  echo "=== Full System Frequency Sweep ==="
+  shell rm -f sweep_gain.dat seg_??.dat
+
+  * --- Point 0: 250 Hz, div=1024 ---
+  let rval = 1024 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 250 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "250 $&pp" >> sweep_gain.dat
+  wrdata seg_00.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 1: 330 Hz, div=768 ---
+  let rval = 768 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 330 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "330 $&pp" >> sweep_gain.dat
+  wrdata seg_01.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 2: 400 Hz, div=640 ---
+  let rval = 640 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 400 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "400 $&pp" >> sweep_gain.dat
+  wrdata seg_02.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 3: 500 Hz, div=512 ---
+  let rval = 512 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 500 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "500 $&pp" >> sweep_gain.dat
+  wrdata seg_03.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 4: 660 Hz, div=384 ---
+  let rval = 384 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 660 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "660 $&pp" >> sweep_gain.dat
+  wrdata seg_04.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 5: 800 Hz, div=320 ---
+  let rval = 320 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 800 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "800 $&pp" >> sweep_gain.dat
+  wrdata seg_05.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 6: 1000 Hz, div=256 ---
+  let rval = 256 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 1000 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "1000 $&pp" >> sweep_gain.dat
+  wrdata seg_06.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 7: 1300 Hz, div=192 ---
+  let rval = 192 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 1300 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "1300 $&pp" >> sweep_gain.dat
+  wrdata seg_07.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 8: 2000 Hz, div=128 ---
+  let rval = 128 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 2000 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "2000 $&pp" >> sweep_gain.dat
+  wrdata seg_08.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 9: 2700 Hz, div=96 ---
+  let rval = 96 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 2700 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "2700 $&pp" >> sweep_gain.dat
+  wrdata seg_09.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 10: 4000 Hz, div=64 ---
+  let rval = 64 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 4000 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "4000 $&pp" >> sweep_gain.dat
+  wrdata seg_10.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 11: 5300 Hz, div=48 ---
+  let rval = 48 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 5300 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "5300 $&pp" >> sweep_gain.dat
+  wrdata seg_11.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 12: 8000 Hz, div=32 ---
+  let rval = 32 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 8000 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "8000 $&pp" >> sweep_gain.dat
+  wrdata seg_12.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 13: 10600 Hz, div=24 ---
+  let rval = 24 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 10600 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "10600 $&pp" >> sweep_gain.dat
+  wrdata seg_13.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 14: 12700 Hz, div=20 ---
+  let rval = 20 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 12700 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "12700 $&pp" >> sweep_gain.dat
+  wrdata seg_14.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * --- Point 15: 16000 Hz, div=16 ---
+  let rval = 16 / (24e6 * 73.5e-15)
+  alter @vin[sin] = [ 0.6 0.47 16000 ]
+  alter rin1 = $&rval
+  alter rfb  = $&rval
+  alter rq   = $&rval
+  alter rin2 = $&rval
+  tran 0.5u 10m
+  meas tran ao_max max v(audio_out) from=5m to=10m
+  meas tran ao_min min v(audio_out) from=5m to=10m
+  let pp = ao_max - ao_min
+  echo "16000 $&pp" >> sweep_gain.dat
+  wrdata seg_15.dat v(vin) v(lp) v(pwm_out) v(audio_out) v(mid1) v(mid3)
+  destroy all
+
+  * Cleanup temp files
+  * segment files retained for plot script
+
+  echo ""
+  echo "=== Sweep Gain Summary ==="
+  shell cat sweep_gain.dat
+  echo ""
+  echo "=== Full System Frequency Sweep Complete ==="
+
+.endc
+
+.end
