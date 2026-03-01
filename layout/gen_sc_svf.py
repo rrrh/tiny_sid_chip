@@ -505,8 +505,9 @@ def build_sc_svf():
     ota_y = 52.0
     ota_gap = 3.0
 
-    ota1 = draw_ota(top, layout, x=2.0, y=ota_y)
-    ota2_x = 2.0 + ota1['total_w'] + ota_gap
+    ota1_x = 2.2  # NWell left edge at 2.2-0.31=1.89µm from boundary (NW.b1 ≥ 1.8)
+    ota1 = draw_ota(top, layout, x=ota1_x, y=ota_y)
+    ota2_x = ota1_x + ota1['total_w'] + ota_gap
     ota2 = draw_ota(top, layout, x=ota2_x, y=ota_y)
 
     # Connect OTA PMOS sources to VDD rail via M1 vertical + via2 to M3
@@ -685,9 +686,15 @@ def build_sc_svf():
                                    bp_mux_x + wire_w2/2, bp_mux_y + wire_w2/2))
 
     # LP → mux.lp_in
+    # Limit M2 extent to avoid M2.b violation with NOL nmos[3] source M2 strap
     lp_mux_x, lp_mux_y = mux['lp_in']
     draw_via1(top, layout, lp_mux_x, lp_mux_y)
-    top.shapes(li_m2).insert(rect(c2_x + C_INT_SIDE / 2 - wire_w2/2, lp_mux_y - wire_w2/2,
+    sd_ext_nol = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    nmos_pitch_nol = (sd_ext_nol + NOL_N_L + sd_ext_nol) + 1.0
+    nol_src3_x = nol_x + 3 * nmos_pitch_nol + sd_ext_nol / 2
+    lp_route_xmax = nol_src3_x - wire_w2 / 2 - M2_SPACE  # clear of NOL M2 strap
+    lp_route_right = min(c2_x + C_INT_SIDE / 2, lp_route_xmax)
+    top.shapes(li_m2).insert(rect(lp_route_right - wire_w2/2, lp_mux_y - wire_w2/2,
                                    lp_mux_x + wire_w2/2, lp_mux_y + wire_w2/2))
 
     # HP → mux.hp_in (HP derived from vin - LP - Q*BP, route from vin area)

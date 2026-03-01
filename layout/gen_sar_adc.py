@@ -358,7 +358,7 @@ def build_sar_adc():
     # =====================================================================
     # Dynamic comparator (right side of macro)
     # =====================================================================
-    comp = draw_strongarm_comparator(top, layout, x=27.0, y=23.0)
+    comp = draw_strongarm_comparator(top, layout, x=27.2, y=23.0)
 
     # =====================================================================
     # SAR logic (right side, below comparator)
@@ -372,8 +372,9 @@ def build_sar_adc():
     draw_ptap(top, layout, 2.0, 17.0)
     draw_ptap(top, layout, 6.0, 17.0)
     # Along comparator NMOS region (x=27-37, y=19-35)
+    # y=22.0 clears SAR logic M1 rail at y=21.34 (M1.b ≥ 0.18µm)
     for xt in [26.0, 30.0, 34.0, 38.0]:
-        draw_ptap(top, layout, xt, 21.0)
+        draw_ptap(top, layout, xt, 22.0)
         draw_ptap(top, layout, xt, 31.0)
     # SAR logic perimeter taps (block at x=27-42, y=4-22)
     # Place outside the dense transistor grid to avoid Activ spacing issues
