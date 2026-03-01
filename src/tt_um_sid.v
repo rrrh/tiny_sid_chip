@@ -3,23 +3,24 @@
 //==============================================================================
 // TT10 Wrapper — Time-Multiplexed SID Voice Synthesizer (24 MHz, 3 voices)
 //==============================================================================
-// 24 MHz system clock, 8 MHz voice pipeline (÷3 clock enable).
+// 24 MHz system clock, 6 MHz voice pipeline (÷4 clock enable).
 // Pipeline register stage between voice mux read and combinatorial datapath
 // eliminates most hold violations (~200 buffers → ~10-30).
 //
-// Slot scheduling (mod-5 counter, gated by clk_en_8m):
-//   Slot 3: Latch mix output, Load Voice 0 → p_regs
-//   Slot 4: Idle (p_regs hold Voice 0)
+// Slot scheduling (mod-6 counter, gated by clk_en_6m):
+//   Slot 4: Latch mix output, Load Voice 0 → p_regs
+//   Slot 5: Idle (p_regs hold Voice 0)
 //   Slot 0: Compute Voice 0, Load Voice 1 → p_regs
 //   Slot 1: Compute Voice 1, Load Voice 2 → p_regs
 //   Slot 2: Compute Voice 2 (no load needed)
-// Each voice accumulator updates once per 5-clock frame → 1.6 MHz effective.
+//   Slot 3: Idle
+// Each voice accumulator updates once per 6-clock frame → 1 MHz effective.
 //
 // Yannes-aligned enhancements:
 //   1. 8-bit envelope (256 levels, 48 dB dynamic range)
 //   2. Per-voice ADSR parameters (attack, sustain, pulse width)
 //   3. Exponential decay (rate adjustment based on envelope thresholds)
-//   4. Explicit SUSTAIN state in 4-state envelope FSM
+//   4. Explicit SUSTAIN state in 4-state envelope FSM (IDLE/ATTACK/DECAY/SUSTAIN)
 //   5. Accumulator-clocked 15-bit LFSR (pitch-tracking noise from voice 0)
 //   6. Sync modulation (hard sync, circular: V0←V2, V1←V0, V2←V1)
 //   7. Ring modulation (XOR other voice MSB into triangle)
@@ -68,13 +69,13 @@ module tt_um_sid (
     wire [7:0] wr_data   = uio_in;
 
     //==========================================================================
-    // Clock divider: 24 MHz → 8 MHz clock enable (÷3)
+    // Clock divider: 24 MHz → 6 MHz clock enable (÷4)
     //==========================================================================
     reg [1:0] clk_div;
-    wire clk_en_8m = (clk_div == 2'd2);
+    wire clk_en_6m = (clk_div == 2'd3);
     always @(posedge clk or negedge rst_n)
         if (!rst_n) clk_div <= 2'd0;
-        else        clk_div <= (clk_div == 2'd2) ? 2'd0 : clk_div + 2'd1;
+        else        clk_div <= (clk_div == 2'd3) ? 2'd0 : clk_div + 2'd1;
 
     //==========================================================================
     // Write enable edge detection
@@ -86,12 +87,12 @@ module tt_um_sid (
     wire wr_en_rise = wr_en && !wr_en_d;
 
     //==========================================================================
-    // Slot counter (mod-5, 3-bit)
+    // Slot counter (mod-6, 3-bit)
     //==========================================================================
     reg [2:0] slot;
     always @(posedge clk or negedge rst_n)
         if (!rst_n) slot <= 3'd0;
-        else if (clk_en_8m) slot <= (slot == 3'd4) ? 3'd0 : slot + 3'd1;
+        else if (clk_en_6m) slot <= (slot == 3'd5) ? 3'd0 : slot + 3'd1;
 
     wire voice_active = (slot <= 3'd2);
     wire [1:0] voice_idx = slot[1:0];
@@ -160,7 +161,7 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Pipeline registers (~81 FFs, loaded at 8 MHz rate)
+    // Pipeline registers (~81 FFs, loaded at 6 MHz rate)
     //==========================================================================
     reg [15:0] p_acc;
     reg [15:0] p_freq;
@@ -175,16 +176,16 @@ module tt_um_sid (
     reg        p_prev_msb_d;
 
     // Pipeline load logic
-    // Load schedule: slot 3→V0, slot 0→V1, slot 1→V2
-    wire load_en = (slot <= 3'd1) || (slot == 3'd3);
-    wire [1:0] load_voice = (slot == 3'd3) ? 2'd0 :
+    // Load schedule: slot 4→V0, slot 0→V1, slot 1→V2
+    wire load_en = (slot <= 3'd1) || (slot == 3'd4);
+    wire [1:0] load_voice = (slot == 3'd4) ? 2'd0 :
                             (slot == 3'd0) ? 2'd1 : 2'd2;
 
     // Sync source prev_msb_d for pipeline load (flattened, no intermediate mux):
-    //   slot 3 → load V0 → sync src V2 → prev_msb_d[2]
+    //   slot 4 → load V0 → sync src V2 → prev_msb_d[2]
     //   slot 0 → load V1 → sync src V0 → prev_msb_d[0]
     //   slot 1 → load V2 → sync src V1 → prev_msb_d[1]
-    wire p_prev_msb_d_nxt = (slot == 3'd3) ? prev_msb_d[2] :
+    wire p_prev_msb_d_nxt = (slot == 3'd4) ? prev_msb_d[2] :
                             (slot == 3'd0) ? prev_msb_d[0] : prev_msb_d[1];
 
     always @(posedge clk or negedge rst_n) begin
@@ -200,7 +201,7 @@ module tt_um_sid (
             p_attack     <= 8'd0;
             p_sustain    <= 8'd0;
             p_prev_msb_d <= 1'b0;
-        end else if (clk_en_8m && load_en) begin
+        end else if (clk_en_6m && load_en) begin
             p_acc        <= acc[load_voice];
             p_freq       <= {freq_hi[load_voice], freq[load_voice]};
             p_waveform   <= waveform[load_voice];
@@ -217,11 +218,14 @@ module tt_um_sid (
 
     //==========================================================================
     // ADSR prescaler (14-bit, LSB fixed to 0 — 13 FF + 1 wire)
+    // Advances by 7 per mod-6 frame (6×1 + 1 extra on slot 5) so that
+    // the prescaler visits all residue classes mod 2^k for every voice,
+    // ensuring env_tick fires correctly at all ADSR rates.
     //==========================================================================
     reg [13:1] adsr_pre_hi;
     always @(posedge clk or negedge rst_n)
         if (!rst_n) adsr_pre_hi <= 13'd0;
-        else if (clk_en_8m) adsr_pre_hi <= adsr_pre_hi + 1'b1;
+        else if (clk_en_6m) adsr_pre_hi <= adsr_pre_hi + {12'd0, (slot == 3'd5)} + 1'b1;
     wire [13:0] adsr_prescaler = {adsr_pre_hi, 1'b0};
 
     //==========================================================================
@@ -411,7 +415,7 @@ module tt_um_sid (
             gate_latch[0] <= 1'b0; gate_latch[1] <= 1'b0; gate_latch[2] <= 1'b0;
             releasing[0] <= 1'b0; releasing[1] <= 1'b0; releasing[2] <= 1'b0;
             prev_msb_d[0] <= 1'b0; prev_msb_d[1] <= 1'b0; prev_msb_d[2] <= 1'b0;
-        end else if (clk_en_8m && voice_active) begin
+        end else if (clk_en_6m && voice_active) begin
             acc[voice_idx]        <= nxt_acc;
             env[voice_idx]        <= nxt_env;
             ast[voice_idx]        <= nxt_ast;
@@ -438,12 +442,12 @@ module tt_um_sid (
         if (!rst_n) begin
             mix_acc <= 10'd0;
             mix_out <= 8'd0;
-        end else if (clk_en_8m) begin
+        end else if (clk_en_6m) begin
             case (slot)
                 3'd0: mix_acc <= {2'b0, voice_out};
                 3'd1: mix_acc <= mix_acc + {2'b0, voice_out};
                 3'd2: mix_acc <= mix_acc + {2'b0, voice_out};
-                3'd3: begin
+                3'd4: begin
                     mix_out <= mix_acc[9:2];
                     mix_acc <= 10'd0;
                 end
@@ -453,12 +457,12 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Sample-valid strobe: one cycle after slot 3 at 8 MHz rate
+    // Sample-valid strobe: one cycle after slot 4 at 6 MHz rate
     //==========================================================================
     reg sample_valid;
     always @(posedge clk or negedge rst_n)
         if (!rst_n) sample_valid <= 1'b0;
-        else        sample_valid <= clk_en_8m && (slot == 3'd3);
+        else        sample_valid <= clk_en_6m && (slot == 3'd4);
 
     //==========================================================================
     // Analog filter signal chain:
@@ -587,7 +591,7 @@ module tt_um_sid (
     wire [7:0] filtered_out = bypass ? mix_out : scaled;
 
     //==========================================================================
-    // 6 dB/octave Lowpass (fc ≈ 1500 Hz) before PWM
+    // 6 dB/octave Lowpass (fc ≈ 1244 Hz) before PWM
     //==========================================================================
     wire [7:0] lpf_out;
 

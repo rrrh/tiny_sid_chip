@@ -1,9 +1,9 @@
 /* verilator lint_off UNUSEDSIGNAL */
 //==========================================================================
-// output_lpf — Single-pole IIR lowpass, fc ≈ 2000 Hz @ 1.6 MHz sample rate
+// output_lpf — Single-pole IIR lowpass, fc ≈ 1244 Hz @ 1 MHz sample rate
 //
 //   y[n] = y[n-1] + (x[n] - y[n-1]) >>> 7     (alpha ≈ 1/128)
-//   fc = -fs·ln(1-1/128)/(2π) ≈ 1990 Hz
+//   fc = -fs·ln(1-1/128)/(2π) ≈ 1244 Hz
 //
 //   10-bit unsigned accumulator (8.2 fixed-point), 8-bit output.
 //   Tracking granularity: ~32 LSB (12%). Minimal area for 1×2 tile.

@@ -48,17 +48,17 @@ only a passive RC low-pass filter to produce analog audio.
 - 8-bit ADSR envelope per voice (256 amplitude levels, exponential decay)
 - Per-voice ADSR parameters (attack, decay, sustain, release)
 - 4-state envelope FSM (IDLE, ATTACK, DECAY, SUSTAIN)
-- 9 envelope rate settings from ~128 µs to ~262 ms full traverse
-- 16-bit frequency register, 16-bit phase accumulator (~24.4 Hz resolution, full audio range)
+- 9 envelope rate settings from ~146 µs to ~299 ms full traverse
+- 16-bit frequency register, 16-bit phase accumulator (~15.3 Hz resolution, full audio range)
 - 15-bit LFSR noise generator, accumulator-clocked from voice 0
 - 3-voice mixer with 10-bit accumulator and ÷4 scaling
 - 9-bit Q8.1 State Variable Filter (SVF) with LP/BP/HP priority mux (HP > BP > LP), shift-add multiply
 - 3-bit alpha1 (fc[10:8], 3-term /8) and 2-bit alpha2 ((15-res)>>2, 2-term /4)
 - SID-compatible filter interface: 11-bit cutoff, 4-bit resonance, per-voice routing, 4-bit volume
-- Fixed 6 dB/octave lowpass (fc ≈ 2000 Hz) before PWM output — single-pole IIR, alpha = 1/128 (single shift)
+- Fixed 6 dB/octave lowpass (fc ≈ 1244 Hz) before PWM output — single-pole IIR, alpha = 1/128 (single shift)
 - Single 8-bit PWM audio output on uo_out[0] (~94.1 kHz carrier at 24 MHz)
 - Flat parallel write interface (no SPI/I2C overhead)
-- Mod-5 pipeline: 1.6 MHz effective per voice at 8 MHz voice clock (24 MHz ÷3)
+- Mod-6 pipeline: 1 MHz effective per voice at 6 MHz voice clock (24 MHz ÷4)
 - Fits in a Tiny Tapeout 1x2 tile on IHP SG13G2 130nm (~77% utilization, CTS enabled)
 
 ### Source Files
@@ -69,7 +69,7 @@ only a passive RC low-pass filter to produce analog audio.
 | `src/pwm_audio.v` | 8-bit PWM audio output (255-clock period) |
 | `src/filter.v` | SID filter wrapper: bypass, mode mixing, volume scaling |
 | `src/SVF_8bit.v` | 9-bit Q8.1 State Variable Filter core (shift-add, 3-bit alpha1, 2-bit alpha2) |
-| `src/output_lpf.v` | Fixed 6 dB/octave lowpass (fc ≈ 2000 Hz), single-pole IIR before PWM |
+| `src/output_lpf.v` | Fixed 6 dB/octave lowpass (fc ≈ 1244 Hz), single-pole IIR before PWM |
 
 ---
 
@@ -90,7 +90,7 @@ only a passive RC low-pass filter to produce analog audio.
  Register     │  │  │  freq   │  │ noise)    │  │ voice)   │  │          │  │  │ (÷4)  │
  Banks        │  │  └─────────┘  └──────────┘  └──────────┘  └──────────┘  │  └───┬───┘
  (all per-    │  │                                                          │      │
-  voice)      │  │  ÷3 clk_en → 8 MHz voice pipeline, 1.6 MHz per voice    │      ▼
+  voice)      │  │  ÷4 clk_en → 6 MHz voice pipeline, 1 MHz per voice      │      ▼
               │  └─────────────────────────────────────────────────────────────┘  ┌──────────┐  ┌──────────┐  ┌──────────┐
               │                                                                  │ R-2R DAC │──│  SC SVF  │──│ SAR ADC  │
               │   Analog signal chain:                                           │ (8-bit)  │  │(2nd ord) │  │ (8-bit)  │
@@ -98,7 +98,7 @@ only a passive RC low-pass filter to produce analog audio.
               │                                                                                                    │
               │                                                               ┌──────────┐  ┌─────────┐           │
               │                                                               │output_lpf│──│pwm_audio│── uo_out[0]
-              │                                                               │(2000 Hz) │  │ (8-bit) │           │
+              │                                                               │(1244 Hz) │  │ (8-bit) │           │
               │                                                               └─────┬────┘  └─────────┘           │
               │                                                                     │        24 MHz               │
               │                                                                     └─────────────────────────────┘
@@ -112,15 +112,15 @@ only a passive RC low-pass filter to produce analog audio.
    attack/decay, sustain/release) via the flat parallel interface. All
    registers are per-voice. A rising edge on `ui_in[7]` latches the data.
 
-2. A ÷3 clock divider produces an 8 MHz clock enable from the 24 MHz system
-   clock. A mod-5 slot counter (gated by the 8 MHz enable) cycles through
-   5 slots. Slots 0-2 compute voices 0-2 respectively, slot 3 latches the
-   mixer output and preloads voice 0's pipeline registers, and slot 4 is an
-   idle/preload slot. Each voice is updated once per 5-slot frame (1.6 MHz
+2. A ÷4 clock divider produces a 6 MHz clock enable from the 24 MHz system
+   clock. A mod-6 slot counter (gated by the 6 MHz enable) cycles through
+   6 slots. Slots 0-2 compute voices 0-2 respectively, slot 4 latches the
+   mixer output and preloads voice 0's pipeline registers, and slots 3 and 5
+   are idle/preload slots. Each voice is updated once per 6-slot frame (1 MHz
    effective per voice).
 
 3. Each voice's 16-bit phase accumulator advances by the 16-bit frequency
-   register value every frame. This provides ~24.4 Hz frequency resolution
+   register value every frame. This provides ~15.3 Hz frequency resolution
    across the full audio range. Hard sync resets the accumulator when the
    sync source voice's MSB has a rising edge.
 
@@ -137,7 +137,7 @@ only a passive RC low-pass filter to produce analog audio.
    over 3 slots, then divides by 4 (right-shift by 2) to produce an 8-bit
    mix sample for the PWM module.
 
-7. A fixed single-pole IIR lowpass (`output_lpf`) with fc ≈ 2000 Hz and
+7. A fixed single-pole IIR lowpass (`output_lpf`) with fc ≈ 1244 Hz and
    6 dB/octave rolloff smooths the mix before PWM conversion. It uses
    a single arithmetic right shift (alpha = 1/128, no multiplier) with
    a 10-bit unsigned accumulator (8.2 fixed-point).
@@ -198,32 +198,32 @@ Bit:   7    6    5    4    3    2    1    0
 ```
 
 The 16-bit frequency register `{freq_hi, freq_lo}` is the phase accumulator
-increment. The 16-bit accumulator advances at an effective rate of 1.6 MHz
-(24 MHz ÷3 ÷5 slots). The oscillator frequency is:
+increment. The 16-bit accumulator advances at an effective rate of 1 MHz
+(24 MHz ÷4 ÷6 slots). The oscillator frequency is:
 
 ```
-f_out = freq_reg × 1,600,000 / 65,536  ≈  freq_reg × 24.414 Hz
+f_out = freq_reg × 1,000,000 / 65,536  ≈  freq_reg × 15.259 Hz
 ```
 
 **Frequency calculation:**
 
 ```
-freq_reg = round(desired_Hz × 65,536 / 1,600,000)
-         ≈ desired_Hz × 0.04096
+freq_reg = round(desired_Hz × 65,536 / 1,000,000)
+         ≈ desired_Hz × 0.065536
 ```
 
-Resolution: ~24.4 Hz. Range: 24.4 Hz (reg=1) to ~1.6 MHz (reg=65535).
-Useful audio range: 24 Hz to ~20 kHz.
+Resolution: ~15.3 Hz. Range: 15.3 Hz (reg=1) to ~1 MHz (reg=65535).
+Useful audio range: 15 Hz to ~20 kHz.
 
 | freq_reg | freq_hi | freq_lo | Output Frequency | Note |
 |----------|---------|---------|-----------------|------|
 | 0 | 0x00 | 0x00 | 0 Hz | Silence |
-| 1 | 0x00 | 0x01 | ~24.4 Hz | Lowest pitch |
-| 11 | 0x00 | 0x0B | ~269 Hz | ~C4 |
-| 18 | 0x00 | 0x12 | ~440 Hz | ~A4 |
-| 86 | 0x00 | 0x56 | ~2,100 Hz | ~C7 |
-| 172 | 0x00 | 0xAC | ~4,199 Hz | ~C8 |
-| 819 | 0x03 | 0x33 | ~19,995 Hz | ~Limit of hearing |
+| 1 | 0x00 | 0x01 | ~15.3 Hz | Lowest pitch |
+| 17 | 0x00 | 0x11 | ~260 Hz | ~C4 |
+| 29 | 0x00 | 0x1D | ~443 Hz | ~A4 |
+| 137 | 0x00 | 0x89 | ~2,090 Hz | ~C7 |
+| 274 | 0x01 | 0x12 | ~4,181 Hz | ~C8 |
+| 1311 | 0x05 | 0x1F | ~20,004 Hz | ~Limit of hearing |
 
 ### Register 2: Pulse Width Low Byte
 
@@ -365,7 +365,7 @@ before reaching the PWM output:
 3. **SAR ADC** (`sar_adc_8bit`, 42×45 µm) — converts the filtered analog
    signal back to 8-bit digital.
 4. **Volume Scaling** — digital shift-add volume control using `filt_vol[3:0]`.
-5. **Output LPF** (`output_lpf`) — fixed 2 kHz single-pole IIR smoothing
+5. **Output LPF** (`output_lpf`) — fixed ~1.2 kHz single-pole IIR smoothing
    before PWM conversion.
 
 When the filter is bypassed (no voices routed or no mode selected), the
@@ -381,17 +381,17 @@ the envelope decreases).
 
 | Rate | Check bits | Period | Full Traverse (256 ticks) |
 |------|-----------|--------|--------------------------|
-| 0 | &pre[2:1] | 4 clks | ~128 µs |
-| 1 | &pre[3:1] | 8 clks | ~256 µs |
-| 2 | &pre[4:1] | 16 clks | ~512 µs |
-| 3 | &pre[5:1] | 32 clks | ~1.0 ms |
-| 4 | &pre[6:1] | 64 clks | ~2.0 ms |
-| 5 | &pre[7:1] | 128 clks | ~4.1 ms |
-| 6 | &pre[8:1] | 256 clks | ~8.2 ms |
-| 7 | &pre[9:1] | 512 clks | ~16.4 ms |
-| 8--15 | &pre[13:1] | 8192 clks | ~262 ms |
+| 0 | &pre[2:1] | 4 clks | ~146 µs |
+| 1 | &pre[3:1] | 8 clks | ~293 µs |
+| 2 | &pre[4:1] | 16 clks | ~585 µs |
+| 3 | &pre[5:1] | 32 clks | ~1.2 ms |
+| 4 | &pre[6:1] | 64 clks | ~2.3 ms |
+| 5 | &pre[7:1] | 128 clks | ~4.7 ms |
+| 6 | &pre[8:1] | 256 clks | ~9.4 ms |
+| 7 | &pre[9:1] | 512 clks | ~18.7 ms |
+| 8--15 | &pre[13:1] | 8192 clks | ~299 ms |
 
-Formula: `traverse_time = 256 × period / 8,000,000` seconds (prescaler clocks at 8 MHz).
+Formula: `traverse_time = 256 × period / 7,000,000` seconds (prescaler advances 7 per mod-6 frame ≈ 7 MHz effective).
 
 ### ADSR Envelope FSM
 
@@ -535,8 +535,8 @@ GPIO (D5-12)--------> uio_in[7:0]  data bus
 ### Playing a Note (Voice 0, Sawtooth ~440 Hz)
 
 ```c
-// freq_reg = round(440 * 65536 / 1600000) = 18
-sid_write(0, 18, 0);    // freq_lo = 0x12
+// freq_reg = round(440 * 65536 / 1000000) = 29
+sid_write(0, 29, 0);    // freq_lo = 0x1D
 sid_write(1, 0, 0);     // freq_hi = 0x00
 sid_write(4, 0x00, 0);  // attack=0 (fastest), decay=0
 sid_write(5, 0x0F, 0);  // sustain=15 (max), release=0
@@ -550,18 +550,18 @@ sid_write(6, 0x20, 0);  // gate OFF (release begins)
 ### Three-Voice Chord (C Major)
 
 ```c
-// C4 ≈ 262 Hz → freq_reg = round(262 * 65536 / 1600000) = 11
-sid_write(0, 11, 0); sid_write(1, 0, 0);
+// C4 ≈ 262 Hz → freq_reg = round(262 * 65536 / 1000000) = 17
+sid_write(0, 17, 0); sid_write(1, 0, 0);
 sid_write(4, 0x00, 0); sid_write(5, 0x0F, 0);
 sid_write(6, 0x21, 0);  // Voice 0: sawtooth C4
 
-// E4 ≈ 330 Hz → freq_reg = round(330 * 65536 / 1600000) = 14
-sid_write(0, 14, 1); sid_write(1, 0, 1);
+// E4 ≈ 330 Hz → freq_reg = round(330 * 65536 / 1000000) = 22
+sid_write(0, 22, 1); sid_write(1, 0, 1);
 sid_write(4, 0x00, 1); sid_write(5, 0x0F, 1);
 sid_write(6, 0x11, 1);  // Voice 1: triangle E4
 
-// G4 ≈ 392 Hz → freq_reg = round(392 * 65536 / 1600000) = 16
-sid_write(0, 16, 2); sid_write(1, 0, 2);
+// G4 ≈ 392 Hz → freq_reg = round(392 * 65536 / 1000000) = 26
+sid_write(0, 26, 2); sid_write(1, 0, 2);
 sid_write(2, 0x00, 2); sid_write(3, 0x08, 2);  // pw = 0x800 (50%)
 sid_write(4, 0x00, 2); sid_write(5, 0x0F, 2);
 sid_write(6, 0x41, 2);  // Voice 2: pulse G4
@@ -604,11 +604,11 @@ sid_write(6, 0x11, v);    // triangle + gate
 
 ```c
 // Voice 0: modulator at higher frequency
-sid_write(0, 38, 0);     // ~928 Hz modulator
+sid_write(0, 61, 0);     // ~931 Hz modulator
 sid_write(6, 0x11, 0);   // triangle + gate (modulator)
 
 // Voice 1: carrier with ring mod enabled
-sid_write(0, 11, 1);     // ~269 Hz carrier (C4)
+sid_write(0, 17, 1);     // ~260 Hz carrier (C4)
 sid_write(4, 0x50, 1);   // instant attack, rate-5 decay
 sid_write(5, 0x54, 1);   // sustain=4, rate-5 release
 sid_write(6, 0x15, 1);   // triangle + ring + gate
@@ -617,25 +617,25 @@ sid_write(6, 0x15, 1);   // triangle + ring + gate
 ### Frequency Table (Equal Temperament, A4=440 Hz)
 
 ```
-freq_reg = round(Hz × 65,536 / 1,600,000)
+freq_reg = round(Hz × 65,536 / 1,000,000)
 ```
 
 | Note | Hz | freq_reg | freq_hi | freq_lo |
 |------|----|----------|---------|---------|
-| C3 | 130.8 | 5 | 0x00 | 0x05 |
-| D3 | 146.8 | 6 | 0x00 | 0x06 |
-| E3 | 164.8 | 7 | 0x00 | 0x07 |
-| G3 | 196.0 | 8 | 0x00 | 0x08 |
-| A3 | 220.0 | 9 | 0x00 | 0x09 |
-| C4 | 261.6 | 11 | 0x00 | 0x0B |
-| E4 | 329.6 | 14 | 0x00 | 0x0E |
-| G4 | 392.0 | 16 | 0x00 | 0x10 |
-| A4 | 440.0 | 18 | 0x00 | 0x12 |
-| C5 | 523.3 | 21 | 0x00 | 0x15 |
-| A5 | 880.0 | 36 | 0x00 | 0x24 |
-| C6 | 1046.5 | 43 | 0x00 | 0x2B |
-| C7 | 2093.0 | 86 | 0x00 | 0x56 |
-| C8 | 4186.0 | 172 | 0x00 | 0xAC |
+| C3 | 130.8 | 9 | 0x00 | 0x09 |
+| D3 | 146.8 | 10 | 0x00 | 0x0A |
+| E3 | 164.8 | 11 | 0x00 | 0x0B |
+| G3 | 196.0 | 13 | 0x00 | 0x0D |
+| A3 | 220.0 | 14 | 0x00 | 0x0E |
+| C4 | 261.6 | 17 | 0x00 | 0x11 |
+| E4 | 329.6 | 22 | 0x00 | 0x16 |
+| G4 | 392.0 | 26 | 0x00 | 0x1A |
+| A4 | 440.0 | 29 | 0x00 | 0x1D |
+| C5 | 523.3 | 34 | 0x00 | 0x22 |
+| A5 | 880.0 | 58 | 0x00 | 0x3A |
+| C6 | 1046.5 | 69 | 0x00 | 0x45 |
+| C7 | 2093.0 | 137 | 0x00 | 0x89 |
+| C8 | 4186.0 | 274 | 0x01 | 0x12 |
 
 ### Reset and Initialization
 
@@ -659,13 +659,13 @@ To silence the output at any time:
 | Core supply (VDD) | 1.2V |
 | I/O supply (VDDIO) | 3.3V |
 | System clock | 24 MHz (41.7 ns period) |
-| Voice pipeline clock | 8 MHz (÷3 clock enable) |
-| Pipeline | Mod-5 slot counter (1.6 MHz effective per voice) |
+| Voice pipeline clock | 6 MHz (÷4 clock enable) |
+| Pipeline | Mod-6 slot counter (1 MHz effective per voice) |
 | Core utilization | ~77% (with CTS clock tree) |
 | Voice count | 3 (time-multiplexed) |
-| Frequency resolution | ~24.4 Hz (16-bit freq, 16-bit acc, 1.6 MHz effective) |
+| Frequency resolution | ~15.3 Hz (16-bit freq, 16-bit acc, 1 MHz effective) |
 | Envelope depth | 8-bit (256 levels, exponential decay) |
-| ADSR prescaler | 14-bit (shared, free-running at 8 MHz) |
+| ADSR prescaler | 14-bit (shared, ~7 MHz effective: 7 increments per mod-6 frame) |
 | Noise generator | 15-bit LFSR, accumulator-clocked from voice 0 |
 | Voice output | 8-bit (8×8 waveform×envelope product, upper byte) |
 | PWM output frequency | ~94.1 kHz |

@@ -151,7 +151,7 @@ module tri440_adsr_tb;
         do_reset;
 
         // Configure voice 0: triangle 440 Hz
-        sid_write(REG_FREQ_LO, 8'h24, 2'd0);   // freq_lo for 440 Hz
+        sid_write(REG_FREQ_LO, 8'h1D, 2'd0);   // freq_lo for 440 Hz
         sid_write(REG_FREQ_HI, 8'h00, 2'd0);   // freq_hi
         sid_write(REG_PW_LO, 8'h00, 2'd0);
         sid_write(REG_PW_HI, 8'h08, 2'd0);     // pw=0x800

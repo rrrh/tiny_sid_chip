@@ -165,7 +165,7 @@ module freq_sweep_tb;
         do_reset;
 
         // --- Configure voice 0: sawtooth, instant ADSR ---
-        sid_write(REG_FREQ_LO, 8'h29, 2'd0);   // initial freq (1 kHz)
+        sid_write(REG_FREQ_LO, 8'h42, 2'd0);   // initial freq (1 kHz)
         sid_write(REG_FREQ_HI, 8'h00, 2'd0);
         sid_write(REG_PW_LO,   8'h00, 2'd0);
         sid_write(REG_PW_HI,   8'h08, 2'd0);   // pw=0x800 (not used for saw)
@@ -192,53 +192,53 @@ module freq_sweep_tb;
         // ===== 16-point frequency sweep =====
         $display("Starting 16-point frequency sweep...");
 
-        // Code 0: 250 Hz — freq_reg = 10
-        sweep_point(8'h0A, 8'h00, "tests/sweep_0250hz.pwl", 250);
+        // Code 0: 250 Hz — freq_reg = 16
+        sweep_point(8'h10, 8'h00, "tests/sweep_0250hz.pwl", 250);
 
-        // Code 1: 330 Hz — freq_reg = 13
-        sweep_point(8'h0D, 8'h00, "tests/sweep_0330hz.pwl", 330);
+        // Code 1: 330 Hz — freq_reg = 22
+        sweep_point(8'h16, 8'h00, "tests/sweep_0330hz.pwl", 330);
 
-        // Code 2: 400 Hz — freq_reg = 16
-        sweep_point(8'h10, 8'h00, "tests/sweep_0400hz.pwl", 400);
+        // Code 2: 400 Hz — freq_reg = 26
+        sweep_point(8'h1A, 8'h00, "tests/sweep_0400hz.pwl", 400);
 
-        // Code 3: 500 Hz — freq_reg = 20
-        sweep_point(8'h14, 8'h00, "tests/sweep_0500hz.pwl", 500);
+        // Code 3: 500 Hz — freq_reg = 33
+        sweep_point(8'h21, 8'h00, "tests/sweep_0500hz.pwl", 500);
 
-        // Code 4: 660 Hz — freq_reg = 27
-        sweep_point(8'h1B, 8'h00, "tests/sweep_0660hz.pwl", 660);
+        // Code 4: 660 Hz — freq_reg = 43
+        sweep_point(8'h2B, 8'h00, "tests/sweep_0660hz.pwl", 660);
 
-        // Code 5: 800 Hz — freq_reg = 33
-        sweep_point(8'h21, 8'h00, "tests/sweep_0800hz.pwl", 800);
+        // Code 5: 800 Hz — freq_reg = 52
+        sweep_point(8'h34, 8'h00, "tests/sweep_0800hz.pwl", 800);
 
-        // Code 6: 1000 Hz — freq_reg = 41
-        sweep_point(8'h29, 8'h00, "tests/sweep_1000hz.pwl", 1000);
+        // Code 6: 1000 Hz — freq_reg = 66
+        sweep_point(8'h42, 8'h00, "tests/sweep_1000hz.pwl", 1000);
 
-        // Code 7: 1300 Hz — freq_reg = 53
-        sweep_point(8'h35, 8'h00, "tests/sweep_1300hz.pwl", 1300);
+        // Code 7: 1300 Hz — freq_reg = 85
+        sweep_point(8'h55, 8'h00, "tests/sweep_1300hz.pwl", 1300);
 
-        // Code 8: 2000 Hz — freq_reg = 82
-        sweep_point(8'h52, 8'h00, "tests/sweep_2000hz.pwl", 2000);
+        // Code 8: 2000 Hz — freq_reg = 131
+        sweep_point(8'h83, 8'h00, "tests/sweep_2000hz.pwl", 2000);
 
-        // Code 9: 2700 Hz — freq_reg = 110
-        sweep_point(8'h6E, 8'h00, "tests/sweep_2700hz.pwl", 2700);
+        // Code 9: 2700 Hz — freq_reg = 177
+        sweep_point(8'hB1, 8'h00, "tests/sweep_2700hz.pwl", 2700);
 
-        // Code 10: 4000 Hz — freq_reg = 164
-        sweep_point(8'hA4, 8'h00, "tests/sweep_4000hz.pwl", 4000);
+        // Code 10: 4000 Hz — freq_reg = 262
+        sweep_point(8'h06, 8'h01, "tests/sweep_4000hz.pwl", 4000);
 
-        // Code 11: 5300 Hz — freq_reg = 217
-        sweep_point(8'hD9, 8'h00, "tests/sweep_5300hz.pwl", 5300);
+        // Code 11: 5300 Hz — freq_reg = 347
+        sweep_point(8'h5B, 8'h01, "tests/sweep_5300hz.pwl", 5300);
 
-        // Code 12: 8000 Hz — freq_reg = 328
-        sweep_point(8'h48, 8'h01, "tests/sweep_8000hz.pwl", 8000);
+        // Code 12: 8000 Hz — freq_reg = 524
+        sweep_point(8'h0C, 8'h02, "tests/sweep_8000hz.pwl", 8000);
 
-        // Code 13: 10600 Hz — freq_reg = 434
-        sweep_point(8'hB2, 8'h01, "tests/sweep_10600hz.pwl", 10600);
+        // Code 13: 10600 Hz — freq_reg = 695
+        sweep_point(8'hB7, 8'h02, "tests/sweep_10600hz.pwl", 10600);
 
-        // Code 14: 12700 Hz — freq_reg = 520
-        sweep_point(8'h08, 8'h02, "tests/sweep_12700hz.pwl", 12700);
+        // Code 14: 12700 Hz — freq_reg = 832
+        sweep_point(8'h40, 8'h03, "tests/sweep_12700hz.pwl", 12700);
 
-        // Code 15: 16000 Hz — freq_reg = 655
-        sweep_point(8'h8F, 8'h02, "tests/sweep_16000hz.pwl", 16000);
+        // Code 15: 16000 Hz — freq_reg = 1049
+        sweep_point(8'h19, 8'h04, "tests/sweep_16000hz.pwl", 16000);
 
         // Gate OFF
         sid_write(REG_WAV, 8'h20, 2'd0);

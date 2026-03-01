@@ -184,7 +184,7 @@ module pwm_analog_tb;
             capture_sel = 1;  // select uo_out[1]
 
             // Voice 0: 440 Hz sawtooth
-            sid_write(REG_FREQ_LO, 8'h24, 2'd0);
+            sid_write(REG_FREQ_LO, 8'h1D, 2'd0);
             sid_write(REG_FREQ_HI, 8'h00, 2'd0);
             sid_write(REG_ATK, 8'h00, 2'd0);
             sid_write(REG_SUS, 8'h0F, 2'd0);
@@ -216,25 +216,25 @@ module pwm_analog_tb;
 
         // --- 9 waveform captures: saw/tri/pulse x 220/440/880 Hz ---
         $display("Generating: saw_220.pwl");
-        capture_waveform_pwl(8'h12, 8'h00, 8'h21, "tests/saw_220.pwl");
+        capture_waveform_pwl(8'h0E, 8'h00, 8'h21, "tests/saw_220.pwl");
         $display("Generating: saw_440.pwl");
-        capture_waveform_pwl(8'h24, 8'h00, 8'h21, "tests/saw_440.pwl");
+        capture_waveform_pwl(8'h1D, 8'h00, 8'h21, "tests/saw_440.pwl");
         $display("Generating: saw_880.pwl");
-        capture_waveform_pwl(8'h48, 8'h00, 8'h21, "tests/saw_880.pwl");
+        capture_waveform_pwl(8'h3A, 8'h00, 8'h21, "tests/saw_880.pwl");
 
         $display("Generating: tri_220.pwl");
-        capture_waveform_pwl(8'h12, 8'h00, 8'h11, "tests/tri_220.pwl");
+        capture_waveform_pwl(8'h0E, 8'h00, 8'h11, "tests/tri_220.pwl");
         $display("Generating: tri_440.pwl");
-        capture_waveform_pwl(8'h24, 8'h00, 8'h11, "tests/tri_440.pwl");
+        capture_waveform_pwl(8'h1D, 8'h00, 8'h11, "tests/tri_440.pwl");
         $display("Generating: tri_880.pwl");
-        capture_waveform_pwl(8'h48, 8'h00, 8'h11, "tests/tri_880.pwl");
+        capture_waveform_pwl(8'h3A, 8'h00, 8'h11, "tests/tri_880.pwl");
 
         $display("Generating: pulse_220.pwl");
-        capture_waveform_pwl(8'h12, 8'h00, 8'h41, "tests/pulse_220.pwl");
+        capture_waveform_pwl(8'h0E, 8'h00, 8'h41, "tests/pulse_220.pwl");
         $display("Generating: pulse_440.pwl");
-        capture_waveform_pwl(8'h24, 8'h00, 8'h41, "tests/pulse_440.pwl");
+        capture_waveform_pwl(8'h1D, 8'h00, 8'h41, "tests/pulse_440.pwl");
         $display("Generating: pulse_880.pwl");
-        capture_waveform_pwl(8'h48, 8'h00, 8'h41, "tests/pulse_880.pwl");
+        capture_waveform_pwl(8'h3A, 8'h00, 8'h41, "tests/pulse_880.pwl");
 
         // --- 3 filter captures at 440 Hz sawtooth ---
         $display("Generating: filter_lp.pwl");
