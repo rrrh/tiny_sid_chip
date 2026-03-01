@@ -208,7 +208,7 @@ def draw_ota(cell, layout, x, y):
     Draw a 5-transistor OTA (same topology as gm-C version).
     Returns dict with pin centers and bounding box.
     """
-    dp_gap = 1.0
+    dp_gap = 1.3
 
     sd_ext_n = CONT_SIZE + 2 * CONT_ENC_ACTIV
     dp_act_len = sd_ext_n + OTA_DP_L + sd_ext_n
