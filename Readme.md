@@ -45,10 +45,11 @@ only a passive RC low-pass filter to produce analog audio.
 - AND-combining of simultaneous waveforms (SID-compatible)
 - Hard sync modulation (circular: V0←V2, V1←V0, V2←V1)
 - Ring modulation (XOR sync source MSB into triangle)
-- 8-bit ADSR envelope per voice (256 amplitude levels, exponential decay)
+- 8-bit ADSR envelope per voice (256 amplitude levels, piecewise exponential decay)
 - Per-voice ADSR parameters (attack, decay, sustain, release)
-- 4-state envelope FSM (IDLE, ATTACK, DECAY, SUSTAIN)
+- 4-state envelope FSM (IDLE, ATTACK, DECAY, SUSTAIN) + releasing flag
 - 9 envelope rate settings from ~146 µs to ~299 ms full traverse
+- SID-compatible sustain mapping (nibble duplication: N → 0xNN)
 - 16-bit frequency register, 24-bit phase accumulator (~0.06 Hz resolution, matching original C64 SID)
 - 15-bit LFSR noise generator, accumulator-clocked from voice 0
 - 3-voice mixer with 10-bit accumulator and ÷4 scaling
@@ -375,36 +376,98 @@ digital mix passes directly to the output LPF, skipping the analog chain.
 
 ### Envelope Rate Table
 
-The ADSR uses a 14-bit free-running prescaler (LSB fixed to 0). Each rate
-value selects which prescaler bits must all be 1 for an envelope tick. The
-8-bit envelope counter steps by 1 per tick, so a full 0→255 traverse takes
-256 ticks. Decay and release use exponential adjustment (the rate slows as
-the envelope decreases).
+The ADSR uses a 14-bit free-running prescaler (LSB fixed to 0, 13 FFs).
+The prescaler advances by 7 per mod-6 frame (~7 MHz effective: 6 normal
+increments + 1 extra on slot 5 to visit all residue classes). Each rate
+value selects which prescaler bits must all be 1 (Verilog reduction AND)
+for an envelope tick. The 8-bit envelope counter steps by ±1 per tick, so
+a full 0→255 traverse takes 256 ticks.
 
-| Rate | Check bits | Period | Full Traverse (256 ticks) |
-|------|-----------|--------|--------------------------|
-| 0 | &pre[2:1] | 4 clks | ~146 µs |
-| 1 | &pre[3:1] | 8 clks | ~293 µs |
-| 2 | &pre[4:1] | 16 clks | ~585 µs |
-| 3 | &pre[5:1] | 32 clks | ~1.2 ms |
-| 4 | &pre[6:1] | 64 clks | ~2.3 ms |
-| 5 | &pre[7:1] | 128 clks | ~4.7 ms |
-| 6 | &pre[8:1] | 256 clks | ~9.4 ms |
-| 7 | &pre[9:1] | 512 clks | ~18.7 ms |
-| 8--15 | &pre[13:1] | 8192 clks | ~299 ms |
+| Rate | Check bits | Period (prescaler ticks) | Full Traverse (256 ticks) |
+|------|-----------|--------------------------|--------------------------|
+| 0 | &pre[2:1] | 4 | ~146 µs |
+| 1 | &pre[3:1] | 8 | ~293 µs |
+| 2 | &pre[4:1] | 16 | ~585 µs |
+| 3 | &pre[5:1] | 32 | ~1.2 ms |
+| 4 | &pre[6:1] | 64 | ~2.3 ms |
+| 5 | &pre[7:1] | 128 | ~4.7 ms |
+| 6 | &pre[8:1] | 256 | ~9.4 ms |
+| 7 | &pre[9:1] | 512 | ~18.7 ms |
+| 8–15 | &pre[13:1] | 8192 | ~299 ms |
 
-Formula: `traverse_time = 256 × period / 7,000,000` seconds (prescaler advances 7 per mod-6 frame ≈ 7 MHz effective).
+Formula: `traverse_time = 256 × period / 7,000,000` seconds.
+
+**Comparison with original SID:** The MOS 6581/8580 uses a 15-bit rate
+counter with 16 distinct non-power-of-2 thresholds from a lookup table,
+providing 16 unique rates spanning 2 ms to 24 s (decay/release). Our
+implementation uses power-of-2 prescaler taps, giving 9 effective rates
+(settings 8–15 alias to the same ~299 ms). This covers the fast end of the
+SID's range but lacks the very long envelope times (seconds) used for slow
+pads and ambient sounds.
+
+### Exponential Decay
+
+During decay and release, the envelope rate is slowed as the envelope level
+decreases, approximating an exponential curve. The `expo_adj` function adds
+an offset to the rate index at specific breakpoints:
+
+| Envelope ≥ | Rate offset | Effect |
+|------------|-------------|--------|
+| 93 | +0 | Full speed |
+| 54 | +1 | ~2× slower |
+| 26 | +2 | ~4× slower |
+| 14 | +3 | ~8× slower |
+| < 14 | +4 | ~16× slower |
+
+The adjusted rate is clamped to 15 (which maps to the same period as rate 8).
+
+**Comparison with original SID:** The original uses a secondary exponential
+counter as a post-divider with breakpoints at 255, 93, 54, 26, 14, 6 and
+divisors 1, 2, 4, 8, 16, 30. Our breakpoints match at 93/54/26/14 but we
+use rate index addition instead of a secondary counter, and we omit the
+breakpoint at 6 (divisor 30, implemented via a 5-bit LFSR in the original).
+
+### Sustain Level Mapping
+
+The 4-bit sustain register maps to an 8-bit level by nibble duplication,
+matching the original SID:
+
+| Sustain (4-bit) | Envelope (8-bit) | | Sustain (4-bit) | Envelope (8-bit) |
+|-----------------|------------------|-|-----------------|------------------|
+| 0 | 0x00 (0) | | 8 | 0x88 (136) |
+| 1 | 0x11 (17) | | 9 | 0x99 (153) |
+| 2 | 0x22 (34) | | 10 | 0xAA (170) |
+| 3 | 0x33 (51) | | 11 | 0xBB (187) |
+| 4 | 0x44 (68) | | 12 | 0xCC (204) |
+| 5 | 0x55 (85) | | 13 | 0xDD (221) |
+| 6 | 0x66 (102) | | 14 | 0xEE (238) |
+| 7 | 0x77 (119) | | 15 | 0xFF (255) |
 
 ### ADSR Envelope FSM
 
-The envelope uses a 4-state FSM: IDLE → ATTACK → DECAY → SUSTAIN.
+The envelope uses a 4-state FSM with a separate `releasing` flag:
+
+```
+         gate ON              env=255           env ≤ sustain
+  IDLE ──────────► ATTACK ──────────► DECAY ──────────► SUSTAIN
+   ▲                  │                 │                  │
+   │                  │ gate OFF        │ gate OFF         │ gate OFF
+   │                  ▼                 ▼                  ▼
+   └──── env=0 ◄── RELEASING ◄──────────────────────────────
+```
 
 - **IDLE**: Envelope is 0. Waits for gate rising edge to transition to ATTACK.
-- **ATTACK**: Envelope increments toward 255 at the attack rate. Transitions to DECAY when envelope reaches 255. Gate off triggers release.
-- **DECAY**: Envelope decrements toward sustain level with exponential decay. Transitions to SUSTAIN when envelope reaches `{sustain_level, sustain_level}` (nibble duplication). Gate off triggers release.
-- **SUSTAIN**: Envelope holds at sustain level. Gate off triggers release.
+- **ATTACK**: Envelope increments toward 255 at the attack rate (linear). Transitions to DECAY when envelope reaches 255.
+- **DECAY**: Envelope decrements toward sustain level with exponential decay. Transitions to SUSTAIN when envelope reaches `{sustain_level, sustain_level}`.
+- **SUSTAIN**: Envelope holds at sustain level.
+- **RELEASING**: Gate off sets the `releasing` flag from any active state. Envelope decrements toward 0 with exponential decay. When envelope reaches 0, transitions to IDLE.
 
-Release is handled by a separate `releasing` flag that decrements the envelope toward 0 with exponential decay from any state when the gate is cleared.
+**Comparison with original SID:** The original uses 3 states (ATTACK,
+DECAY_SUSTAIN, RELEASE) without a separate IDLE state. Our 4-state FSM
+with an explicit `releasing` flag is functionally equivalent but avoids the
+SID's ADSR delay bug, where retriggering can cause the envelope to stall
+for up to ~33 ms when the new rate counter period is less than the current
+counter value.
 
 ---
 
