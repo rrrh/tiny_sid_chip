@@ -187,12 +187,10 @@ def draw_mim_cap(cell, layout, x, y, w, h):
     """Draw a MIM capacitor. Returns (bot_center, top_center)."""
     li_m5   = layout.layer(*L_METAL5)
     li_cmim = layout.layer(*L_CMIM)
-    li_tm1  = layout.layer(*L_TOPMETAL1)
 
     cell.shapes(li_cmim).insert(rect(x, y, x + w, y + h))
     enc = MIM_ENC_M5
     cell.shapes(li_m5).insert(rect(x - enc, y - enc, x + w + enc, y + h + enc))
-    cell.shapes(li_tm1).insert(rect(x - 0.1, y - 0.1, x + w + 0.1, y + h + 0.1))
 
     bot_center = (x + w / 2, y - enc)
     top_center = (x + w / 2, y + h + 0.1)

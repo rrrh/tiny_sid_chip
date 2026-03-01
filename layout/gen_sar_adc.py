@@ -377,13 +377,13 @@ def build_sar_adc():
         draw_ptap(top, layout, xt, 33.0)
     # SAR logic perimeter taps (block at x=27-42, y=4-22)
     # Place outside the dense transistor grid to avoid Activ spacing issues
-    for xt in [24.5, 31.0, 36.5, 41.0]:
+    for xt in [24.5, 31.0, 36.5, 41.5]:
         draw_ptap(top, layout, xt, 2.5)   # below SAR logic
         draw_ptap(top, layout, xt, 22.5)  # above SAR logic
     # Left/right perimeter of SAR logic
     for yt in [8.0, 14.0, 20.0]:
         draw_ptap(top, layout, 24.5, yt)
-        draw_ptap(top, layout, 41.0, yt)
+        draw_ptap(top, layout, 41.5, yt)
     # Near cap region
     for xt in [2.0, 10.0, 18.0]:
         draw_ptap(top, layout, xt, 2.5)
