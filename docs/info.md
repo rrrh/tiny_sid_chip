@@ -21,7 +21,7 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer with an on-chip switc
 - **Analog filter chain** -- the mixed digital audio is converted to analog via an 8-bit R-2R DAC (`r2r_dac_8bit`), filtered by a 2nd-order switched-capacitor State Variable Filter (`svf_2nd`, 2 OTAs + 2 MIM caps + SC resistors), and converted back to digital via an 8-bit SAR ADC (`sar_adc_8bit`). A programmable clock divider sets the SC switching frequency (fc tuning), and a 4-bit binary-weighted capacitor array sets Q directly from register values. LP/BP/HP modes via priority mux (HP > BP > LP), with bypass when no voices are routed or no mode is selected. Digital volume scaling (shift-add) is applied post-ADC.
 - **2 kHz lowpass** (`output_lpf`) -- fixed single-pole IIR (6 dB/octave) between filter output and PWM input. Alpha = 1/128 (single shift, fc ≈ 1990 Hz), 10-bit unsigned accumulator (8.2 fixed-point), no multiplier.
 - **PWM audio** (`pwm_audio`) -- single instance on `uo_out[0]`. 8-bit PWM with a 255-clock period (~94.1 kHz at 24 MHz).
-- **Analog hard macros** -- three IHP SG13G2 130nm hard macros placed on-die: `r2r_dac_8bit` (38×48 µm), `svf_2nd` (62×72 µm), `sar_adc_8bit` (42×45 µm). Total macro area ~8,178 µm² (~12.9% of die). FC and Q tuning are digital (clock divider + cap switches), eliminating the need for a bias DAC.
+- **Analog hard macros** -- three IHP SG13G2 130nm hard macros placed on-die: `r2r_dac_8bit` (38×48 µm), `svf_2nd` (66×72 µm), `sar_adc_8bit` (42×45 µm). Total macro area ~8,466 µm² (~13.4% of die). FC and Q tuning are digital (clock divider + cap switches), eliminating the need for a bias DAC.
 
 **Clock tree:**
 

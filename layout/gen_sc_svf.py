@@ -20,7 +20,7 @@ Components:
   1 × NOL clock generator (2 NAND gates + 2 inverters in CMOS)
   4 × NMOS pass gate (analog mux with sel[1:0])
 
-Macro size: 62 × 72 µm (compacted from 70 × 85)
+Macro size: 66 × 72 µm (compacted from 70 × 85)
 """
 
 import sys, os
@@ -30,7 +30,7 @@ from sg13g2_layers import *
 # ===========================================================================
 # Design parameters
 # ===========================================================================
-MACRO_W = 62.0
+MACRO_W = 66.0
 MACRO_H = 72.0
 
 # OTA transistor sizes (same as gm-C version)

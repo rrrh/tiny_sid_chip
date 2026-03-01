@@ -358,7 +358,7 @@ before reaching the PWM output:
 
 1. **R-2R DAC** (`r2r_dac_8bit`, 38×48 µm) — converts the 8-bit digital
    mix to an analog voltage.
-2. **SC SVF** (`svf_2nd`, 62×72 µm) — 2nd-order switched-capacitor State
+2. **SC SVF** (`svf_2nd`, 66×72 µm) — 2nd-order switched-capacitor State
    Variable Filter with LP/BP/HP outputs. Center frequency is set by a
    programmable clock divider (16 steps, ~250 Hz to ~16 kHz). Q is set by
    a 4-bit binary-weighted capacitor array.

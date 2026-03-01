@@ -6,7 +6,7 @@ MACRO svf_2nd
   CLASS BLOCK ;
   ORIGIN 0 0 ;
   FOREIGN svf_2nd 0 0 ;
-  SIZE 62.000 BY 72.000 ;
+  SIZE 66.000 BY 72.000 ;
   SYMMETRY X Y ;
 
   PIN vin
@@ -23,7 +23,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 61.500 34.000 62.000 38.000 ;
+        RECT 65.500 34.000 66.000 38.000 ;
     END
   END vout
 
@@ -95,7 +95,7 @@ MACRO svf_2nd
     USE POWER ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 70.000 62.000 72.000 ;
+        RECT 0.000 70.000 66.000 72.000 ;
     END
   END vdd
 
@@ -104,15 +104,15 @@ MACRO svf_2nd
     USE GROUND ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 0.000 62.000 2.000 ;
+        RECT 0.000 0.000 66.000 2.000 ;
     END
   END vss
 
   OBS
     LAYER Metal1 ;
-      RECT 0.500 0.500 61.500 71.500 ;
+      RECT 0.500 0.500 65.500 71.500 ;
     LAYER Metal2 ;
-      RECT 0.500 0.500 61.500 71.500 ;
+      RECT 0.500 0.500 65.500 71.500 ;
   END
 
 END svf_2nd

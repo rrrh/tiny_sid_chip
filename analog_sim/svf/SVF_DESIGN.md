@@ -177,7 +177,7 @@ previously required dedicated OTAs.
 
 ## Layout
 
-The SC SVF macro (`svf_2nd`) occupies **62 × 72 µm** (compacted):
+The SC SVF macro (`svf_2nd`) occupies **66 × 72 µm** (compacted):
 
 ```
   ┌──────────────────────────────────────────────────────────────────────┐
