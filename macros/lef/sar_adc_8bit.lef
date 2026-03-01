@@ -6,7 +6,7 @@ MACRO sar_adc_8bit
   CLASS BLOCK ;
   ORIGIN 0 0 ;
   FOREIGN sar_adc_8bit 0 0 ;
-  SIZE 48.000 BY 50.000 ;
+  SIZE 42.000 BY 45.000 ;
   SYMMETRY X Y ;
 
   PIN clk
@@ -14,7 +14,7 @@ MACRO sar_adc_8bit
     USE CLOCK ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 5.500 0.500 6.500 ;
+        RECT 0.000 4.500 0.500 5.500 ;
     END
   END clk
 
@@ -23,7 +23,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 9.500 0.500 10.500 ;
+        RECT 0.000 8.500 0.500 9.500 ;
     END
   END rst_n
 
@@ -32,7 +32,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 24.500 0.500 25.500 ;
+        RECT 0.000 21.500 0.500 22.500 ;
     END
   END vin
 
@@ -41,7 +41,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 13.500 0.500 14.500 ;
+        RECT 0.000 12.500 0.500 13.500 ;
     END
   END start
 
@@ -50,7 +50,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 47.500 5.500 48.000 6.500 ;
+        RECT 41.500 4.500 42.000 5.500 ;
     END
   END eoc
 
@@ -59,7 +59,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 47.500 9.500 48.000 10.500 ;
+        RECT 41.500 8.500 42.000 9.500 ;
     END
   END dout0
 
@@ -68,7 +68,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 47.500 14.500 48.000 15.500 ;
+        RECT 41.500 13.000 42.000 14.000 ;
     END
   END dout1
 
@@ -77,7 +77,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 47.500 19.500 48.000 20.500 ;
+        RECT 41.500 17.500 42.000 18.500 ;
     END
   END dout2
 
@@ -86,7 +86,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 47.500 24.500 48.000 25.500 ;
+        RECT 41.500 22.000 42.000 23.000 ;
     END
   END dout3
 
@@ -95,7 +95,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 47.500 29.500 48.000 30.500 ;
+        RECT 41.500 26.500 42.000 27.500 ;
     END
   END dout4
 
@@ -104,7 +104,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 47.500 34.500 48.000 35.500 ;
+        RECT 41.500 31.000 42.000 32.000 ;
     END
   END dout5
 
@@ -113,7 +113,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 47.500 39.500 48.000 40.500 ;
+        RECT 41.500 35.500 42.000 36.500 ;
     END
   END dout6
 
@@ -122,7 +122,7 @@ MACRO sar_adc_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 47.500 44.500 48.000 45.500 ;
+        RECT 41.500 40.000 42.000 41.000 ;
     END
   END dout7
 
@@ -131,7 +131,7 @@ MACRO sar_adc_8bit
     USE POWER ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 48.000 48.000 50.000 ;
+        RECT 0.000 43.000 42.000 45.000 ;
     END
   END vdd
 
@@ -140,15 +140,15 @@ MACRO sar_adc_8bit
     USE GROUND ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 0.000 48.000 2.000 ;
+        RECT 0.000 0.000 42.000 2.000 ;
     END
   END vss
 
   OBS
     LAYER Metal1 ;
-      RECT 0.500 0.500 47.500 49.500 ;
+      RECT 0.500 0.500 41.500 44.500 ;
     LAYER Metal2 ;
-      RECT 0.500 0.500 47.500 49.500 ;
+      RECT 0.500 0.500 41.500 44.500 ;
   END
 
 END sar_adc_8bit

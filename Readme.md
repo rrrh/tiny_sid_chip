@@ -356,13 +356,13 @@ before reaching the PWM output:
                 (8-bit)    (2nd ord)  (8-bit)    (digital)       (IIR)
 ```
 
-1. **R-2R DAC** (`r2r_dac_8bit`, 45×60 µm) — converts the 8-bit digital
+1. **R-2R DAC** (`r2r_dac_8bit`, 38×48 µm) — converts the 8-bit digital
    mix to an analog voltage.
-2. **SC SVF** (`svf_2nd`, 70×85 µm) — 2nd-order switched-capacitor State
+2. **SC SVF** (`svf_2nd`, 62×72 µm) — 2nd-order switched-capacitor State
    Variable Filter with LP/BP/HP outputs. Center frequency is set by a
    programmable clock divider (16 steps, ~250 Hz to ~16 kHz). Q is set by
    a 4-bit binary-weighted capacitor array.
-3. **SAR ADC** (`sar_adc_8bit`, 95×104 µm) — converts the filtered analog
+3. **SAR ADC** (`sar_adc_8bit`, 42×45 µm) — converts the filtered analog
    signal back to 8-bit digital.
 4. **Volume Scaling** — digital shift-add volume control using `filt_vol[3:0]`.
 5. **Output LPF** (`output_lpf`) — fixed 2 kHz single-pole IIR smoothing

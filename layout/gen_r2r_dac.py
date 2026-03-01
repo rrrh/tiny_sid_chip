@@ -25,7 +25,7 @@ Layout:
   Metal2:     d[7:0] input pins (left edge), vout pin (right edge)
   Metal3:     VDD (top), VSS (bottom) power rails
 
-Macro size: 45 × 60 µm
+Macro size: 38 × 48 µm
 """
 
 import sys, os
@@ -45,8 +45,8 @@ NMOS_W    = 2.0         # switch width
 NMOS_L    = 0.13        # gate length (min for 1.2V)
 
 NBITS     = 8
-MACRO_W   = 45.0
-MACRO_H   = 60.0
+MACRO_W   = 38.0
+MACRO_H   = 48.0
 
 # Derived: resistor total length (body + contact pads + SalBlock clearance)
 PAD_W     = CONT_SIZE + 2 * CONT_ENC_GATPOLY  # ~0.30 µm
@@ -231,7 +231,7 @@ def build_r2r_dac():
     chain_width = NBITS * r_total + (NBITS - 1) * gap
     x_start = (MACRO_W - chain_width) / 2  # center the chain
 
-    series_y = 50.0  # Y for series chain
+    series_y = 38.0  # Y for series chain
 
     # --- Pass 2: draw everything ---
     x_cursor = x_start
@@ -274,7 +274,7 @@ def build_r2r_dac():
         draw_via1(top2, layout2, gv_x, gv_y)
 
         # Metal2 route: left edge pin → gate via
-        pin_y = 4.0 + bit * 6.0
+        pin_y = 3.5 + bit * 5.0
         top2.shapes(li_m2).insert(rect(0.0, pin_y - M2_WIDTH,
                                         gv_x + 0.2, pin_y + M2_WIDTH))
         # Vertical jog on M2
@@ -284,15 +284,15 @@ def build_r2r_dac():
         x_cursor += r_total + gap
 
     # --- Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS) ---
-    # Taps distributed along the switch row (y ≈ 36-40)
-    for xt in [3.0, 10.0, 17.0, 24.0, 31.0, 38.0]:
-        draw_ptap(top2, layout2, xt, 36.0)
+    # Taps distributed along the switch row (y ≈ 24-28)
+    for xt in [3.0, 9.0, 15.0, 21.0, 27.0, 33.0]:
+        draw_ptap(top2, layout2, xt, 24.0)
 
     # --- Vout pin (right edge, Metal2) ---
     vout_via_x = vout_contact[0]
     vout_via_y = vout_contact[1]
     draw_via1(top2, layout2, vout_via_x, vout_via_y)
-    vout_pin_y = 30.0
+    vout_pin_y = 24.0
     top2.shapes(li_m2).insert(rect(vout_via_x - 0.1, vout_pin_y - 0.5,
                                     MACRO_W, vout_pin_y + 0.5))
     top2.shapes(li_m2).insert(rect(vout_via_x - M2_WIDTH,
@@ -308,7 +308,7 @@ def build_r2r_dac():
 
     # --- Pin labels ---
     for bit in range(NBITS):
-        pin_y = 4.0 + bit * 6.0
+        pin_y = 3.5 + bit * 5.0
         add_pin_label(top2, L_METAL2_PIN, L_METAL2_LBL,
                       rect(0.0, pin_y - 0.5, 0.5, pin_y + 0.5),
                       f"d[{bit}]", layout2)

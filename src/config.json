@@ -10,7 +10,7 @@
     "r2r_dac_8bit": {
       "instances": {
         "u_dac": {
-          "location": [157, 54],
+          "location": [164, 49],
           "orientation": "N"
         }
       },
@@ -24,7 +24,7 @@
     "svf_2nd": {
       "instances": {
         "u_svf": {
-          "location": [132, 116],
+          "location": [140, 99],
           "orientation": "N"
         }
       },
@@ -38,7 +38,7 @@
     "sar_adc_8bit": {
       "instances": {
         "u_adc": {
-          "location": [154, 2],
+          "location": [160, 2],
           "orientation": "N"
         }
       },

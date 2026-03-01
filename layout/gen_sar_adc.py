@@ -21,7 +21,7 @@ Components:
      - 8-bit shift register + control FSM
      - ~50 transistors (digital standard cells equivalent)
 
-Macro size target: 95 × 104 µm
+Macro size target: 42 × 45 µm
 """
 
 import sys, os
@@ -36,8 +36,8 @@ NBITS     = 8
 C_UNIT    = 2.0        # fF per unit cap (kT/C noise ≈ 2.8 mV, ~7 bits)
 C_UNIT_AREA = C_UNIT / MIM_CAP_DENSITY  # ~1.33 µm² per unit
 
-MACRO_W   = 48.0
-MACRO_H   = 50.0
+MACRO_W   = 42.0
+MACRO_H   = 45.0
 
 # Cap sizes (MIM): each cap is rectangular
 # For matching, use common-centroid or at least regular array
@@ -320,7 +320,7 @@ def build_sar_adc():
         # Place caps in a column, stacking vertically
         if cap_cursor_y + h_cap + MIM_SPACE + 2 * MIM_ENC_M5 > MACRO_H - 6:
             # Move to next column
-            cap_cursor_x += 14.0
+            cap_cursor_x += 12.0
             cap_cursor_y = cap_region_y
 
         li_m5   = layout.layer(*L_METAL5)
@@ -353,37 +353,37 @@ def build_sar_adc():
     # =====================================================================
     # Sample switch (NMOS, left edge near vin pin)
     # =====================================================================
-    sw_sample = draw_nmos_transistor(top, layout, x=2.0, y=25.0, w=3.0, l=0.13)
+    sw_sample = draw_nmos_transistor(top, layout, x=2.0, y=22.0, w=3.0, l=0.13)
 
     # =====================================================================
     # Dynamic comparator (right side of macro)
     # =====================================================================
-    comp = draw_strongarm_comparator(top, layout, x=30.0, y=28.0)
+    comp = draw_strongarm_comparator(top, layout, x=27.0, y=25.0)
 
     # =====================================================================
     # SAR logic (right side, below comparator)
     # =====================================================================
-    sar = draw_sar_logic_block(top, layout, x=30.0, y=5.0, w=SAR_W, h=SAR_H)
+    sar = draw_sar_logic_block(top, layout, x=27.0, y=4.0, w=SAR_W, h=SAR_H)
 
     # =====================================================================
     # Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS)
     # =====================================================================
-    # Near sample switch (x=2, y=25)
-    draw_ptap(top, layout, 2.0, 22.0)
-    draw_ptap(top, layout, 6.0, 22.0)
-    # Along comparator NMOS region (x=30-40, y=24-40)
-    for xt in [29.0, 33.0, 37.0, 41.0]:
-        draw_ptap(top, layout, xt, 26.0)
-        draw_ptap(top, layout, xt, 36.0)
-    # SAR logic perimeter taps (block at x=30-45, y=5-23)
+    # Near sample switch (x=2, y=22)
+    draw_ptap(top, layout, 2.0, 19.0)
+    draw_ptap(top, layout, 6.0, 19.0)
+    # Along comparator NMOS region (x=27-37, y=21-37)
+    for xt in [26.0, 30.0, 34.0, 38.0]:
+        draw_ptap(top, layout, xt, 23.0)
+        draw_ptap(top, layout, xt, 33.0)
+    # SAR logic perimeter taps (block at x=27-42, y=4-22)
     # Place outside the dense transistor grid to avoid Activ spacing issues
-    for xt in [28.5, 34.0, 39.5, 46.0]:
-        draw_ptap(top, layout, xt, 3.5)   # below SAR logic
-        draw_ptap(top, layout, xt, 23.5)  # above SAR logic
+    for xt in [24.5, 31.0, 36.5, 41.0]:
+        draw_ptap(top, layout, xt, 2.5)   # below SAR logic
+        draw_ptap(top, layout, xt, 22.5)  # above SAR logic
     # Left/right perimeter of SAR logic
-    for yt in [9.0, 15.0, 21.0]:
-        draw_ptap(top, layout, 28.5, yt)
-        draw_ptap(top, layout, 46.0, yt)
+    for yt in [8.0, 14.0, 20.0]:
+        draw_ptap(top, layout, 24.5, yt)
+        draw_ptap(top, layout, 41.0, yt)
     # Near cap region
     for xt in [2.0, 10.0, 18.0]:
         draw_ptap(top, layout, xt, 2.5)
@@ -401,7 +401,7 @@ def build_sar_adc():
         bus_y = 24.0 + bit * 1.5
         # From SAR logic to cap array
         top.shapes(li_m2).insert(rect(cap_region_x, bus_y - M2_WIDTH / 2,
-                                       30.0, bus_y + M2_WIDTH / 2))
+                                       27.0, bus_y + M2_WIDTH / 2))
 
     # =====================================================================
     # Power rails
@@ -414,20 +414,20 @@ def build_sar_adc():
     # =====================================================================
     # Left edge pins
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, 6.0 - 0.5, 0.5, 6.0 + 0.5), "clk", layout)
+                  rect(0.0, 5.0 - 0.5, 0.5, 5.0 + 0.5), "clk", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, 10.0 - 0.5, 0.5, 10.0 + 0.5), "rst_n", layout)
+                  rect(0.0, 9.0 - 0.5, 0.5, 9.0 + 0.5), "rst_n", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, 14.0 - 0.5, 0.5, 14.0 + 0.5), "start", layout)
+                  rect(0.0, 13.0 - 0.5, 0.5, 13.0 + 0.5), "start", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, 25.0 - 0.5, 0.5, 25.0 + 0.5), "vin", layout)
+                  rect(0.0, 22.0 - 0.5, 0.5, 22.0 + 0.5), "vin", layout)
 
     # Right edge pins
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(MACRO_W - 0.5, 6.0 - 0.5, MACRO_W, 6.0 + 0.5), "eoc", layout)
+                  rect(MACRO_W - 0.5, 5.0 - 0.5, MACRO_W, 5.0 + 0.5), "eoc", layout)
 
     for bit in range(NBITS):
-        pin_y = 10.0 + bit * 5.0
+        pin_y = 9.0 + bit * 4.5
         add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                       rect(MACRO_W - 0.5, pin_y - 0.5, MACRO_W, pin_y + 0.5),
                       f"dout[{bit}]", layout)
