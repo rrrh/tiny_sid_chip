@@ -269,7 +269,7 @@ Bit:   7    6    5    4    3    2    1    0
 
 | Field | Bits | Description |
 |-------|------|-------------|
-| `sustain_level` | `[3:0]` | Sustain amplitude (0--15). The 8-bit envelope holds at `{sustain_level, 4'hF}` (i.e. 0x0F, 0x1F, ..., 0xFF). |
+| `sustain_level` | `[3:0]` | Sustain amplitude (0--15). The 8-bit envelope holds at `{sustain_level, sustain_level}` (nibble duplication: 0x00, 0x11, ..., 0xFF), matching the original SID. |
 | `release_rate` | `[7:4]` | How fast the envelope falls to 0 after gate off (with exponential decay) |
 
 ### Register 6: Waveform Control (8-bit, per-voice)
@@ -401,7 +401,7 @@ The envelope uses a 4-state FSM: IDLE → ATTACK → DECAY → SUSTAIN.
 
 - **IDLE**: Envelope is 0. Waits for gate rising edge to transition to ATTACK.
 - **ATTACK**: Envelope increments toward 255 at the attack rate. Transitions to DECAY when envelope reaches 255. Gate off triggers release.
-- **DECAY**: Envelope decrements toward sustain level with exponential decay. Transitions to SUSTAIN when envelope reaches `{sustain_level, 4'hF}`. Gate off triggers release.
+- **DECAY**: Envelope decrements toward sustain level with exponential decay. Transitions to SUSTAIN when envelope reaches `{sustain_level, sustain_level}` (nibble duplication). Gate off triggers release.
 - **SUSTAIN**: Envelope holds at sustain level. Gate off triggers release.
 
 Release is handled by a separate `releasing` flag that decrements the envelope toward 0 with exponential decay from any state when the gate is cleared.

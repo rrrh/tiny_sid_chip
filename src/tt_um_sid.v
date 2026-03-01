@@ -386,16 +386,16 @@ module tt_um_sid (
             end
             ENV_DECAY: begin
                 if (!cur_gate) nxt_rel = 1'b1;
-                else if (p_env <= {sustain_level, 4'hF})
+                else if (p_env <= {sustain_level, sustain_level})
                     nxt_ast = ENV_SUSTAIN;
                 else if (env_tick) nxt_env = p_env - 1'b1;
             end
             ENV_SUSTAIN: begin
                 if (!cur_gate) nxt_rel = 1'b1;
-                else if (p_env > {sustain_level, 4'hF} && env_tick)
+                else if (p_env > {sustain_level, sustain_level} && env_tick)
                     nxt_env = p_env - 1'b1;
                 else
-                    nxt_env = {sustain_level, 4'hF};
+                    nxt_env = {sustain_level, sustain_level};
             end
         endcase
     end
