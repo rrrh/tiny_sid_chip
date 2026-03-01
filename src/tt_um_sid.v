@@ -174,6 +174,8 @@ module tt_um_sid (
     reg [7:0]  p_attack;
     reg [7:0]  p_sustain;
     reg        p_prev_msb_d;
+    reg [14:0] p_rate_cnt;
+    reg [4:0]  p_expo_cnt;
 
     // Pipeline load logic
     // Load schedule: slot 4→V0, slot 0→V1, slot 1→V2
@@ -201,6 +203,8 @@ module tt_um_sid (
             p_attack     <= 8'd0;
             p_sustain    <= 8'd0;
             p_prev_msb_d <= 1'b0;
+            p_rate_cnt   <= 15'd0;
+            p_expo_cnt   <= 5'd0;
         end else if (clk_en_6m && load_en) begin
             p_acc        <= acc[load_voice];
             p_freq       <= {8'd0, freq_hi[load_voice], freq[load_voice]};
@@ -213,20 +217,16 @@ module tt_um_sid (
             p_attack     <= attack_reg[load_voice];
             p_sustain    <= sustain_reg[load_voice];
             p_prev_msb_d <= p_prev_msb_d_nxt;
+            p_rate_cnt   <= rate_cnt[load_voice];
+            p_expo_cnt   <= expo_cnt[load_voice];
         end
     end
 
     //==========================================================================
-    // ADSR prescaler (14-bit, LSB fixed to 0 — 13 FF + 1 wire)
-    // Advances by 7 per mod-6 frame (6×1 + 1 extra on slot 5) so that
-    // the prescaler visits all residue classes mod 2^k for every voice,
-    // ensuring env_tick fires correctly at all ADSR rates.
+    // ADSR per-voice rate and exponential counters
     //==========================================================================
-    reg [13:1] adsr_pre_hi;
-    always @(posedge clk or negedge rst_n)
-        if (!rst_n) adsr_pre_hi <= 13'd0;
-        else if (clk_en_6m) adsr_pre_hi <= adsr_pre_hi + {12'd0, (slot == 3'd5)} + 1'b1;
-    wire [13:0] adsr_prescaler = {adsr_pre_hi, 1'b0};
+    reg [14:0] rate_cnt  [0:2];   // 15-bit rate counter per voice
+    reg [4:0]  expo_cnt  [0:2];   // 5-bit exponential counter per voice
 
     //==========================================================================
     // ADSR state encoding
@@ -237,49 +237,44 @@ module tt_um_sid (
                      ENV_SUSTAIN = 2'd3;
 
     //==========================================================================
-    // Envelope tick function (14-bit prescaler, LSB=0, 8 rate levels)
+    // Rate period LUT — 4-bit rate index → 15-bit period (SID-accurate)
     //==========================================================================
-    function env_tick_fn;
+    function [14:0] rate_period;
         input [3:0] rate;
-        input [13:0] pre;
         begin
             case (rate)
-                4'd0:    env_tick_fn = &pre[2:1];
-                4'd1:    env_tick_fn = &pre[3:1];
-                4'd2:    env_tick_fn = &pre[4:1];
-                4'd3:    env_tick_fn = &pre[5:1];
-                4'd4:    env_tick_fn = &pre[6:1];
-                4'd5:    env_tick_fn = &pre[7:1];
-                4'd6:    env_tick_fn = &pre[8:1];
-                4'd7:    env_tick_fn = &pre[9:1];
-                default: env_tick_fn = &pre[13:1];
+                4'd0:  rate_period = 15'd9;
+                4'd1:  rate_period = 15'd32;
+                4'd2:  rate_period = 15'd63;
+                4'd3:  rate_period = 15'd95;
+                4'd4:  rate_period = 15'd149;
+                4'd5:  rate_period = 15'd220;
+                4'd6:  rate_period = 15'd267;
+                4'd7:  rate_period = 15'd313;
+                4'd8:  rate_period = 15'd392;
+                4'd9:  rate_period = 15'd977;
+                4'd10: rate_period = 15'd1954;
+                4'd11: rate_period = 15'd3126;
+                4'd12: rate_period = 15'd3907;
+                4'd13: rate_period = 15'd11720;
+                4'd14: rate_period = 15'd19532;
+                4'd15: rate_period = 15'd31251;
             endcase
         end
     endfunction
 
     //==========================================================================
-    // Exponential decay adjustment
+    // Exponential period LUT — 8-bit envelope → 5-bit period (SID-accurate)
     //==========================================================================
-    function [3:0] expo_adj;
+    function [4:0] expo_period;
         input [7:0] e;
-        input [3:0] rate;
-        reg [4:0] sum;
         begin
-            if (e >= 8'd93)
-                expo_adj = rate;
-            else if (e >= 8'd54) begin
-                sum = {1'b0, rate} + 5'd1;
-                expo_adj = (sum > 5'd15) ? 4'd15 : sum[3:0];
-            end else if (e >= 8'd26) begin
-                sum = {1'b0, rate} + 5'd2;
-                expo_adj = (sum > 5'd15) ? 4'd15 : sum[3:0];
-            end else if (e >= 8'd14) begin
-                sum = {1'b0, rate} + 5'd3;
-                expo_adj = (sum > 5'd15) ? 4'd15 : sum[3:0];
-            end else begin
-                sum = {1'b0, rate} + 5'd4;
-                expo_adj = (sum > 5'd15) ? 4'd15 : sum[3:0];
-            end
+            if (e >= 8'd93)       expo_period = 5'd1;
+            else if (e >= 8'd54)  expo_period = 5'd2;
+            else if (e >= 8'd26)  expo_period = 5'd4;
+            else if (e >= 8'd14)  expo_period = 5'd8;
+            else if (e >= 8'd6)   expo_period = 5'd16;
+            else                  expo_period = 5'd30;
         end
     endfunction
 
@@ -340,22 +335,33 @@ module tt_um_sid (
         end
     end
 
-    // --- ADSR rate selection with exponential decay ---
+    // --- ADSR rate selection with SID-accurate counters ---
     wire [3:0] sustain_level = p_sustain[3:0];
     wire       cur_gate      = p_waveform[0];
 
-    reg [3:0] cur_rate;
+    // Select rate index (no exponential adjustment — expo counter handles it)
+    reg [3:0] cur_rate_idx;
     always @(*) begin
         if (p_releasing)
-            cur_rate = expo_adj(p_env, p_sustain[7:4]);
+            cur_rate_idx = p_sustain[7:4];
         else case (p_ast)
-            ENV_ATTACK:  cur_rate = p_attack[3:0];
-            ENV_DECAY:   cur_rate = expo_adj(p_env, p_attack[7:4]);
-            default:     cur_rate = 4'd0;
+            ENV_ATTACK:  cur_rate_idx = p_attack[3:0];
+            ENV_DECAY:   cur_rate_idx = p_attack[7:4];
+            default:     cur_rate_idx = 4'd0;
         endcase
     end
 
-    wire env_tick = env_tick_fn(cur_rate, adsr_prescaler);
+    wire [14:0] cur_period = rate_period(cur_rate_idx);
+    wire        in_attack  = !p_releasing && (p_ast == ENV_ATTACK);
+
+    // Rate counter tick: fires when counter reaches 0
+    wire rate_tick = (p_rate_cnt == 15'd0);
+
+    // Exponential counter tick: fires when counter reaches 0
+    wire expo_tick = (p_expo_cnt == 5'd0);
+
+    // Envelope tick: attack bypasses expo counter
+    wire env_tick = rate_tick && (in_attack || expo_tick);
 
     // --- ADSR next-state logic (8-bit envelope, 4-state FSM) ---
     reg [1:0] nxt_ast;
@@ -404,6 +410,29 @@ module tt_um_sid (
     wire [15:0] voice_product = wave_out * nxt_env;
     wire [7:0]  voice_out = voice_product[15:8];
 
+    // --- Rate and exponential counter next-value logic ---
+    reg [14:0] nxt_rate_cnt;
+    reg [4:0]  nxt_expo_cnt;
+    always @(*) begin
+        // Rate counter: decrement, reload on zero
+        if (p_rate_cnt == 15'd0)
+            nxt_rate_cnt = cur_period;
+        else
+            nxt_rate_cnt = p_rate_cnt - 15'd1;
+
+        // Exponential counter: only active during decay/release (not attack)
+        if (in_attack) begin
+            nxt_expo_cnt = 5'd0;
+        end else if (rate_tick) begin
+            if (p_expo_cnt == 5'd0)
+                nxt_expo_cnt = expo_period(p_env);
+            else
+                nxt_expo_cnt = p_expo_cnt - 5'd1;
+        end else begin
+            nxt_expo_cnt = p_expo_cnt;
+        end
+    end
+
     //==========================================================================
     // State update on voice slots
     //==========================================================================
@@ -415,12 +444,16 @@ module tt_um_sid (
             gate_latch[0] <= 1'b0; gate_latch[1] <= 1'b0; gate_latch[2] <= 1'b0;
             releasing[0] <= 1'b0; releasing[1] <= 1'b0; releasing[2] <= 1'b0;
             prev_msb_d[0] <= 1'b0; prev_msb_d[1] <= 1'b0; prev_msb_d[2] <= 1'b0;
+            rate_cnt[0] <= 15'd0; rate_cnt[1] <= 15'd0; rate_cnt[2] <= 15'd0;
+            expo_cnt[0] <= 5'd0; expo_cnt[1] <= 5'd0; expo_cnt[2] <= 5'd0;
         end else if (clk_en_6m && voice_active) begin
             acc[voice_idx]        <= nxt_acc;
             env[voice_idx]        <= nxt_env;
             ast[voice_idx]        <= nxt_ast;
             gate_latch[voice_idx] <= cur_gate;
             releasing[voice_idx]  <= nxt_rel;
+            rate_cnt[voice_idx]   <= nxt_rate_cnt;
+            expo_cnt[voice_idx]   <= nxt_expo_cnt;
             // prev_msb_d write: explicit per-slot (avoids computed array index)
             // V0 (slot 0) stores V2's MSB, V1 (slot 1) stores V0's, V2 (slot 2) stores V1's
             case (slot[1:0])

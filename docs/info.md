@@ -16,7 +16,7 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer with an on-chip switc
 - **Flat register interface** -- rising-edge-triggered writes via `ui_in[7]` (WE), `ui_in[4:3]` (voice select), `ui_in[2:0]` (register address), `uio_in[7:0]` (data). No SPI or I2C overhead.
 - **3-voice pipelined datapath** -- a ÷4 clock divider produces a 6 MHz clock enable from the 24 MHz system clock. A mod-6 slot counter cycles through voices 0/1/2, giving each voice a 1 MHz effective update rate. 24-bit phase accumulators with 16-bit frequency registers provide ~0.06 Hz resolution (matching the original C64 SID).
 - **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 15-bit LFSR), AND-combined when multiple waveforms are selected. Sync and ring modulation are fully implemented with circular cross-voice connections (V0←V2, V1←V0, V2←V1).
-- **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, 14-bit shared prescaler (~7 MHz effective, 7 increments per mod-6 frame), exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 9 distinct rate settings from ~146 µs to ~299 ms per full traverse.
+- **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, per-voice 15-bit rate counters with 16 SID-accurate non-power-of-2 period values (matching MOS 6581/8580), secondary 5-bit exponential counter with 6 breakpoints for exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 16 rate settings from ~2.3 ms to ~8 s per full traverse.
 - **3-voice mixer** -- accumulates the three 8-bit voice outputs (8×8 waveform×envelope product, upper byte) into a 10-bit accumulator and divides by 4 to produce an 8-bit mix.
 - **Analog filter chain** -- the mixed digital audio is converted to analog via an 8-bit R-2R DAC (`r2r_dac_8bit`), filtered by a 2nd-order switched-capacitor State Variable Filter (`svf_2nd`, 2 OTAs + 2 MIM caps + SC resistors), and converted back to digital via an 8-bit SAR ADC (`sar_adc_8bit`). A programmable clock divider sets the SC switching frequency (fc tuning), and a 4-bit binary-weighted capacitor array sets Q directly from register values. LP/BP/HP modes via priority mux (HP > BP > LP), with bypass when no voices are routed or no mode is selected. Digital volume scaling (shift-add) is applied post-ADC.
 - **2 kHz lowpass** (`output_lpf`) -- fixed single-pole IIR (6 dB/octave) between filter output and PWM input. Alpha = 1/128 (single shift, fc ≈ 1244 Hz), 10-bit unsigned accumulator (8.2 fixed-point), no multiplier.
@@ -47,9 +47,9 @@ There is a single physical clock (`clk` at 24 MHz). All registers use `posedge c
      │     │                      │
      ▼     ▼                      ▼
  ┌───────┐ ┌───────────────┐ ┌──────────┐
- │ slot  │ │ pipeline regs │ │ adsr_pre │
- │ mod-6 │ │ (V0/V1/V2     │ │ 14-bit   │
- │(3-bit)│ │  load/compute)│ │ prescaler│
+ │ slot  │ │ pipeline regs │ │ rate_cnt │
+ │ mod-6 │ │ (V0/V1/V2     │ │ 15-bit   │
+ │(3-bit)│ │  load/compute)│ │ per-voice│
  └───┬───┘ └───────────────┘ └──────────┘
      │
      ▼
@@ -69,7 +69,7 @@ There is a single physical clock (`clk` at 24 MHz). All registers use `posedge c
 | Domain | Rate | Drives |
 |--------|------|--------|
 | 24 MHz (`clk`) | 24 MHz | All flip-flops, PWM counter, write-enable edge detect |
-| 6 MHz (`clk_en_6m`) | 6 MHz | Slot counter, pipeline loads, voice state updates, mix, ADSR prescaler |
+| 6 MHz (`clk_en_6m`) | 6 MHz | Slot counter, pipeline loads, voice state updates, mix, ADSR rate counters |
 | 1 MHz (`sample_valid`) | 1 MHz | output_lpf IIR (1 pulse per mod-6 frame) |
 | Continuous | analog | R-2R DAC → SC SVF → SAR ADC (free-running conversion) |
 | Noise LFSR | pitch-dependent | Edge-detected from voice 0 accumulator bit 19 |

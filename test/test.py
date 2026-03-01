@@ -171,7 +171,7 @@ async def test_gate_release(dut):
     await sid_write(dut, REG_WAVEFORM, SAW | GATE)
     await ClockCycles(dut.clk, 250000)
     await sid_write(dut, REG_WAVEFORM, SAW)  # release gate
-    await ClockCycles(dut.clk, 50000)
+    await ClockCycles(dut.clk, 200000)
     pdm_count = await count_pwm(dut, 25000)
     dut._log.info(f"After release PWM count: {pdm_count}")
     assert pdm_count == 0

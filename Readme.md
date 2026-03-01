@@ -48,7 +48,7 @@ only a passive RC low-pass filter to produce analog audio.
 - 8-bit ADSR envelope per voice (256 amplitude levels, piecewise exponential decay)
 - Per-voice ADSR parameters (attack, decay, sustain, release)
 - 4-state envelope FSM (IDLE, ATTACK, DECAY, SUSTAIN) + releasing flag
-- 9 envelope rate settings from ~146 µs to ~299 ms full traverse
+- 16 SID-accurate envelope rate settings from ~2.3 ms to ~8 s full traverse (matching MOS 6581/8580)
 - SID-compatible sustain mapping (nibble duplication: N → 0xNN)
 - 16-bit frequency register, 24-bit phase accumulator (~0.06 Hz resolution, matching original C64 SID)
 - 15-bit LFSR noise generator, accumulator-clocked from voice 0
@@ -376,56 +376,60 @@ digital mix passes directly to the output LPF, skipping the analog chain.
 
 ### Envelope Rate Table
 
-The ADSR uses a 14-bit free-running prescaler (LSB fixed to 0, 13 FFs).
-The prescaler advances by 7 per mod-6 frame (~7 MHz effective: 6 normal
-increments + 1 extra on slot 5 to visit all residue classes). Each rate
-value selects which prescaler bits must all be 1 (Verilog reduction AND)
-for an envelope tick. The 8-bit envelope counter steps by ±1 per tick, so
-a full 0→255 traverse takes 256 ticks.
+The ADSR uses per-voice 15-bit rate counters matching the original MOS
+6581/8580 SID. Each of the 16 rate settings selects a non-power-of-2 period
+from a lookup table. The rate counter decrements each voice cycle (1 MHz);
+when it reaches zero, a rate tick fires and the counter reloads. The 8-bit
+envelope steps by ±1 per tick (attack) or per tick gated by the exponential
+counter (decay/release), so a full linear 0→255 traverse takes 256 rate
+ticks.
 
-| Rate | Check bits | Period (prescaler ticks) | Full Traverse (256 ticks) |
-|------|-----------|--------------------------|--------------------------|
-| 0 | &pre[2:1] | 4 | ~146 µs |
-| 1 | &pre[3:1] | 8 | ~293 µs |
-| 2 | &pre[4:1] | 16 | ~585 µs |
-| 3 | &pre[5:1] | 32 | ~1.2 ms |
-| 4 | &pre[6:1] | 64 | ~2.3 ms |
-| 5 | &pre[7:1] | 128 | ~4.7 ms |
-| 6 | &pre[8:1] | 256 | ~9.4 ms |
-| 7 | &pre[9:1] | 512 | ~18.7 ms |
-| 8–15 | &pre[13:1] | 8192 | ~299 ms |
+| Rate | Period (cycles) | Full Traverse (256 ticks) | SID Equivalent |
+|------|----------------|--------------------------|----------------|
+| 0 | 9 | ~2.3 ms | 2 ms Attack |
+| 1 | 32 | ~8.2 ms | 8 ms Attack |
+| 2 | 63 | ~16.1 ms | 16 ms Attack |
+| 3 | 95 | ~24.3 ms | 24 ms Attack |
+| 4 | 149 | ~38.1 ms | 38 ms Attack |
+| 5 | 220 | ~56.3 ms | 56 ms Attack |
+| 6 | 267 | ~68.4 ms | 68 ms Attack |
+| 7 | 313 | ~80.1 ms | 80 ms Attack |
+| 8 | 392 | ~100 ms | 100 ms Attack |
+| 9 | 977 | ~250 ms | 250 ms Attack |
+| 10 | 1,954 | ~500 ms | 500 ms Attack |
+| 11 | 3,126 | ~800 ms | 800 ms Attack |
+| 12 | 3,907 | ~1.0 s | 1 s Attack |
+| 13 | 11,720 | ~3.0 s | 3 s Attack |
+| 14 | 19,532 | ~5.0 s | 5 s Attack |
+| 15 | 31,251 | ~8.0 s | 8 s Attack |
 
-Formula: `traverse_time = 256 × period / 7,000,000` seconds.
+Formula: `traverse_time = 256 × period / 1,000,000` seconds.
 
-**Comparison with original SID:** The MOS 6581/8580 uses a 15-bit rate
-counter with 16 distinct non-power-of-2 thresholds from a lookup table,
-providing 16 unique rates spanning 2 ms to 24 s (decay/release). Our
-implementation uses power-of-2 prescaler taps, giving 9 effective rates
-(settings 8–15 alias to the same ~299 ms). This covers the fast end of the
-SID's range but lacks the very long envelope times (seconds) used for slow
-pads and ambient sounds.
+These are the same 16 period values used by the real MOS 6581/8580 SID,
+providing the full range from 2 ms to 8 s for attack and (with exponential
+counter) 6 ms to 24 s for decay/release.
 
 ### Exponential Decay
 
-During decay and release, the envelope rate is slowed as the envelope level
-decreases, approximating an exponential curve. The `expo_adj` function adds
-an offset to the rate index at specific breakpoints:
+During decay and release, a secondary 5-bit exponential counter acts as a
+post-divider on the rate counter ticks, matching the original SID behavior.
+The exponential counter decrements on each rate tick; an envelope step only
+occurs when both the rate counter and exponential counter reach zero. The
+exponential counter reloads from a breakpoint-based period table:
 
-| Envelope ≥ | Rate offset | Effect |
-|------------|-------------|--------|
-| 93 | +0 | Full speed |
-| 54 | +1 | ~2× slower |
-| 26 | +2 | ~4× slower |
-| 14 | +3 | ~8× slower |
-| < 14 | +4 | ~16× slower |
+| Envelope ≥ | Expo period | Effective divisor |
+|------------|-------------|-------------------|
+| 93 | 1 | ×1 (full speed) |
+| 54 | 2 | ×2 |
+| 26 | 4 | ×4 |
+| 14 | 8 | ×8 |
+| 6 | 16 | ×16 |
+| < 6 | 30 | ×30 |
 
-The adjusted rate is clamped to 15 (which maps to the same period as rate 8).
-
-**Comparison with original SID:** The original uses a secondary exponential
-counter as a post-divider with breakpoints at 255, 93, 54, 26, 14, 6 and
-divisors 1, 2, 4, 8, 16, 30. Our breakpoints match at 93/54/26/14 but we
-use rate index addition instead of a secondary counter, and we omit the
-breakpoint at 6 (divisor 30, implemented via a 5-bit LFSR in the original).
+Attack bypasses the exponential counter entirely (always linear). The
+breakpoints and divisors match the original MOS 6581/8580 SID, including
+the ×30 slowdown at very low envelope values (env < 6) that the original
+implements via its exponential counter.
 
 ### Sustain Level Mapping
 
@@ -731,7 +735,7 @@ To silence the output at any time:
 | Voice count | 3 (time-multiplexed) |
 | Frequency resolution | ~0.06 Hz (16-bit freq, 24-bit acc, 1 MHz effective) |
 | Envelope depth | 8-bit (256 levels, exponential decay) |
-| ADSR prescaler | 14-bit (shared, ~7 MHz effective: 7 increments per mod-6 frame) |
+| ADSR rate counters | 15-bit per-voice (16 SID-accurate periods, 5-bit exponential counter) |
 | Noise generator | 15-bit LFSR, accumulator-clocked from voice 0 |
 | Voice output | 8-bit (8×8 waveform×envelope product, upper byte) |
 | PWM output frequency | ~94.1 kHz |

@@ -185,13 +185,13 @@ module tt_um_sid_tb;
         repeat (250_000) @(posedge clk);
         count_pdm(25_000, cnt1);
         sid_write(REG_WAV, SAW, 2'd0);
-        repeat (150_000) @(posedge clk);
+        repeat (250_000) @(posedge clk);
         count_pdm(25_000, cnt2);
         test_num = test_num + 1;
         if (cnt2 < cnt1) begin $display("TEST %0d PASS: release (%0d->%0d)", test_num, cnt1, cnt2); pass_count = pass_count + 1; end
         else begin $display("TEST %0d FAIL: release (%0d->%0d)", test_num, cnt1, cnt2); fail_count = fail_count + 1; end
         sid_write(REG_WAV, 8'h00, 2'd0);
-        repeat (150_000) @(posedge clk);
+        repeat (250_000) @(posedge clk);
 
         // 7. Two voices simultaneous (per-voice ADSR)
         $display("\n===== 7. Two voices =====");
