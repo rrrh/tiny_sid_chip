@@ -108,7 +108,7 @@ module tt_um_sid (
     reg [7:0]  attack_reg  [0:2];
     reg [7:0]  sustain_reg [0:2];
 
-    reg [15:0] acc        [0:2];
+    reg [23:0] acc        [0:2];
     reg [7:0]  env        [0:2];
     reg [1:0]  ast        [0:2];
     reg        gate_latch [0:2];
@@ -161,10 +161,10 @@ module tt_um_sid (
     end
 
     //==========================================================================
-    // Pipeline registers (~81 FFs, loaded at 6 MHz rate)
+    // Pipeline registers (~97 FFs, loaded at 6 MHz rate)
     //==========================================================================
-    reg [15:0] p_acc;
-    reg [15:0] p_freq;
+    reg [23:0] p_acc;
+    reg [23:0] p_freq;
     reg [7:0]  p_waveform;
     reg [11:0] p_pw;
     reg [7:0]  p_env;
@@ -190,8 +190,8 @@ module tt_um_sid (
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            p_acc        <= 16'd0;
-            p_freq       <= 16'd0;
+            p_acc        <= 24'd0;
+            p_freq       <= 24'd0;
             p_waveform   <= 8'd0;
             p_pw         <= 12'd0;
             p_env        <= 8'd0;
@@ -203,7 +203,7 @@ module tt_um_sid (
             p_prev_msb_d <= 1'b0;
         end else if (clk_en_6m && load_en) begin
             p_acc        <= acc[load_voice];
-            p_freq       <= {freq_hi[load_voice], freq[load_voice]};
+            p_freq       <= {8'd0, freq_hi[load_voice], freq[load_voice]};
             p_waveform   <= waveform[load_voice];
             p_pw         <= {pw_hi[load_voice], pw_reg[load_voice]};
             p_env        <= env[load_voice];
@@ -288,7 +288,7 @@ module tt_um_sid (
     //==========================================================================
     reg [14:0] shared_lfsr;
     reg        noise_clk_d;
-    wire       noise_clk = acc[0][11];
+    wire       noise_clk = acc[0][19];
     wire       noise_clk_rise = noise_clk && !noise_clk_d;
 
     always @(posedge clk or negedge rst_n) begin
@@ -308,23 +308,23 @@ module tt_um_sid (
     //==========================================================================
 
     // Cross-voice MSB for sync/ring-mod (flattened, circular: V0←V2, V1←V0, V2←V1)
-    wire other_msb = (voice_idx == 2'd0) ? acc[2][15] :
-                     (voice_idx == 2'd1) ? acc[0][15] : acc[1][15];
+    wire other_msb = (voice_idx == 2'd0) ? acc[2][23] :
+                     (voice_idx == 2'd1) ? acc[0][23] : acc[1][23];
     wire sync_trigger = other_msb && !p_prev_msb_d && p_waveform[1];
 
     // --- Oscillator with test bit and sync ---
-    wire [15:0] nxt_acc = p_waveform[3] ? 16'd0 :       // test bit
-                          sync_trigger   ? 16'd0 :       // sync
+    wire [23:0] nxt_acc = p_waveform[3] ? 24'd0 :       // test bit
+                          sync_trigger   ? 24'd0 :       // sync
                           p_acc + p_freq;
 
     // --- Waveform generation ---
-    wire [7:0] saw_out = nxt_acc[15:8];
+    wire [7:0] saw_out = nxt_acc[23:16];
 
     // Ring-mod: XOR other voice MSB into triangle MSB
-    wire ring_msb = p_waveform[2] ? (nxt_acc[15] ^ other_msb) : nxt_acc[15];
-    wire [7:0] tri_out = {nxt_acc[14:8] ^ {7{ring_msb}}, 1'b0};
+    wire ring_msb = p_waveform[2] ? (nxt_acc[23] ^ other_msb) : nxt_acc[23];
+    wire [7:0] tri_out = {nxt_acc[22:16] ^ {7{ring_msb}}, 1'b0};
 
-    wire pulse_cmp = nxt_acc[15:4] >= p_pw;
+    wire pulse_cmp = nxt_acc[23:12] >= p_pw;
 
     reg [7:0] wave_out;
     always @(*) begin
@@ -409,7 +409,7 @@ module tt_um_sid (
     //==========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            acc[0] <= 16'd0; acc[1] <= 16'd0; acc[2] <= 16'd0;
+            acc[0] <= 24'd0; acc[1] <= 24'd0; acc[2] <= 24'd0;
             env[0] <= 8'd0; env[1] <= 8'd0; env[2] <= 8'd0;
             ast[0] <= ENV_IDLE; ast[1] <= ENV_IDLE; ast[2] <= ENV_IDLE;
             gate_latch[0] <= 1'b0; gate_latch[1] <= 1'b0; gate_latch[2] <= 1'b0;
@@ -424,9 +424,9 @@ module tt_um_sid (
             // prev_msb_d write: explicit per-slot (avoids computed array index)
             // V0 (slot 0) stores V2's MSB, V1 (slot 1) stores V0's, V2 (slot 2) stores V1's
             case (slot[1:0])
-                2'd0: prev_msb_d[2] <= acc[2][15];
-                2'd1: prev_msb_d[0] <= acc[0][15];
-                2'd2: prev_msb_d[1] <= acc[1][15];
+                2'd0: prev_msb_d[2] <= acc[2][23];
+                2'd1: prev_msb_d[0] <= acc[0][23];
+                2'd2: prev_msb_d[1] <= acc[1][23];
                 default: ;
             endcase
         end
@@ -581,6 +581,14 @@ module tt_um_sid (
         .dout0(adc_dout[0]), .dout1(adc_dout[1]), .dout2(adc_dout[2]), .dout3(adc_dout[3]),
         .dout4(adc_dout[4]), .dout5(adc_dout[5]), .dout6(adc_dout[6]), .dout7(adc_dout[7])
     );
+
+    // --- Behavioral sim: connect 8-bit data between analog macro models ---
+`ifdef BEHAVIORAL_SIM
+    always @(u_dac.sim_data_out or u_svf.sim_data_out) begin
+        u_svf.sim_data_in = u_dac.sim_data_out;
+        u_adc.sim_data_in = u_svf.sim_data_out;
+    end
+`endif
 
     // --- Volume scaling (shift-add, same as original filter.v) ---
     wire [7:0] scaled = (filt_vol[3] ? {1'b0, adc_dout[7:1]} : 8'd0) +

@@ -152,9 +152,9 @@ module gl_saw440_adsr_tb;
 
         // --- Configure voice 0 ---
 
-        // Frequency: 440 Hz (freq_reg = 29 = 0x1D)
-        sid_write(REG_FREQ_LO, 8'h1D, 2'd0);
-        sid_write(REG_FREQ_HI, 8'h00, 2'd0);
+        // Frequency: 440 Hz (freq_reg = 7382 = 0x1CD6)
+        sid_write(REG_FREQ_LO, 8'hD6, 2'd0);
+        sid_write(REG_FREQ_HI, 8'h1C, 2'd0);
 
         // Pulse width (unused for sawtooth, but set default)
         sid_write(REG_PW_LO, 8'h00, 2'd0);

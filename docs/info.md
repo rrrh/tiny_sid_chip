@@ -14,7 +14,7 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer with an on-chip switc
 **Architecture:**
 
 - **Flat register interface** -- rising-edge-triggered writes via `ui_in[7]` (WE), `ui_in[4:3]` (voice select), `ui_in[2:0]` (register address), `uio_in[7:0]` (data). No SPI or I2C overhead.
-- **3-voice pipelined datapath** -- a ÷4 clock divider produces a 6 MHz clock enable from the 24 MHz system clock. A mod-6 slot counter cycles through voices 0/1/2, giving each voice a 1 MHz effective update rate. 16-bit phase accumulators with 16-bit frequency registers provide ~15.3 Hz resolution across the full audio range.
+- **3-voice pipelined datapath** -- a ÷4 clock divider produces a 6 MHz clock enable from the 24 MHz system clock. A mod-6 slot counter cycles through voices 0/1/2, giving each voice a 1 MHz effective update rate. 24-bit phase accumulators with 16-bit frequency registers provide ~0.06 Hz resolution (matching the original C64 SID).
 - **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 15-bit LFSR), AND-combined when multiple waveforms are selected. Sync and ring modulation are fully implemented with circular cross-voice connections (V0←V2, V1←V0, V2←V1).
 - **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, 14-bit shared prescaler (~7 MHz effective, 7 increments per mod-6 frame), exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 9 distinct rate settings from ~146 µs to ~299 ms per full traverse.
 - **3-voice mixer** -- accumulates the three 8-bit voice outputs (8×8 waveform×envelope product, upper byte) into a 10-bit accumulator and divides by 4 to produce an 8-bit mix.
@@ -124,17 +124,17 @@ There is a single physical clock (`clk` at 24 MHz). All registers use `posedge c
 
 **Frequency formula:**
 
-The 16-bit frequency register `{freq_hi, freq_lo}` sets the oscillator pitch:
+The 16-bit frequency register `{freq_hi, freq_lo}` is zero-extended and added to the 24-bit phase accumulator each voice cycle:
 
 ```
-f_out = freq_reg × 1,000,000 / 65,536  ≈  freq_reg × 15.259 Hz
+f_out = freq_reg × 1,000,000 / 16,777,216  ≈  freq_reg × 0.0596 Hz
 ```
 
-Resolution: ~15.3 Hz. Range: 15.3 Hz (reg=1) to ~1 MHz (reg=65535). Useful audio range: 15 Hz to ~20 kHz.
+Resolution: ~0.06 Hz. Range: 0.06 Hz (reg=1) to ~3906 Hz (reg=65535). This matches the original C64 SID accumulator geometry (24-bit acc, 16-bit freq reg). Higher audio frequencies are produced as harmonics of the waveform generators.
 
 **Pulse width:**
 
-The 12-bit pulse width `{pw_hi[3:0], pw_lo[7:0]}` is compared against `acc[15:4]`. A value of `0x800` gives a 50% duty cycle.
+The 12-bit pulse width `{pw_hi[3:0], pw_lo[7:0]}` is compared against `acc[23:12]`. A value of `0x800` gives a 50% duty cycle.
 
 ## How to test
 

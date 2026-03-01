@@ -133,8 +133,8 @@ module gen_wav_tb;
             do_reset;
 
             // Voice 0: 440 Hz sawtooth
-            sid_write(REG_FREQ_LO, 8'h1D, 2'd0);  // freq_reg=29 -> ~440 Hz
-            sid_write(REG_FREQ_HI, 8'h00, 2'd0);
+            sid_write(REG_FREQ_LO, 8'hD6, 2'd0);  // freq_reg=7382 (0x1CD6) -> ~440 Hz
+            sid_write(REG_FREQ_HI, 8'h1C, 2'd0);
             sid_write(REG_ATK, 8'h00, 2'd0);
             sid_write(REG_SUS, 8'h0F, 2'd0);
             sid_write(REG_WAV, 8'h21, 2'd0);       // sawtooth + gate
@@ -169,31 +169,32 @@ module gen_wav_tb;
         uio_in = 0;
 
         // --- 9 waveform captures: saw/tri/pulse x 220/440/880 Hz ---
-        // Frequency register values: 220 Hz -> 18, 440 Hz -> 36, 880 Hz -> 72
+        // 24-bit acc @ 1 MHz: freq_reg = hz * 2^24 / 1e6
+        // 220 Hz -> 3691 (0x0E6B), 440 Hz -> 7382 (0x1CD6), 880 Hz -> 14764 (0x39AC)
 
         // Sawtooth
         $display("Generating: saw_220.raw");
-        capture_waveform(8'h0E, 8'h00, 8'h21, "tests/saw_220.raw");
+        capture_waveform(8'h6B, 8'h0E, 8'h21, "tests/saw_220.raw");
         $display("Generating: saw_440.raw");
-        capture_waveform(8'h1D, 8'h00, 8'h21, "tests/saw_440.raw");
+        capture_waveform(8'hD6, 8'h1C, 8'h21, "tests/saw_440.raw");
         $display("Generating: saw_880.raw");
-        capture_waveform(8'h3A, 8'h00, 8'h21, "tests/saw_880.raw");
+        capture_waveform(8'hAC, 8'h39, 8'h21, "tests/saw_880.raw");
 
         // Triangle
         $display("Generating: tri_220.raw");
-        capture_waveform(8'h0E, 8'h00, 8'h11, "tests/tri_220.raw");
+        capture_waveform(8'h6B, 8'h0E, 8'h11, "tests/tri_220.raw");
         $display("Generating: tri_440.raw");
-        capture_waveform(8'h1D, 8'h00, 8'h11, "tests/tri_440.raw");
+        capture_waveform(8'hD6, 8'h1C, 8'h11, "tests/tri_440.raw");
         $display("Generating: tri_880.raw");
-        capture_waveform(8'h3A, 8'h00, 8'h11, "tests/tri_880.raw");
+        capture_waveform(8'hAC, 8'h39, 8'h11, "tests/tri_880.raw");
 
         // Pulse (50% duty)
         $display("Generating: pulse_220.raw");
-        capture_waveform(8'h0E, 8'h00, 8'h41, "tests/pulse_220.raw");
+        capture_waveform(8'h6B, 8'h0E, 8'h41, "tests/pulse_220.raw");
         $display("Generating: pulse_440.raw");
-        capture_waveform(8'h1D, 8'h00, 8'h41, "tests/pulse_440.raw");
+        capture_waveform(8'hD6, 8'h1C, 8'h41, "tests/pulse_440.raw");
         $display("Generating: pulse_880.raw");
-        capture_waveform(8'h3A, 8'h00, 8'h41, "tests/pulse_880.raw");
+        capture_waveform(8'hAC, 8'h39, 8'h41, "tests/pulse_880.raw");
 
         // --- 3 filter captures at 440 Hz sawtooth ---
         $display("Generating: filter_lp.raw");

@@ -43,9 +43,9 @@ module gl_quick_tb;
         rst_n = 1;
         repeat (20) @(posedge clk);
 
-        // Saw 440 Hz, instant ADSR, filter bypass vol=15
-        sid_write(3'd0, 8'h1D, 2'd0);  // freq_lo
-        sid_write(3'd1, 8'h00, 2'd0);  // freq_hi
+        // Saw 440 Hz (freq_reg=7382, 0x1CD6), instant ADSR, filter bypass vol=15
+        sid_write(3'd0, 8'hD6, 2'd0);  // freq_lo
+        sid_write(3'd1, 8'h1C, 2'd0);  // freq_hi
         sid_write(3'd4, 8'h00, 2'd0);  // atk=0, dec=0
         sid_write(3'd5, 8'hF0, 2'd0);  // sus=15, rel=0
         sid_write(3'd0, 8'h00, 2'd3);  // fc_lo

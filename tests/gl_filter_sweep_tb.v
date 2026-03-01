@@ -148,9 +148,9 @@ module gl_filter_sweep_tb;
             rst_n = 1;
             repeat (20) @(posedge clk);
 
-            // Voice 0: 440 Hz sawtooth, instant attack, max sustain
-            sid_write(REG_FREQ_LO, 8'h1D, 2'd0);
-            sid_write(REG_FREQ_HI, 8'h00, 2'd0);
+            // Voice 0: 440 Hz sawtooth, instant attack, max sustain (freq_reg=7382, 0x1CD6)
+            sid_write(REG_FREQ_LO, 8'hD6, 2'd0);
+            sid_write(REG_FREQ_HI, 8'h1C, 2'd0);
             sid_write(REG_PW_LO,   8'h00, 2'd0);
             sid_write(REG_PW_HI,   8'h08, 2'd0);
             sid_write(REG_ATK,     8'h00, 2'd0);

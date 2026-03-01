@@ -36,9 +36,9 @@ module gl_quick2_tb;
         rst_n = 1;
         repeat (20) @(posedge clk);
 
-        // Triangle 440 Hz, instant ADSR, bypass filter vol=15
-        sid_write(3'd0, 8'h1D, 2'd0);
-        sid_write(3'd1, 8'h00, 2'd0);
+        // Triangle 440 Hz (freq_reg=7382, 0x1CD6), instant ADSR, bypass filter vol=15
+        sid_write(3'd0, 8'hD6, 2'd0);
+        sid_write(3'd1, 8'h1C, 2'd0);
         sid_write(3'd2, 8'h00, 2'd0);
         sid_write(3'd3, 8'h08, 2'd0);  // pw
         sid_write(3'd4, 8'h00, 2'd0);  // atk=0, dec=0

@@ -20,8 +20,9 @@ module wav_gen_tb;
         .ena(ena), .clk(clk), .rst_n(rst_n)
     );
 
-    localparam [2:0] REG_FREQ = 3'd0, REG_PW = 3'd2,
-                     REG_ATK  = 3'd4, REG_SUS = 3'd5, REG_WAV = 3'd6;
+    localparam [2:0] REG_FREQ_LO = 3'd0, REG_FREQ_HI = 3'd1,
+                     REG_PW  = 3'd2,
+                     REG_ATK = 3'd4, REG_SUS = 3'd5, REG_WAV = 3'd6;
 
     localparam [7:0] GATE = 8'h01, TRI = 8'h10, SAW = 8'h20, PULSE = 8'h40;
 
@@ -54,21 +55,24 @@ module wav_gen_tb;
         rst_n = 0; repeat (50) @(posedge clk);
         rst_n = 1; repeat (50) @(posedge clk);
 
-        // V0: Sawtooth C4 (~262 Hz) — freq_reg = 262 * 65536 / 1e6 ≈ 17
-        sid_write(REG_FREQ, 8'd17, 2'd0);
+        // V0: Sawtooth C4 (~262 Hz) — freq_reg = 262 * 2^24 / 1e6 = 4396 (0x112C)
+        sid_write(REG_FREQ_LO, 8'h2C, 2'd0);
+        sid_write(REG_FREQ_HI, 8'h11, 2'd0);
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, SAW | GATE, 2'd0);
 
-        // V1: Pulse E4 (~330 Hz) — freq_reg ≈ 22, PW=128 (50% duty)
-        sid_write(REG_FREQ, 8'd22, 2'd1);
+        // V1: Pulse E4 (~330 Hz) — freq_reg = 5536 (0x15A0), PW=128 (50% duty)
+        sid_write(REG_FREQ_LO, 8'hA0, 2'd1);
+        sid_write(REG_FREQ_HI, 8'h15, 2'd1);
         sid_write(REG_PW, 8'h80, 2'd1);
         sid_write(REG_ATK, 8'h00, 2'd1);
         sid_write(REG_SUS, 8'h0F, 2'd1);
         sid_write(REG_WAV, PULSE | GATE, 2'd1);
 
-        // V2: Triangle G4 (~392 Hz) — freq_reg ≈ 26
-        sid_write(REG_FREQ, 8'd26, 2'd2);
+        // V2: Triangle G4 (~392 Hz) — freq_reg = 6577 (0x19B1)
+        sid_write(REG_FREQ_LO, 8'hB1, 2'd2);
+        sid_write(REG_FREQ_HI, 8'h19, 2'd2);
         sid_write(REG_ATK, 8'h00, 2'd2);
         sid_write(REG_SUS, 8'h0F, 2'd2);
         sid_write(REG_WAV, TRI | GATE, 2'd2);

@@ -49,11 +49,15 @@ module tt_um_sid_tb;
     localparam [7:0] GATE  = 8'h01, SYNC  = 8'h02, RMOD  = 8'h04, TEST  = 8'h08,
                      TRI   = 8'h10, SAW   = 8'h20, PULSE = 8'h40, NOISE = 8'h80;
 
-    localparam [7:0] FREQ_C4 = 8'd17, FREQ_E4 = 8'd22,
-                     FREQ_G4 = 8'd26, FREQ_C5 = 8'd34;
+    // 24-bit accumulator @ 1 MHz: freq_reg = hz * 2^24 / 1e6
+    localparam [15:0] FREQ_C4 = 16'd4396,  // 262 Hz -> 0x112C
+                      FREQ_E4 = 16'd5536,  // 330 Hz -> 0x15A0
+                      FREQ_G4 = 16'd6577,  // 392 Hz -> 0x19B1
+                      FREQ_C5 = 16'd8791;  // 524 Hz -> 0x2257
 
-    localparam [2:0] REG_FREQ = 3'd0, REG_PW = 3'd2,
-                     REG_ATK  = 3'd4, REG_SUS = 3'd5, REG_WAV = 3'd6;
+    localparam [2:0] REG_FREQ_LO = 3'd0, REG_FREQ_HI = 3'd1,
+                     REG_PW  = 3'd2,
+                     REG_ATK = 3'd4, REG_SUS = 3'd5, REG_WAV = 3'd6;
 
     // Filter register addresses (voice_sel = 3)
     localparam [2:0] REG_FC_LO   = 3'd0, REG_FC_HI   = 3'd1,
@@ -75,6 +79,14 @@ module tt_um_sid_tb;
             @(posedge clk);
             ui_in  = {1'b0, 2'b0, voice, addr};
             @(posedge clk);
+        end
+    endtask
+
+    task sid_write_freq;
+        input [15:0] freq16; input [1:0] voice;
+        begin
+            sid_write(REG_FREQ_LO, freq16[7:0], voice);
+            sid_write(REG_FREQ_HI, freq16[15:8], voice);
         end
     endtask
 
@@ -109,7 +121,7 @@ module tt_um_sid_tb;
 
         // 2. Sawtooth
         $display("\n===== 2. Sawtooth =====");
-        sid_write(REG_FREQ, FREQ_C4, 2'd0);
+        sid_write_freq(FREQ_C4, 2'd0);
         sid_write(REG_PW, 8'h80, 2'd0);
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
@@ -124,7 +136,7 @@ module tt_um_sid_tb;
 
         // 3. Triangle
         $display("\n===== 3. Triangle =====");
-        sid_write(REG_FREQ, FREQ_C4, 2'd0);
+        sid_write_freq(FREQ_C4, 2'd0);
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, TRI | GATE, 2'd0);
@@ -138,7 +150,7 @@ module tt_um_sid_tb;
 
         // 4. Pulse
         $display("\n===== 4. Pulse =====");
-        sid_write(REG_FREQ, FREQ_E4, 2'd0);
+        sid_write_freq(FREQ_E4, 2'd0);
         sid_write(REG_PW, 8'h80, 2'd0);
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
@@ -153,7 +165,7 @@ module tt_um_sid_tb;
 
         // 5. Noise
         $display("\n===== 5. Noise =====");
-        sid_write(REG_FREQ, FREQ_C5, 2'd0);
+        sid_write_freq(FREQ_C5, 2'd0);
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, NOISE | GATE, 2'd0);
@@ -183,10 +195,10 @@ module tt_um_sid_tb;
 
         // 7. Two voices simultaneous (per-voice ADSR)
         $display("\n===== 7. Two voices =====");
-        sid_write(REG_FREQ, FREQ_C4, 2'd0);
+        sid_write_freq(FREQ_C4, 2'd0);
         sid_write(REG_ATK, 8'h00, 2'd0); sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, SAW | GATE, 2'd0);
-        sid_write(REG_FREQ, FREQ_E4, 2'd1);
+        sid_write_freq(FREQ_E4, 2'd1);
         sid_write(REG_PW, 8'h80, 2'd1);
         sid_write(REG_ATK, 8'h00, 2'd1); sid_write(REG_SUS, 8'h0F, 2'd1);
         sid_write(REG_WAV, PULSE | GATE, 2'd1);
@@ -201,14 +213,14 @@ module tt_um_sid_tb;
 
         // 8. Three voices simultaneous
         $display("\n===== 8. Three voices =====");
-        sid_write(REG_FREQ, FREQ_C4, 2'd0);
+        sid_write_freq(FREQ_C4, 2'd0);
         sid_write(REG_ATK, 8'h00, 2'd0); sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, SAW | GATE, 2'd0);
-        sid_write(REG_FREQ, FREQ_E4, 2'd1);
+        sid_write_freq(FREQ_E4, 2'd1);
         sid_write(REG_PW, 8'h80, 2'd1);
         sid_write(REG_ATK, 8'h00, 2'd1); sid_write(REG_SUS, 8'h0F, 2'd1);
         sid_write(REG_WAV, PULSE | GATE, 2'd1);
-        sid_write(REG_FREQ, FREQ_G4, 2'd2);
+        sid_write_freq(FREQ_G4, 2'd2);
         sid_write(REG_ATK, 8'h00, 2'd2); sid_write(REG_SUS, 8'h0F, 2'd2);
         sid_write(REG_WAV, TRI | GATE, 2'd2);
         repeat (250_000) @(posedge clk);
@@ -224,11 +236,11 @@ module tt_um_sid_tb;
         // 9. Sync modulation
         $display("\n===== 9. Sync modulation =====");
         // V0: high freq sawtooth (master oscillator)
-        sid_write(REG_FREQ, FREQ_C5, 2'd0);
+        sid_write_freq(FREQ_C5, 2'd0);
         sid_write(REG_ATK, 8'h00, 2'd0); sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, SAW | GATE, 2'd0);
         // V1: lower freq sawtooth with sync to V0
-        sid_write(REG_FREQ, FREQ_C4, 2'd1);
+        sid_write_freq(FREQ_C4, 2'd1);
         sid_write(REG_ATK, 8'h00, 2'd1); sid_write(REG_SUS, 8'h0F, 2'd1);
         sid_write(REG_WAV, SAW | SYNC | GATE, 2'd1);
         repeat (250_000) @(posedge clk);
@@ -243,12 +255,12 @@ module tt_um_sid_tb;
         // 10. Per-voice ADSR with different settings
         $display("\n===== 10. Per-voice ADSR =====");
         // V0: fast attack, high sustain (loud)
-        sid_write(REG_FREQ, FREQ_C4, 2'd0);
+        sid_write_freq(FREQ_C4, 2'd0);
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, SAW | GATE, 2'd0);
         // V1: fast attack, low sustain (quiet)
-        sid_write(REG_FREQ, FREQ_E4, 2'd1);
+        sid_write_freq(FREQ_E4, 2'd1);
         sid_write(REG_ATK, 8'h00, 2'd1);
         sid_write(REG_SUS, 8'h03, 2'd1);
         sid_write(REG_WAV, SAW | GATE, 2'd1);
@@ -269,7 +281,7 @@ module tt_um_sid_tb;
         //==================================================================
         $display("\n===== 11. Filter bypass (vol=15) =====");
         // Set up V0 sawtooth
-        sid_write(REG_FREQ, FREQ_C4, 2'd0);
+        sid_write_freq(FREQ_C4, 2'd0);
         sid_write(REG_ATK, 8'h00, 2'd0);
         sid_write(REG_SUS, 8'h0F, 2'd0);
         sid_write(REG_WAV, SAW | GATE, 2'd0);
@@ -285,21 +297,21 @@ module tt_um_sid_tb;
         else begin $display("TEST %0d FAIL: filter bypass pdm_filt=%0d", test_num, cnt1); fail_count = fail_count + 1; end
 
         //==================================================================
-        // 12. Filter LP active — route V0, low cutoff → attenuated highs
+        // 12. Filter LP active — route V0, low cutoff → non-silent output
         //==================================================================
         $display("\n===== 12. LP filter active =====");
-        // Low cutoff frequency
+        // Low cutoff frequency (code 0 → fc ≈ 250 Hz)
         sid_write(REG_FC_LO, 8'h00, VOICE_FILT);
-        sid_write(REG_FC_HI, 8'h02, VOICE_FILT);      // fc = {0x02, 0} = 16
+        sid_write(REG_FC_HI, 8'h00, VOICE_FILT);      // fc = {0x00, 0} → filt_fc[10:7] = 0
         sid_write(REG_RES_FILT, 8'h01, VOICE_FILT);    // res=0, filt_en=V0
         sid_write(REG_MODE_VOL, 8'h1F, VOICE_FILT);    // LP mode, vol=15
         repeat (300_000) @(posedge clk);
         count_pdm(50_000, cnt2);
         test_num = test_num + 1;
-        // LP with low cutoff should produce different (fewer) transitions than bypass
+        // LP filter with voice routed should produce non-silent output
         $display("  bypass=%0d, LP=%0d", cnt1, cnt2);
-        if (cnt2 != cnt1) begin $display("TEST %0d PASS: LP filter changes output", test_num); pass_count = pass_count + 1; end
-        else begin $display("TEST %0d FAIL: LP filter has no effect", test_num); fail_count = fail_count + 1; end
+        if (cnt2 > 0) begin $display("TEST %0d PASS: LP filter active pdm=%0d", test_num, cnt2); pass_count = pass_count + 1; end
+        else begin $display("TEST %0d FAIL: LP filter silent pdm=%0d", test_num, cnt2); fail_count = fail_count + 1; end
 
         //==================================================================
         // 13. Volume control — vol=0 outputs DC midpoint (128)

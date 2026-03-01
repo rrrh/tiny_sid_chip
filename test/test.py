@@ -7,7 +7,8 @@ from cocotb.triggers import ClockCycles, RisingEdge
 
 
 # Register addresses
-REG_FREQ     = 0
+REG_FREQ_LO  = 0
+REG_FREQ_HI  = 1
 REG_PW       = 2
 REG_ATTACK   = 4
 REG_SUSTAIN  = 5
@@ -36,9 +37,10 @@ async def sid_write(dut, reg_addr, data, voice=0):
     await RisingEdge(dut.clk)
 
 
-async def sid_write_freq(dut, freq8, voice=0):
-    """Write an 8-bit frequency register."""
-    await sid_write(dut, REG_FREQ, freq8 & 0xFF, voice)
+async def sid_write_freq(dut, freq16, voice=0):
+    """Write a 16-bit frequency register (low byte then high byte)."""
+    await sid_write(dut, REG_FREQ_LO, freq16 & 0xFF, voice)
+    await sid_write(dut, REG_FREQ_HI, (freq16 >> 8) & 0xFF, voice)
 
 
 async def sid_write_pw(dut, pw8, voice=0):
@@ -47,9 +49,9 @@ async def sid_write_pw(dut, pw8, voice=0):
 
 
 def hz_to_freq(hz):
-    """Convert Hz to 8-bit frequency register value.
-    16-bit accumulator at 1 MHz effective: freq_reg = hz * 2^16 / 1e6"""
-    return max(1, min(255, round(hz * (2**16) / 1e6)))
+    """Convert Hz to 16-bit frequency register value.
+    24-bit accumulator at 1 MHz effective: freq_reg = hz * 2^24 / 1e6"""
+    return max(1, min(65535, round(hz * (2**24) / 1e6)))
 
 
 async def count_pwm(dut, cycles):
