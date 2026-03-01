@@ -358,7 +358,7 @@ def build_sar_adc():
     # =====================================================================
     # Dynamic comparator (right side of macro)
     # =====================================================================
-    comp = draw_strongarm_comparator(top, layout, x=27.2, y=23.0)
+    comp = draw_strongarm_comparator(top, layout, x=27.0, y=25.0)
 
     # =====================================================================
     # SAR logic (right side, below comparator)
