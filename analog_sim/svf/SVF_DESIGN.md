@@ -177,19 +177,19 @@ previously required dedicated OTAs.
 
 ## Layout
 
-The SC SVF macro (`svf_2nd`) occupies **70 × 85 µm** (same footprint):
+The SC SVF macro (`svf_2nd`) occupies **62 × 72 µm** (compacted):
 
 ```
   ┌──────────────────────────────────────────────────────────────────────┐
-  │                          VDD rail (Metal3)                    85 µm │
+  │                          VDD rail (Metal3)                    72 µm │
   ├──────────────────────────────────────────────────────────────────────┤
-  │  [OTA1: int1]     [OTA2: int2]                ← 2 OTAs       y≈65 │
+  │  [OTA1: int1]     [OTA2: int2]                ← 2 OTAs       y≈56 │
   ├──────────────────────────────────────────────────────────────────────┤
-  │                              [NOL Clock Gen]   ← clock gen    y≈58 │
+  │                              [NOL Clock Gen]   ← clock gen    y≈50 │
   ├──────────────────────────────────────────────────────────────────────┤
   │  ┌──────────┐  ┌──────────┐  ┌─────────────────────────────┐       │
   │  │ C_int1   │  │ C_int2   │  │  C_Q array (4-bit)         │       │
-  │  │ 27×27 µm │  │ 27×27 µm │  │  7×7 to 14×28 µm          │ y≈28 │
+  │  │ 27×27 µm │  │ 27×27 µm │  │  7×7 to 14×28 µm          │ y≈23 │
   │  │ (1.1 pF) │  │ (1.1 pF) │  │  (73.5 fF to 588 fF)      │       │
   │  └──────────┘  └──────────┘  └─────────────────────────────┘       │
   │  ┌────┐ ┌────┐                                                     │
@@ -204,23 +204,23 @@ The SC SVF macro (`svf_2nd`) occupies **70 × 85 µm** (same footprint):
   ├──────────────────────────────────────────────────────────────────────┤
   │                          VSS rail (Metal3)                     0 µm │
   └──────────────────────────────────────────────────────────────────────┘
-  0 µm                                                            70 µm
+  0 µm                                                            62 µm
 ```
 
 ### Pin Map
 
 | Pin | Layer | Edge | Y (µm) | Direction |
 |-----|-------|------|---------|-----------|
-| vin | Metal2 | Left | 42 | Input |
-| vout | Metal2 | Right | 42 | Output |
+| vin | Metal2 | Left | 36 | Input |
+| vout | Metal2 | Right | 36 | Output |
 | sel0 | Metal2 | Left | 10 | Input (mux control) |
 | sel1 | Metal2 | Left | 16 | Input (mux control) |
-| sc_clk | Metal2 | Left | 60 | Input (switching clock) |
-| q0 | Metal2 | Left | 64 | Input (C_Q bit 0) |
-| q1 | Metal2 | Left | 67 | Input (C_Q bit 1) |
-| q2 | Metal2 | Left | 70 | Input (C_Q bit 2) |
-| q3 | Metal2 | Left | 73 | Input (C_Q bit 3) |
-| vdd | Metal3 | Top | 83–85 | Power |
+| sc_clk | Metal2 | Left | 52 | Input (switching clock) |
+| q0 | Metal2 | Left | 56 | Input (C_Q bit 0) |
+| q1 | Metal2 | Left | 58 | Input (C_Q bit 1) |
+| q2 | Metal2 | Left | 60 | Input (C_Q bit 2) |
+| q3 | Metal2 | Left | 62 | Input (C_Q bit 3) |
+| vdd | Metal3 | Top | 70–72 | Power |
 | vss | Metal3 | Bottom | 0–2 | Ground |
 
 ### Component Summary

@@ -6,7 +6,7 @@ MACRO r2r_dac_8bit
   CLASS BLOCK ;
   ORIGIN 0 0 ;
   FOREIGN r2r_dac_8bit 0 0 ;
-  SIZE 45.000 BY 60.000 ;
+  SIZE 38.000 BY 48.000 ;
   SYMMETRY X Y ;
 
   PIN d0
@@ -14,7 +14,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 3.500 0.500 4.500 ;
+        RECT 0.000 3.000 0.500 4.000 ;
     END
   END d0
 
@@ -23,7 +23,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 9.500 0.500 10.500 ;
+        RECT 0.000 8.000 0.500 9.000 ;
     END
   END d1
 
@@ -32,7 +32,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 15.500 0.500 16.500 ;
+        RECT 0.000 13.000 0.500 14.000 ;
     END
   END d2
 
@@ -41,7 +41,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 21.500 0.500 22.500 ;
+        RECT 0.000 18.000 0.500 19.000 ;
     END
   END d3
 
@@ -50,7 +50,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 27.500 0.500 28.500 ;
+        RECT 0.000 23.000 0.500 24.000 ;
     END
   END d4
 
@@ -59,7 +59,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 33.500 0.500 34.500 ;
+        RECT 0.000 28.000 0.500 29.000 ;
     END
   END d5
 
@@ -68,7 +68,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 39.500 0.500 40.500 ;
+        RECT 0.000 33.000 0.500 34.000 ;
     END
   END d6
 
@@ -77,7 +77,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 45.500 0.500 46.500 ;
+        RECT 0.000 38.000 0.500 39.000 ;
     END
   END d7
 
@@ -86,7 +86,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 44.500 29.500 45.000 30.500 ;
+        RECT 37.500 23.500 38.000 24.500 ;
     END
   END vout
 
@@ -95,7 +95,7 @@ MACRO r2r_dac_8bit
     USE POWER ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 58.000 45.000 60.000 ;
+        RECT 0.000 46.000 38.000 48.000 ;
     END
   END vdd
 
@@ -104,15 +104,15 @@ MACRO r2r_dac_8bit
     USE GROUND ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 0.000 45.000 2.000 ;
+        RECT 0.000 0.000 38.000 2.000 ;
     END
   END vss
 
   OBS
     LAYER Metal1 ;
-      RECT 0.500 0.500 44.500 59.500 ;
+      RECT 0.500 0.500 37.500 47.500 ;
     LAYER Metal2 ;
-      RECT 0.500 0.500 44.500 59.500 ;
+      RECT 0.500 0.500 37.500 47.500 ;
   END
 
 END r2r_dac_8bit

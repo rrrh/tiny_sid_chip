@@ -6,7 +6,7 @@ MACRO svf_2nd
   CLASS BLOCK ;
   ORIGIN 0 0 ;
   FOREIGN svf_2nd 0 0 ;
-  SIZE 70.000 BY 85.000 ;
+  SIZE 62.000 BY 72.000 ;
   SYMMETRY X Y ;
 
   PIN vin
@@ -14,7 +14,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 40.000 0.500 44.000 ;
+        RECT 0.000 34.000 0.500 38.000 ;
     END
   END vin
 
@@ -23,7 +23,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 69.500 40.000 70.000 44.000 ;
+        RECT 61.500 34.000 62.000 38.000 ;
     END
   END vout
 
@@ -50,7 +50,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 59.000 0.500 61.000 ;
+        RECT 0.000 51.000 0.500 53.000 ;
     END
   END sc_clk
 
@@ -59,7 +59,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 63.000 0.500 65.000 ;
+        RECT 0.000 55.000 0.500 57.000 ;
     END
   END q0
 
@@ -68,7 +68,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 66.000 0.500 68.000 ;
+        RECT 0.000 57.000 0.500 59.000 ;
     END
   END q1
 
@@ -77,7 +77,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 69.000 0.500 71.000 ;
+        RECT 0.000 59.000 0.500 61.000 ;
     END
   END q2
 
@@ -86,7 +86,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 72.000 0.500 74.000 ;
+        RECT 0.000 61.000 0.500 63.000 ;
     END
   END q3
 
@@ -95,7 +95,7 @@ MACRO svf_2nd
     USE POWER ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 83.000 70.000 85.000 ;
+        RECT 0.000 70.000 62.000 72.000 ;
     END
   END vdd
 
@@ -104,15 +104,15 @@ MACRO svf_2nd
     USE GROUND ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 0.000 70.000 2.000 ;
+        RECT 0.000 0.000 62.000 2.000 ;
     END
   END vss
 
   OBS
     LAYER Metal1 ;
-      RECT 0.500 0.500 69.500 84.500 ;
+      RECT 0.500 0.500 61.500 71.500 ;
     LAYER Metal2 ;
-      RECT 0.500 0.500 69.500 84.500 ;
+      RECT 0.500 0.500 61.500 71.500 ;
   END
 
 END svf_2nd

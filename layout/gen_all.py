@@ -25,10 +25,10 @@ print(f"  → macros/gds/bias_dac_2ch.gds")
 
 print()
 print("=" * 60)
-print("Generating gm-C SVF...")
+print("Generating SC SVF...")
 print("=" * 60)
-from gen_svf import build_svf
-layout, top = build_svf()
+from gen_sc_svf import build_sc_svf
+layout, top = build_sc_svf()
 layout.write(os.path.join(outdir, "svf_2nd.gds"))
 print(f"  → macros/gds/svf_2nd.gds")
 
