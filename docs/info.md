@@ -72,7 +72,7 @@ There is a single physical clock (`clk` at 24 MHz). All registers use `posedge c
 | 6 MHz (`clk_en_6m`) | 6 MHz | Slot counter, pipeline loads, voice state updates, mix, ADSR prescaler |
 | 1 MHz (`sample_valid`) | 1 MHz | output_lpf IIR (1 pulse per mod-6 frame) |
 | Continuous | analog | R-2R DAC → SC SVF → SAR ADC (free-running conversion) |
-| Noise LFSR | pitch-dependent | Edge-detected from voice 0 accumulator bit 11 |
+| Noise LFSR | pitch-dependent | Edge-detected from voice 0 accumulator bit 19 |
 
 **Register map** — full address = `{voice_sel[1:0], reg_addr[2:0]}`, selected by `ui_in[4:3]` (voice_sel) and `ui_in[2:0]` (reg_addr):
 

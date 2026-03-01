@@ -59,7 +59,7 @@
 ![440Hz and 880Hz Waveforms](full_chain/waveform_440_880.png)
 
 ### full_sweep: PASS (16-point frequency sweep, full chain + PWM recovery)
-- 16 frequency points from 250 Hz to 16 kHz (matching SVF fc divider LUT)
+- 16 frequency points from 250 Hz to 16 kHz (matching SVF fc divider LUT, analog sim uses continuous-time model)
 - Behavioral chain: sine → SVF (Tow-Thomas CT-equiv, LP mode, Q=1) → LPF → PWM → 3rd-order RC filter
 - SVF fc tracks input frequency at each step via `alter` (R_eff = div_ratio / (24 MHz × C_sw))
 - PWM: 94.1 kHz PULSE sawtooth with tanh comparator, 3.3V output into PCB RC filter
@@ -96,13 +96,25 @@
 ### Digital Frequency Sweep (`tests/freq_sweep_tb.v`)
 - Verilog testbench sweeps Voice 0 sawtooth through 16 frequency points in bypass mode
 - Captures PWM output to PWL files, processed through RC filter simulation (`tests/sim_analog.py`)
-- 16 WAV files generated with correct pitch content (191 mV peak at 250 Hz → 111 mV at 16 kHz)
+- 16 frequency points from 250 Hz to 3900 Hz (24-bit accumulator with 16-bit freq register limits fundamental to ~3906 Hz max)
 - Run all stages: `bash tests/run_freq_sweep.sh`
 
 ## Key Design Issues Found (not simulation bugs)
 1. ~~**R-2R DAC non-monotonicity**~~: FIXED — replaced NMOS-only switches with CMOS complementary switches, corrected ladder bit ordering
 2. ~~**SVF OTA bias**~~: FIXED — switched to current-sourcing OTAs with lossy integrators (vinn=vout). 5T OTA can't reach VCM=0.6V (Vtn+|Vtp|≈VDD); transistor-level needs folded-cascode
 3. **Cap DAC settling**: needs proper sample timing or longer settle time
+
+## Behavioral Simulation Models
+
+Each analog hard macro includes a behavioral model gated by `` `ifdef BEHAVIORAL_SIM ``:
+
+- **`r2r_dac_8bit`** — combinational: captures `{d7,...,d0}` into `sim_data_out[7:0]`
+- **`svf_2nd`** — 2nd-order SVF using `real` arithmetic on `posedge sc_clk`. Alpha = C_sw/C_int = 0.0668. Damping = 1/(0.5 + q_val). LP/BP/HP/bypass output select via `{sel1,sel0}`. Internal `sim_data_in[7:0]` / `sim_data_out[7:0]` registers.
+- **`sar_adc_8bit`** — rising-edge triggered 9-cycle conversion with `eoc` pulse. Latches `sim_data_in[7:0]` on `start` rising edge.
+
+The parent module (`tt_um_sid.v`) connects the behavioral models via hierarchical references in an `` `ifdef BEHAVIORAL_SIM `` always block: `u_dac.sim_data_out` → `u_svf.sim_data_in` and `u_svf.sim_data_out` → `u_adc.sim_data_in`.
+
+Compile with `-DBEHAVIORAL_SIM` to enable (used by Verilog testbenches in `tests/`). All 15 Verilog tests pass with behavioral models enabled.
 
 ## All Sims Run Without Errors
 `make all` completes — all 5 macro-level testbenches execute and produce output data.

@@ -49,7 +49,7 @@ only a passive RC low-pass filter to produce analog audio.
 - Per-voice ADSR parameters (attack, decay, sustain, release)
 - 4-state envelope FSM (IDLE, ATTACK, DECAY, SUSTAIN)
 - 9 envelope rate settings from ~146 µs to ~299 ms full traverse
-- 16-bit frequency register, 16-bit phase accumulator (~15.3 Hz resolution, full audio range)
+- 16-bit frequency register, 24-bit phase accumulator (~0.06 Hz resolution, matching original C64 SID)
 - 15-bit LFSR noise generator, accumulator-clocked from voice 0
 - 3-voice mixer with 10-bit accumulator and ÷4 scaling
 - 9-bit Q8.1 State Variable Filter (SVF) with LP/BP/HP priority mux (HP > BP > LP), shift-add multiply
@@ -85,7 +85,7 @@ only a passive RC low-pass filter to produce analog audio.
  ui_in[4:3] ──┤  │  ┌─────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐  │
  ui_in[7]   ──┤  │  │ Phase   │  │ Waveform  │  │  ADSR    │  │ Envelope │  │
               ├──┤  │ Acc     │──│ Gen       │──│ Envelope │──│ Scaling  │──┤
- uio_in ──────┤  │  │ (16-bit)│  │(saw/tri/  │  │(8-bit    │  │ (8×8→8)  │  │  ┌───────┐
+ uio_in ──────┤  │  │ (24-bit)│  │(saw/tri/  │  │(8-bit    │  │ (8×8→8)  │  │  ┌───────┐
               │  │  │  8-bit  │  │ pulse/    │  │ per      │  │          │  ├──│ Mixer │
  Register     │  │  │  freq   │  │ noise)    │  │ voice)   │  │          │  │  │ (÷4)  │
  Banks        │  │  └─────────┘  └──────────┘  └──────────┘  └──────────┘  │  └───┬───┘
@@ -119,14 +119,15 @@ only a passive RC low-pass filter to produce analog audio.
    are idle/preload slots. Each voice is updated once per 6-slot frame (1 MHz
    effective per voice).
 
-3. Each voice's 16-bit phase accumulator advances by the 16-bit frequency
-   register value every frame. This provides ~15.3 Hz frequency resolution
-   across the full audio range. Hard sync resets the accumulator when the
-   sync source voice's MSB has a rising edge.
+3. Each voice's 24-bit phase accumulator advances by the 16-bit frequency
+   register value (zero-extended to 24 bits) every frame. This provides
+   ~0.06 Hz frequency resolution, matching the original C64 SID accumulator
+   geometry. Hard sync resets the accumulator when the sync source voice's
+   MSB has a rising edge.
 
 4. The waveform generator derives sawtooth, triangle, pulse, and noise
    outputs from the accumulator state and a shared 15-bit LFSR (clocked from
-   voice 0's accumulator bit 11). Selected waveforms are AND-combined into
+   voice 0's accumulator bit 19). Selected waveforms are AND-combined into
    an 8-bit value. Ring modulation XORs the sync source's accumulator MSB
    into the triangle waveform's fold bit.
 
@@ -197,33 +198,34 @@ Bit:   7    6    5    4    3    2    1    0
      [              freq_hi[7:0]              ]
 ```
 
-The 16-bit frequency register `{freq_hi, freq_lo}` is the phase accumulator
-increment. The 16-bit accumulator advances at an effective rate of 1 MHz
-(24 MHz ÷4 ÷6 slots). The oscillator frequency is:
+The 16-bit frequency register `{freq_hi, freq_lo}` is zero-extended and added
+to the 24-bit phase accumulator each voice cycle (1 MHz effective rate,
+24 MHz ÷4 ÷6 slots). The oscillator frequency is:
 
 ```
-f_out = freq_reg × 1,000,000 / 65,536  ≈  freq_reg × 15.259 Hz
+f_out = freq_reg × 1,000,000 / 16,777,216  ≈  freq_reg × 0.0596 Hz
 ```
 
 **Frequency calculation:**
 
 ```
-freq_reg = round(desired_Hz × 65,536 / 1,000,000)
-         ≈ desired_Hz × 0.065536
+freq_reg = round(desired_Hz × 16,777,216 / 1,000,000)
+         ≈ desired_Hz × 16.777
 ```
 
-Resolution: ~15.3 Hz. Range: 15.3 Hz (reg=1) to ~1 MHz (reg=65535).
-Useful audio range: 15 Hz to ~20 kHz.
+Resolution: ~0.06 Hz. Range: 0.06 Hz (reg=1) to ~3906 Hz (reg=65535).
+This matches the original C64 SID accumulator geometry (24-bit acc, 16-bit
+freq reg). Higher audio frequencies are produced as harmonics of the waveform
+generators.
 
 | freq_reg | freq_hi | freq_lo | Output Frequency | Note |
 |----------|---------|---------|-----------------|------|
 | 0 | 0x00 | 0x00 | 0 Hz | Silence |
-| 1 | 0x00 | 0x01 | ~15.3 Hz | Lowest pitch |
-| 17 | 0x00 | 0x11 | ~260 Hz | ~C4 |
-| 29 | 0x00 | 0x1D | ~443 Hz | ~A4 |
-| 137 | 0x00 | 0x89 | ~2,090 Hz | ~C7 |
-| 274 | 0x01 | 0x12 | ~4,181 Hz | ~C8 |
-| 1311 | 0x05 | 0x1F | ~20,004 Hz | ~Limit of hearing |
+| 1 | 0x00 | 0x01 | ~0.06 Hz | Lowest pitch |
+| 4396 | 0x11 | 0x2C | ~262 Hz | ~C4 |
+| 7382 | 0x1C | 0xD6 | ~440 Hz | ~A4 |
+| 35112 | 0x89 | 0x28 | ~2,093 Hz | ~C7 |
+| 65535 | 0xFF | 0xFF | ~3,906 Hz | Maximum fundamental |
 
 ### Register 2: Pulse Width Low Byte
 
@@ -240,7 +242,7 @@ Bit:   7    6    5    4    3    2    1    0
 ```
 
 The 12-bit pulse width `{pw_hi, pw_lo}` sets the pulse waveform duty cycle
-by comparison with the accumulator upper 12 bits (`acc[15:4] >= pw`):
+by comparison with the accumulator upper 12 bits (`acc[23:12] >= pw`):
 
 - `pw = 0x000`: Pulse always high (near DC)
 - `pw = 0x800`: ~50% duty cycle (square wave)
@@ -535,9 +537,9 @@ GPIO (D5-12)--------> uio_in[7:0]  data bus
 ### Playing a Note (Voice 0, Sawtooth ~440 Hz)
 
 ```c
-// freq_reg = round(440 * 65536 / 1000000) = 29
-sid_write(0, 29, 0);    // freq_lo = 0x1D
-sid_write(1, 0, 0);     // freq_hi = 0x00
+// freq_reg = round(440 * 16777216 / 1000000) = 7382 (0x1CD6)
+sid_write(0, 0xD6, 0);  // freq_lo
+sid_write(1, 0x1C, 0);  // freq_hi
 sid_write(4, 0x00, 0);  // attack=0 (fastest), decay=0
 sid_write(5, 0x0F, 0);  // sustain=15 (max), release=0
 sid_write(6, 0x21, 0);  // sawtooth + gate ON
@@ -550,18 +552,18 @@ sid_write(6, 0x20, 0);  // gate OFF (release begins)
 ### Three-Voice Chord (C Major)
 
 ```c
-// C4 ≈ 262 Hz → freq_reg = round(262 * 65536 / 1000000) = 17
-sid_write(0, 17, 0); sid_write(1, 0, 0);
+// C4 ≈ 262 Hz → freq_reg = round(262 * 16777216 / 1000000) = 4396 (0x112C)
+sid_write(0, 0x2C, 0); sid_write(1, 0x11, 0);
 sid_write(4, 0x00, 0); sid_write(5, 0x0F, 0);
 sid_write(6, 0x21, 0);  // Voice 0: sawtooth C4
 
-// E4 ≈ 330 Hz → freq_reg = round(330 * 65536 / 1000000) = 22
-sid_write(0, 22, 1); sid_write(1, 0, 1);
+// E4 ≈ 330 Hz → freq_reg = round(330 * 16777216 / 1000000) = 5536 (0x15A0)
+sid_write(0, 0xA0, 1); sid_write(1, 0x15, 1);
 sid_write(4, 0x00, 1); sid_write(5, 0x0F, 1);
 sid_write(6, 0x11, 1);  // Voice 1: triangle E4
 
-// G4 ≈ 392 Hz → freq_reg = round(392 * 65536 / 1000000) = 26
-sid_write(0, 26, 2); sid_write(1, 0, 2);
+// G4 ≈ 392 Hz → freq_reg = round(392 * 16777216 / 1000000) = 6577 (0x19B1)
+sid_write(0, 0xB1, 2); sid_write(1, 0x19, 2);
 sid_write(2, 0x00, 2); sid_write(3, 0x08, 2);  // pw = 0x800 (50%)
 sid_write(4, 0x00, 2); sid_write(5, 0x0F, 2);
 sid_write(6, 0x41, 2);  // Voice 2: pulse G4
@@ -604,11 +606,13 @@ sid_write(6, 0x11, v);    // triangle + gate
 
 ```c
 // Voice 0: modulator at higher frequency
-sid_write(0, 61, 0);     // ~931 Hz modulator
+// 931 Hz → freq_reg = round(931 * 16777216 / 1000000) = 15619 (0x3D03)
+sid_write(0, 0x03, 0); sid_write(1, 0x3D, 0);  // ~931 Hz modulator
 sid_write(6, 0x11, 0);   // triangle + gate (modulator)
 
 // Voice 1: carrier with ring mod enabled
-sid_write(0, 17, 1);     // ~260 Hz carrier (C4)
+// C4 ≈ 262 Hz → freq_reg = 4396 (0x112C)
+sid_write(0, 0x2C, 1); sid_write(1, 0x11, 1);  // ~262 Hz carrier (C4)
 sid_write(4, 0x50, 1);   // instant attack, rate-5 decay
 sid_write(5, 0x54, 1);   // sustain=4, rate-5 release
 sid_write(6, 0x15, 1);   // triangle + ring + gate
@@ -617,25 +621,24 @@ sid_write(6, 0x15, 1);   // triangle + ring + gate
 ### Frequency Table (Equal Temperament, A4=440 Hz)
 
 ```
-freq_reg = round(Hz × 65,536 / 1,000,000)
+freq_reg = round(Hz × 16,777,216 / 1,000,000)
 ```
 
 | Note | Hz | freq_reg | freq_hi | freq_lo |
 |------|----|----------|---------|---------|
-| C3 | 130.8 | 9 | 0x00 | 0x09 |
-| D3 | 146.8 | 10 | 0x00 | 0x0A |
-| E3 | 164.8 | 11 | 0x00 | 0x0B |
-| G3 | 196.0 | 13 | 0x00 | 0x0D |
-| A3 | 220.0 | 14 | 0x00 | 0x0E |
-| C4 | 261.6 | 17 | 0x00 | 0x11 |
-| E4 | 329.6 | 22 | 0x00 | 0x16 |
-| G4 | 392.0 | 26 | 0x00 | 0x1A |
-| A4 | 440.0 | 29 | 0x00 | 0x1D |
-| C5 | 523.3 | 34 | 0x00 | 0x22 |
-| A5 | 880.0 | 58 | 0x00 | 0x3A |
-| C6 | 1046.5 | 69 | 0x00 | 0x45 |
-| C7 | 2093.0 | 137 | 0x00 | 0x89 |
-| C8 | 4186.0 | 274 | 0x01 | 0x12 |
+| C3 | 130.8 | 2194 | 0x08 | 0x92 |
+| D3 | 146.8 | 2463 | 0x09 | 0x9F |
+| E3 | 164.8 | 2765 | 0x0A | 0xCD |
+| G3 | 196.0 | 3289 | 0x0C | 0xD9 |
+| A3 | 220.0 | 3691 | 0x0E | 0x6B |
+| C4 | 261.6 | 4389 | 0x11 | 0x25 |
+| E4 | 329.6 | 5530 | 0x15 | 0x9A |
+| G4 | 392.0 | 6577 | 0x19 | 0xB1 |
+| A4 | 440.0 | 7382 | 0x1C | 0xD6 |
+| C5 | 523.3 | 8779 | 0x22 | 0x4B |
+| A5 | 880.0 | 14764 | 0x39 | 0xAC |
+| C6 | 1046.5 | 17558 | 0x44 | 0x96 |
+| C7 | 2093.0 | 35112 | 0x89 | 0x28 |
 
 ### Reset and Initialization
 
@@ -663,7 +666,7 @@ To silence the output at any time:
 | Pipeline | Mod-6 slot counter (1 MHz effective per voice) |
 | Core utilization | ~77% (with CTS clock tree) |
 | Voice count | 3 (time-multiplexed) |
-| Frequency resolution | ~15.3 Hz (16-bit freq, 16-bit acc, 1 MHz effective) |
+| Frequency resolution | ~0.06 Hz (16-bit freq, 24-bit acc, 1 MHz effective) |
 | Envelope depth | 8-bit (256 levels, exponential decay) |
 | ADSR prescaler | 14-bit (shared, ~7 MHz effective: 7 increments per mod-6 frame) |
 | Noise generator | 15-bit LFSR, accumulator-clocked from voice 0 |
