@@ -21,7 +21,7 @@ Components:
      - 8-bit shift register + control FSM
      - ~50 transistors (digital standard cells equivalent)
 
-Macro size target: 42 × 45 µm
+Macro size target: 42 × 42 µm
 """
 
 import sys, os
@@ -37,7 +37,7 @@ C_UNIT    = 2.0        # fF per unit cap (kT/C noise ≈ 2.8 mV, ~7 bits)
 C_UNIT_AREA = C_UNIT / MIM_CAP_DENSITY  # ~1.33 µm² per unit
 
 MACRO_W   = 42.0
-MACRO_H   = 45.0
+MACRO_H   = 42.0
 
 # Cap sizes (MIM): each cap is rectangular
 # For matching, use common-centroid or at least regular array
@@ -353,12 +353,12 @@ def build_sar_adc():
     # =====================================================================
     # Sample switch (NMOS, left edge near vin pin)
     # =====================================================================
-    sw_sample = draw_nmos_transistor(top, layout, x=2.0, y=22.0, w=3.0, l=0.13)
+    sw_sample = draw_nmos_transistor(top, layout, x=2.0, y=20.0, w=3.0, l=0.13)
 
     # =====================================================================
     # Dynamic comparator (right side of macro)
     # =====================================================================
-    comp = draw_strongarm_comparator(top, layout, x=27.0, y=25.0)
+    comp = draw_strongarm_comparator(top, layout, x=27.0, y=23.0)
 
     # =====================================================================
     # SAR logic (right side, below comparator)
@@ -368,20 +368,20 @@ def build_sar_adc():
     # =====================================================================
     # Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS)
     # =====================================================================
-    # Near sample switch (x=2, y=22)
-    draw_ptap(top, layout, 2.0, 19.0)
-    draw_ptap(top, layout, 6.0, 19.0)
-    # Along comparator NMOS region (x=27-37, y=21-37)
+    # Near sample switch (x=2, y=20)
+    draw_ptap(top, layout, 2.0, 17.0)
+    draw_ptap(top, layout, 6.0, 17.0)
+    # Along comparator NMOS region (x=27-37, y=19-35)
     for xt in [26.0, 30.0, 34.0, 38.0]:
-        draw_ptap(top, layout, xt, 23.0)
-        draw_ptap(top, layout, xt, 33.0)
+        draw_ptap(top, layout, xt, 21.0)
+        draw_ptap(top, layout, xt, 31.0)
     # SAR logic perimeter taps (block at x=27-42, y=4-22)
     # Place outside the dense transistor grid to avoid Activ spacing issues
     for xt in [24.5, 31.0, 36.5, 41.5]:
         draw_ptap(top, layout, xt, 2.5)   # below SAR logic
-        draw_ptap(top, layout, xt, 22.5)  # above SAR logic
+        draw_ptap(top, layout, xt, 20.5)  # above SAR logic
     # Left/right perimeter of SAR logic
-    for yt in [8.0, 14.0, 20.0]:
+    for yt in [8.0, 14.0, 18.0]:
         draw_ptap(top, layout, 24.5, yt)
         draw_ptap(top, layout, 41.5, yt)
     # Near cap region
@@ -420,14 +420,14 @@ def build_sar_adc():
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                   rect(0.0, 13.0 - 0.5, 0.5, 13.0 + 0.5), "start", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, 22.0 - 0.5, 0.5, 22.0 + 0.5), "vin", layout)
+                  rect(0.0, 20.0 - 0.5, 0.5, 20.0 + 0.5), "vin", layout)
 
     # Right edge pins
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                   rect(MACRO_W - 0.5, 5.0 - 0.5, MACRO_W, 5.0 + 0.5), "eoc", layout)
 
     for bit in range(NBITS):
-        pin_y = 9.0 + bit * 4.5
+        pin_y = 8.0 + bit * 3.5
         add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                       rect(MACRO_W - 0.5, pin_y - 0.5, MACRO_W, pin_y + 0.5),
                       f"dout[{bit}]", layout)
