@@ -307,13 +307,25 @@ def build_r2r_dac():
         # Via1 at gate contact (M1 pads merge)
         draw_via1(top, layout, gate_x, gc_y)
 
-        # Metal2 route: left edge pin → gate via
+        # Metal2/3 route: left edge pin → gate via (M3 horizontal, M2 vertical)
         pin_y = 3.0 + bit * 4.0
-        top.shapes(li_m2).insert(rect(0.0, pin_y - M2_WIDTH,
-                                        gate_x + 0.2, pin_y + M2_WIDTH))
-        # Vertical jog on M2
-        top.shapes(li_m2).insert(rect(gate_x - M2_WIDTH, min(pin_y, gc_y) - 0.1,
-                                        gate_x + M2_WIDTH, max(pin_y, gc_y) + 0.1))
+        hw = M2_WIDTH / 2  # half-width for centering
+
+        # 1) M2 pin extension from x=0 to x=1.5 at pin_y
+        top.shapes(li_m2).insert(rect(0.0, pin_y - hw, 1.5, pin_y + hw))
+
+        # 2) Via2 at (1.5, pin_y) — M2 up to M3
+        draw_via2(top, layout, 1.5, pin_y)
+
+        # 3) M3 horizontal from x=1.5 to gate_x at pin_y
+        top.shapes(li_m3).insert(rect(1.5, pin_y - hw, gate_x, pin_y + hw))
+
+        # 4) Via2 at (gate_x, pin_y) — M3 back to M2
+        draw_via2(top, layout, gate_x, pin_y)
+
+        # 5) M2 vertical jog from pin_y to gc_y at gate_x
+        top.shapes(li_m2).insert(rect(gate_x - hw, min(pin_y, gc_y) - 0.1,
+                                        gate_x + hw, max(pin_y, gc_y) + 0.1))
 
         x_cursor += r_total + gap
 
@@ -322,17 +334,35 @@ def build_r2r_dac():
     for xt in [3.0, 9.0, 15.0, 21.0, 27.0, 33.0]:
         draw_ptap(top, layout, xt, 21.0)
 
-    # --- Vout pin (right edge, Metal2) ---
+    # --- Vout pin (right edge, Metal2 → Metal3 route to avoid d[0] short) ---
     vout_via_x = vout_contact[0]
     vout_via_y = vout_contact[1]
-    draw_via1(top, layout, vout_via_x, vout_via_y)
     vout_pin_y = 21.0
-    top.shapes(li_m2).insert(rect(vout_via_x - 0.1, vout_pin_y - 0.5,
+    hw = M2_WIDTH / 2
+
+    # Via1 at vout_contact (M1→M2, existing)
+    draw_via1(top, layout, vout_via_x, vout_via_y)
+
+    # Via2 at vout_contact (M2→M3)
+    draw_via2(top, layout, vout_via_x, vout_via_y)
+
+    # M3 vertical from vout_via_y down to vout_pin_y at vout_via_x
+    # Extend below vout_pin_y by hw to fully overlap with horizontal at junction
+    top.shapes(li_m3).insert(rect(vout_via_x - hw, vout_pin_y - hw,
+                                    vout_via_x + hw, vout_via_y))
+
+    # M3 horizontal from vout_via_x to near-right-edge at vout_pin_y
+    # Start at vout_via_x - hw to fully overlap with vertical at junction
+    vout_via2_x = MACRO_W - 0.3
+    top.shapes(li_m3).insert(rect(vout_via_x - hw, vout_pin_y - hw,
+                                    vout_via2_x, vout_pin_y + hw))
+
+    # Via2 near right edge to drop back to M2
+    draw_via2(top, layout, vout_via2_x, vout_pin_y)
+
+    # M2 short run from via2 to MACRO_W at vout_pin_y (pin stays M2)
+    top.shapes(li_m2).insert(rect(vout_via2_x - hw, vout_pin_y - 0.5,
                                     MACRO_W, vout_pin_y + 0.5))
-    top.shapes(li_m2).insert(rect(vout_via_x - M2_WIDTH,
-                                    min(vout_via_y, vout_pin_y),
-                                    vout_via_x + M2_WIDTH,
-                                    max(vout_via_y, vout_pin_y)))
 
     # --- VDD rail (top, Metal3) ---
     top.shapes(li_m3).insert(rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H))
