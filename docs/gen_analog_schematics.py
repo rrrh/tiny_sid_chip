@@ -10,61 +10,67 @@ OUT_DIR = os.path.dirname(__file__)
 
 
 def draw_r2r_dac():
-    """8-bit complementary-switch R-2R DAC."""
+    """8-bit R-2R DAC with NMOS switches to VSS."""
     with schemdraw.Drawing(show=False) as d:
         d.config(fontsize=11, unit=3)
 
-        # Title
-        d += elm.Annotate().at((0, 12.5)).label(
-            '8-bit R-2R DAC (Complementary Switch)', fontsize=14).color('black')
-        d += elm.Annotate().at((0, 11.8)).label(
-            'IHP SG13G2 130nm — R=2kΩ, 2R=4kΩ, VDD=1.2V', fontsize=9).color('gray')
+        # Horizontal series chain with shunt 2R legs dropping down to NMOS switches
+        chain_y = 10.0
+        x_start = 3.0
+        x_step = 3.0
+        bits = ['d[7]\n(MSB)', 'd[6]', 'd[5]', 'd[4]',
+                'd[3]', 'd[2]', 'd[1]', 'd[0]\n(LSB)']
 
-        # Draw the ladder from MSB (top) to LSB (bottom)
-        bits = ['b7\n(MSB)', 'b6', 'b5', 'b4', 'b3', 'b2', 'b1', 'b0\n(LSB)']
-        y_start = 10.0
-        y_step = -1.3
+        # Title above everything — use plain Label elements (no arrows)
+        mid_x = x_start + len(bits) * x_step / 2
+        d += (elm.Label().at((mid_x, chain_y + 2.5))
+              .label('8-bit R-2R DAC', fontsize=14))
+        d += (elm.Label().at((mid_x, chain_y + 1.8))
+              .label('IHP SG13G2 130nm  |  R = 2 kΩ (rhigh)  |  2R = 4 kΩ  |  VDD = 1.2 V',
+                      fontsize=8).color('gray'))
 
-        # Output node
-        d += elm.Dot().at((6, y_start)).label('Vout', loc='right')
-        vout_y = y_start
+        # Vref label at left
+        d += elm.Dot().at((x_start, chain_y))
+        d += (elm.Label().at((x_start - 0.2, chain_y + 0.6))
+              .label('Vref (VDD)', fontsize=10).color('red'))
 
         for i, blabel in enumerate(bits):
-            y = y_start + (i + 1) * y_step
+            jx = x_start + (i + 1) * x_step
 
-            # Tap node
-            d += elm.Dot().at((6, y))
+            # Series R from previous junction to this one
+            prev_x = x_start + i * x_step
+            d += elm.Resistor().at((prev_x, chain_y)).right().to(
+                (jx, chain_y)).label('R', loc='top')
 
-            # Series R (between taps) — except after MSB which connects to vout
-            if i == 0:
-                d += elm.Resistor().at((6, vout_y)).down().to((6, y)).label('R', loc='left')
-            else:
-                y_prev = y_start + i * y_step
-                d += elm.Resistor().at((6, y_prev)).down().to((6, y)).label('R', loc='left')
+            # Junction dot
+            d += elm.Dot().at((jx, chain_y))
 
-            # 2R shunt leg
-            d += elm.Line().at((6, y)).left().length(1.5)
-            d += elm.Resistor().left().length(2).label('2R', loc='top')
-            sw_x = 6 - 1.5 - 2
+            # 2R shunt resistor going down
+            shunt_bot_y = chain_y - 3.5
+            d += elm.Resistor().at((jx, chain_y)).down().to(
+                (jx, shunt_bot_y)).label('2R', loc='left')
 
-            # CMOS switch (simplified as a box)
-            d += elm.Switch().left().length(1.5).label(blabel, loc='top')
+            # NMOS switch
+            sw_bot_y = shunt_bot_y - 2.0
+            d += elm.Switch().at((jx, shunt_bot_y)).down().to(
+                (jx, sw_bot_y)).label(blabel, loc='right')
 
-            # VDD/VSS labels at switch
-            bit_x = sw_x - 1.5
-            d += elm.Annotate().at((bit_x - 0.3, y + 0.3)).label('VDD/VSS', fontsize=7).color('gray')
+            # VSS connection
+            d += elm.Ground().at((jx, sw_bot_y))
 
-        # Termination 2R at bottom
-        last_y = y_start + len(bits) * y_step
-        term_y = last_y + y_step
-        d += elm.Resistor().at((6, last_y)).down().to((6, term_y)).label('2R', loc='left')
-        d += elm.Ground().at((6, term_y))
+        # Vout at right end
+        vout_x = x_start + len(bits) * x_step + 1.5
+        last_jx = x_start + len(bits) * x_step
+        d += elm.Line().at((last_jx, chain_y)).right().to((vout_x, chain_y))
+        d += elm.Dot().at((vout_x, chain_y)).label('Vout', loc='right')
 
-        # MSB 2R shunt
-        d += elm.Dot().at((6, y_start))
-        d += elm.Line().at((6, y_start)).left().length(1.5)
-        d += elm.Resistor().left().length(2).label('2R', loc='top')
-        d += elm.Switch().left().length(1.5).label('b7\n(MSB)', loc='top')
+        # Annotations below — plain labels, no arrows
+        d += (elm.Label().at((mid_x, sw_bot_y - 1.2))
+              .label('NMOS switches: d[n]=1 → gate HIGH → ON → shunt leg to VSS',
+                      fontsize=7).color('blue'))
+        d += (elm.Label().at((mid_x, sw_bot_y - 1.8))
+              .label('Gate contact: GatPoly ext → Cont → M1 → Via1 → M2 digital input',
+                      fontsize=7).color('blue'))
 
         d.save(os.path.join(OUT_DIR, 'sch_r2r_dac.svg'))
     print("  Wrote sch_r2r_dac.svg")
