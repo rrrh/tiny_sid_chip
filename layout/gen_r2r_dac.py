@@ -225,6 +225,8 @@ def build_r2r_dac():
     layout = new_layout()
     top = layout.create_cell("r2r_dac_8bit")
 
+    li_gp  = layout.layer(*L_GATPOLY)
+    li_cnt = layout.layer(*L_CONT)
     li_m1  = layout.layer(*L_METAL1)
     li_m2  = layout.layer(*L_METAL2)
     li_m3  = layout.layer(*L_METAL3)
@@ -285,18 +287,33 @@ def build_r2r_dac():
         top.shapes(li_m1).insert(rect(r2_bc[0] - wire_w / 2, sw['drain'][1],
                                         r2_bc[0] + wire_w / 2, r2_bc[1]))
 
-        # Via1 on gate → Metal2 for d[bit] input
-        gv_x = sw['gate'][0]
-        gv_y = sw['gate'][1] - 0.5
-        draw_via1(top, layout, gv_x, gv_y)
+        # Gate contact + Via1 → Metal2 for d[bit] input
+        gate_x, gate_y = sw['gate']
+        gc_y = gate_y - 0.5  # contact below VSS bus — clears drain/source M1
+
+        # Extend GatPoly from existing gate bottom down to contact pad
+        gc_half_gp = CONT_SIZE / 2 + CONT_ENC_GATPOLY  # 0.16
+        top.shapes(li_gp).insert(rect(gate_x - gc_half_gp, gc_y - gc_half_gp,
+                                        gate_x + gc_half_gp, gate_y))
+
+        # Gate contact (Cont + M1 pad) on extended GatPoly
+        gc_hs = CONT_SIZE / 2  # 0.08
+        top.shapes(li_cnt).insert(rect(gate_x - gc_hs, gc_y - gc_hs,
+                                        gate_x + gc_hs, gc_y + gc_hs))
+        gc_half_m1 = CONT_SIZE / 2 + CONT_ENC_M1  # 0.12
+        top.shapes(li_m1).insert(rect(gate_x - gc_half_m1, gc_y - gc_half_m1,
+                                        gate_x + gc_half_m1, gc_y + gc_half_m1))
+
+        # Via1 at gate contact (M1 pads merge)
+        draw_via1(top, layout, gate_x, gc_y)
 
         # Metal2 route: left edge pin → gate via
         pin_y = 3.0 + bit * 4.0
         top.shapes(li_m2).insert(rect(0.0, pin_y - M2_WIDTH,
-                                        gv_x + 0.2, pin_y + M2_WIDTH))
+                                        gate_x + 0.2, pin_y + M2_WIDTH))
         # Vertical jog on M2
-        top.shapes(li_m2).insert(rect(gv_x - M2_WIDTH, min(pin_y, gv_y) - 0.1,
-                                        gv_x + M2_WIDTH, max(pin_y, gv_y) + 0.1))
+        top.shapes(li_m2).insert(rect(gate_x - M2_WIDTH, min(pin_y, gc_y) - 0.1,
+                                        gate_x + M2_WIDTH, max(pin_y, gc_y) + 0.1))
 
         x_cursor += r_total + gap
 
