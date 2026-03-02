@@ -72,10 +72,20 @@ VIA2_ENC_M3     = 0.005
 # Via3
 VIA3_SIZE       = 0.19
 VIA3_SPACE      = 0.22
+VIA3_ENC_M3     = 0.005
+VIA3_ENC_M4     = 0.005
 
 # Via4
 VIA4_SIZE       = 0.19
 VIA4_SPACE      = 0.22
+VIA4_ENC_M4     = 0.005
+VIA4_ENC_M5     = 0.005
+
+# TopVia1
+TOPVIA1_SIZE    = 0.42
+TOPVIA1_SPACE   = 0.42
+TOPVIA1_ENC_M5  = 0.10
+TOPVIA1_ENC_TM1 = 0.42
 
 # GatPoly
 GATPOLY_WIDTH   = 0.13  # min gate length (1.2V)

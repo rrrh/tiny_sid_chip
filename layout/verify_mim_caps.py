@@ -14,7 +14,7 @@ import sys, os, math
 sys.path.insert(0, os.path.dirname(__file__))
 import klayout.db as pya
 from sg13g2_layers import (
-    L_CMIM, L_METAL5, L_TOPMETAL1,
+    L_CMIM, L_METAL5, L_TOPMETAL1, L_VIA3, L_VIA4, L_TOPVIA1, L_METAL4,
     MIM_CAP_DENSITY, MIM_MIN_SIZE, MIM_SPACE, MIM_ENC_M5,
 )
 
@@ -160,6 +160,53 @@ def check_drc_mim(layout, cmim_region, m5_region, results):
                   f"{count} violations" if count > 0 else "")
 
 
+def check_metal_connectivity(layout, top, cmim_region, m5_region, tm1_region, results):
+    """Verify metal layer connectivity for MIM cap plates."""
+    dbu = layout.dbu
+
+    # 1. TopMetal1 must cover all Cmim regions (top plate present)
+    cmim_not_in_tm1 = cmim_region - tm1_region
+    count = cmim_not_in_tm1.size()
+    results.check("TM1 covers all Cmim (top plate present)", count == 0,
+                  f"{count} Cmim regions without TM1" if count > 0 else "")
+
+    # 2. Via4 shapes exist and overlap M5 cap regions
+    li_v4 = layout.layer(*L_VIA4)
+    v4_region = pya.Region(top.begin_shapes_rec(li_v4))
+    v4_on_m5 = v4_region & m5_region
+    has_via4 = not v4_region.is_empty()
+    results.check("Via4 shapes present", has_via4,
+                  f"{v4_region.size()} Via4 shapes" if has_via4 else "no Via4 shapes")
+    if has_via4:
+        results.check("Via4 overlaps M5 cap regions", not v4_on_m5.is_empty(),
+                      f"{v4_on_m5.size()} overlapping shapes")
+
+    # 3. Via3 shapes exist
+    li_v3 = layout.layer(*L_VIA3)
+    v3_region = pya.Region(top.begin_shapes_rec(li_v3))
+    has_via3 = not v3_region.is_empty()
+    results.check("Via3 shapes present", has_via3,
+                  f"{v3_region.size()} Via3 shapes" if has_via3 else "no Via3 shapes")
+
+    # 4. TopVia1 shapes exist and overlap M5/TM1
+    li_tv1 = layout.layer(*L_TOPVIA1)
+    tv1_region = pya.Region(top.begin_shapes_rec(li_tv1))
+    has_topvia1 = not tv1_region.is_empty()
+    results.check("TopVia1 shapes present", has_topvia1,
+                  f"{tv1_region.size()} TopVia1 shapes" if has_topvia1 else "no TopVia1 shapes")
+    if has_topvia1:
+        tv1_on_m5 = tv1_region & m5_region
+        results.check("TopVia1 overlaps M5", not tv1_on_m5.is_empty(),
+                      f"{tv1_on_m5.size()} overlapping shapes")
+
+    # 5. Metal4 shapes exist (intermediate layer in via stack)
+    li_m4 = layout.layer(*L_METAL4)
+    m4_region = pya.Region(top.begin_shapes_rec(li_m4))
+    has_m4 = not m4_region.is_empty()
+    results.check("Metal4 shapes present (via stack)", has_m4,
+                  f"{m4_region.size()} M4 shapes" if has_m4 else "no Metal4 shapes")
+
+
 def close_enough(actual, expected, tol):
     """Check if actual is within tol fraction of expected."""
     if expected == 0:
@@ -277,6 +324,9 @@ def verify_svf(gds_path):
     # --- DRC checks ---
     check_drc_mim(layout, cmim_reg, m5_reg, results)
 
+    # --- Metal connectivity checks ---
+    check_metal_connectivity(layout, top, cmim_reg, m5_reg, tm1_reg, results)
+
     return results.print_report("SC SVF — svf_2nd.gds")
 
 
@@ -353,6 +403,9 @@ def verify_adc(gds_path):
 
     # --- DRC checks ---
     check_drc_mim(layout, cmim_reg, m5_reg, results)
+
+    # --- Metal connectivity checks ---
+    check_metal_connectivity(layout, top, cmim_reg, m5_reg, tm1_reg, results)
 
     return results.print_report("SAR ADC — sar_adc_8bit.gds")
 

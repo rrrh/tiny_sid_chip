@@ -183,14 +183,71 @@ def draw_via2(cell, layout, x, y):
     cell.shapes(li_m3).insert(rect(x - e3, y - e3, x + e3, y + e3))
 
 
+def draw_via3(cell, layout, x, y):
+    """Via3 with M3+M4 pads."""
+    li_v3 = layout.layer(*L_VIA3)
+    li_m3 = layout.layer(*L_METAL3)
+    li_m4 = layout.layer(*L_METAL4)
+    hs = VIA3_SIZE / 2
+    cell.shapes(li_v3).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e3 = VIA3_ENC_M3 + hs
+    cell.shapes(li_m3).insert(rect(x - e3, y - e3, x + e3, y + e3))
+    e4 = VIA3_ENC_M4 + hs
+    cell.shapes(li_m4).insert(rect(x - e4, y - e4, x + e4, y + e4))
+
+
+def draw_via4(cell, layout, x, y):
+    """Via4 with M4+M5 pads."""
+    li_v4 = layout.layer(*L_VIA4)
+    li_m4 = layout.layer(*L_METAL4)
+    li_m5 = layout.layer(*L_METAL5)
+    hs = VIA4_SIZE / 2
+    cell.shapes(li_v4).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e4 = VIA4_ENC_M4 + hs
+    cell.shapes(li_m4).insert(rect(x - e4, y - e4, x + e4, y + e4))
+    e5 = VIA4_ENC_M5 + hs
+    cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
+
+
+def draw_topvia1(cell, layout, x, y):
+    """TopVia1 with M5+TM1 pads."""
+    li_tv1 = layout.layer(*L_TOPVIA1)
+    li_m5  = layout.layer(*L_METAL5)
+    li_tm1 = layout.layer(*L_TOPMETAL1)
+    hs = TOPVIA1_SIZE / 2
+    cell.shapes(li_tv1).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e5 = TOPVIA1_ENC_M5 + hs
+    cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
+    et = TOPVIA1_ENC_TM1 + hs
+    cell.shapes(li_tm1).insert(rect(x - et, y - et, x + et, y + et))
+
+
+def draw_via_stack_m2_to_m5(cell, layout, x, y):
+    """Full via stack M2->M3->M4->M5 at a single point."""
+    draw_via2(cell, layout, x, y)
+    draw_via3(cell, layout, x, y)
+    draw_via4(cell, layout, x, y)
+
+
+def draw_via_stack_m2_to_tm1(cell, layout, x, y):
+    """Full via stack M2->M3->M4->M5->TM1 at a single point."""
+    draw_via_stack_m2_to_m5(cell, layout, x, y)
+    draw_topvia1(cell, layout, x, y)
+
+
 def draw_mim_cap(cell, layout, x, y, w, h):
-    """Draw a MIM capacitor. Returns (bot_center, top_center)."""
+    """Draw a MIM capacitor with both plates. Returns (bot_center, top_center)."""
     li_m5   = layout.layer(*L_METAL5)
     li_cmim = layout.layer(*L_CMIM)
+    li_tm1  = layout.layer(*L_TOPMETAL1)
 
+    # Cmim dielectric
     cell.shapes(li_cmim).insert(rect(x, y, x + w, y + h))
+    # Metal5 bottom plate (with enclosure)
     enc = MIM_ENC_M5
     cell.shapes(li_m5).insert(rect(x - enc, y - enc, x + w + enc, y + h + enc))
+    # TopMetal1 top plate
+    cell.shapes(li_tm1).insert(rect(x, y, x + w, y + h))
 
     bot_center = (x + w / 2, y - enc)
     top_center = (x + w / 2, y + h + 0.1)
@@ -663,6 +720,41 @@ def build_sc_svf():
     # Summing node: SC_R1 output + SC_R2 output → OTA1 input
     sum_x, sum_y = ota1['inp']
     draw_via1(top, layout, sum_x, sum_y)
+
+    # =====================================================================
+    # Via stacks: connect M2 routing to MIM cap plates (M5 / TM1)
+    # =====================================================================
+
+    # C_int1: top plate (TM1) ← BP via M2→TM1 stack at c1_top
+    draw_via_stack_m2_to_tm1(top, layout, c1_top[0], c1_top[1])
+    # C_int1: bottom plate (M5) → VSS via M2→M5 stack at c1_bot
+    draw_via_stack_m2_to_m5(top, layout, c1_bot[0], c1_bot[1])
+    # Route C_int1 bottom plate to VSS rail via M2
+    top.shapes(li_m2).insert(rect(c1_bot[0] - wire_w2/2, 2.5,
+                                   c1_bot[0] + wire_w2/2, c1_bot[1] + wire_w2/2))
+    draw_via2(top, layout, c1_bot[0], 1.0)
+
+    # C_int2: top plate (TM1) ← LP via M2→TM1 stack at c2_top
+    draw_via_stack_m2_to_tm1(top, layout, c2_top[0], c2_top[1])
+    # C_int2: bottom plate (M5) → VSS via M2→M5 stack at c2_bot
+    draw_via_stack_m2_to_m5(top, layout, c2_bot[0], c2_bot[1])
+    # Route C_int2 bottom plate to VSS rail via M2
+    top.shapes(li_m2).insert(rect(c2_bot[0] - wire_w2/2, 2.5,
+                                   c2_bot[0] + wire_w2/2, c2_bot[1] + wire_w2/2))
+    draw_via2(top, layout, c2_bot[0], 1.0)
+
+    # C_sw1: top and bottom plate via stacks
+    draw_via_stack_m2_to_tm1(top, layout, csw1_top[0], csw1_top[1])
+    draw_via_stack_m2_to_m5(top, layout, csw1_bot[0], csw1_bot[1])
+
+    # C_sw2: top and bottom plate via stacks
+    draw_via_stack_m2_to_tm1(top, layout, csw2_top[0], csw2_top[1])
+    draw_via_stack_m2_to_m5(top, layout, csw2_bot[0], csw2_bot[1])
+
+    # C_Q array: via stacks at each cap's top and bottom contact points
+    for cap_info in cq['caps']:
+        draw_via_stack_m2_to_tm1(top, layout, cap_info['top'][0], cap_info['top'][1])
+        draw_via_stack_m2_to_m5(top, layout, cap_info['bot'][0], cap_info['bot'][1])
 
     # LP feedback: route LP to OTA1 negative input via M2
     fb_x, fb_y = ota1['inn']

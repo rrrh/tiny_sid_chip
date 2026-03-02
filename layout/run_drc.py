@@ -49,6 +49,18 @@ RULES = [
     # --- Cmim ---
     ("MIM.a",  "Min Cmim size",                     L_CMIM,    "width",   1.14),
     ("MIM.b",  "Min Cmim spacing",                  L_CMIM,    "space",   0.60),
+    # --- Via3 ---
+    ("V3.a",   "Min Via3 size (width)",              L_VIA3,     "width",   0.19),
+    ("V3.b",   "Min Via3 spacing",                   L_VIA3,     "space",   0.22),
+    # --- Metal4 ---
+    ("M4.a",   "Min Metal4 width",                   L_METAL4,   "width",   0.20),
+    ("M4.b",   "Min Metal4 spacing",                 L_METAL4,   "space",   0.21),
+    # --- Via4 ---
+    ("V4.a",   "Min Via4 size (width)",              L_VIA4,     "width",   0.19),
+    ("V4.b",   "Min Via4 spacing",                   L_VIA4,     "space",   0.22),
+    # --- TopVia1 ---
+    ("TV1.a",  "Min TopVia1 size (width)",           L_TOPVIA1,  "width",   0.42),
+    ("TV1.b",  "Min TopVia1 spacing",                L_TOPVIA1,  "space",   0.42),
     # --- TopMetal1 ---
     ("TM1.a",  "Min TopMetal1 width",               L_TOPMETAL1,"width",  0.20),
     ("TM1.b",  "Min TopMetal1 spacing",             L_TOPMETAL1,"space",  0.21),
@@ -62,6 +74,15 @@ ENC_RULES = [
     ("M2.c",   "Min Metal2 enclosure of Via1",      L_VIA1,    L_METAL2,  0.005),
     ("NW.c",   "Min NWell enclosure of Activ(pSD)",  L_ACTIV,   L_NWELL,   0.31),
     ("MIM.c",  "Min Metal5 enclosure of Cmim",      L_CMIM,    L_METAL5,  0.60),
+    # --- Via3 enclosures ---
+    ("V3.c",   "Min Metal3 enclosure of Via3",      L_VIA3,    L_METAL3,  0.005),
+    ("V3.d",   "Min Metal4 enclosure of Via3",      L_VIA3,    L_METAL4,  0.005),
+    # --- Via4 enclosures ---
+    ("V4.c",   "Min Metal4 enclosure of Via4",      L_VIA4,    L_METAL4,  0.005),
+    ("V4.d",   "Min Metal5 enclosure of Via4",      L_VIA4,    L_METAL5,  0.005),
+    # --- TopVia1 enclosures ---
+    ("TV1.c",  "Min Metal5 enclosure of TopVia1",   L_TOPVIA1, L_METAL5,  0.10),
+    ("TV1.d",  "Min TopMetal1 enclosure of TopVia1", L_TOPVIA1, L_TOPMETAL1, 0.42),
 ]
 
 

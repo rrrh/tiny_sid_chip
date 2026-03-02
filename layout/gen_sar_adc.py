@@ -183,6 +183,84 @@ def draw_pmos_transistor(cell, layout, x, y, w, l, draw_nwell=True):
     }
 
 
+def draw_via1(cell, layout, x, y):
+    """Via1 with M1+M2 pads."""
+    li_v1 = layout.layer(*L_VIA1)
+    li_m1 = layout.layer(*L_METAL1)
+    li_m2 = layout.layer(*L_METAL2)
+    hs = VIA1_SIZE / 2
+    cell.shapes(li_v1).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e1 = VIA1_ENC_M1 + hs
+    cell.shapes(li_m1).insert(rect(x - e1, y - e1, x + e1, y + e1))
+    e2 = VIA1_ENC_M2 + hs
+    cell.shapes(li_m2).insert(rect(x - e2, y - e2, x + e2, y + e2))
+
+
+def draw_via2(cell, layout, x, y):
+    """Via2 with M2+M3 pads."""
+    li_v2 = layout.layer(*L_VIA2)
+    li_m2 = layout.layer(*L_METAL2)
+    li_m3 = layout.layer(*L_METAL3)
+    hs = VIA2_SIZE / 2
+    cell.shapes(li_v2).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e2 = VIA2_ENC_M2 + hs
+    cell.shapes(li_m2).insert(rect(x - e2, y - e2, x + e2, y + e2))
+    e3 = VIA2_ENC_M3 + hs
+    cell.shapes(li_m3).insert(rect(x - e3, y - e3, x + e3, y + e3))
+
+
+def draw_via3(cell, layout, x, y):
+    """Via3 with M3+M4 pads."""
+    li_v3 = layout.layer(*L_VIA3)
+    li_m3 = layout.layer(*L_METAL3)
+    li_m4 = layout.layer(*L_METAL4)
+    hs = VIA3_SIZE / 2
+    cell.shapes(li_v3).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e3 = VIA3_ENC_M3 + hs
+    cell.shapes(li_m3).insert(rect(x - e3, y - e3, x + e3, y + e3))
+    e4 = VIA3_ENC_M4 + hs
+    cell.shapes(li_m4).insert(rect(x - e4, y - e4, x + e4, y + e4))
+
+
+def draw_via4(cell, layout, x, y):
+    """Via4 with M4+M5 pads."""
+    li_v4 = layout.layer(*L_VIA4)
+    li_m4 = layout.layer(*L_METAL4)
+    li_m5 = layout.layer(*L_METAL5)
+    hs = VIA4_SIZE / 2
+    cell.shapes(li_v4).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e4 = VIA4_ENC_M4 + hs
+    cell.shapes(li_m4).insert(rect(x - e4, y - e4, x + e4, y + e4))
+    e5 = VIA4_ENC_M5 + hs
+    cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
+
+
+def draw_topvia1(cell, layout, x, y):
+    """TopVia1 with M5+TM1 pads."""
+    li_tv1 = layout.layer(*L_TOPVIA1)
+    li_m5  = layout.layer(*L_METAL5)
+    li_tm1 = layout.layer(*L_TOPMETAL1)
+    hs = TOPVIA1_SIZE / 2
+    cell.shapes(li_tv1).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e5 = TOPVIA1_ENC_M5 + hs
+    cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
+    et = TOPVIA1_ENC_TM1 + hs
+    cell.shapes(li_tm1).insert(rect(x - et, y - et, x + et, y + et))
+
+
+def draw_via_stack_m2_to_m5(cell, layout, x, y):
+    """Full via stack M2->M3->M4->M5 at a single point."""
+    draw_via2(cell, layout, x, y)
+    draw_via3(cell, layout, x, y)
+    draw_via4(cell, layout, x, y)
+
+
+def draw_via_stack_m2_to_tm1(cell, layout, x, y):
+    """Full via stack M2->M3->M4->M5->TM1 at a single point."""
+    draw_via_stack_m2_to_m5(cell, layout, x, y)
+    draw_topvia1(cell, layout, x, y)
+
+
 def draw_strongarm_comparator(cell, layout, x, y):
     """
     Draw a StrongARM dynamic latch comparator.
@@ -351,9 +429,50 @@ def build_sar_adc():
         cap_cursor_y += h_cap + MIM_SPACE + 2 * MIM_ENC_M5 + 1.0
 
     # =====================================================================
+    # Via stacks: connect cap plates to M2 routing
+    # =====================================================================
+    # Each cap's bottom plate (M5) gets a via stack down to M2 for SAR bit control.
+    # Each cap's top plate (TM1) gets a via stack down to M2 for the common
+    # sampling node (all top plates tied together).
+    # Place via stacks at each cap for electrical connectivity.
+    # Bottom plate (M5) via stacks at cap bottom edge (overlaps M5 plate).
+    # Top plate (TM1) via stacks at cap top edge.
+    # M3 horizontal bus connects all top-plate via stacks (sampling node),
+    # avoiding M2 bus congestion in the SAR bit routing area.
+    li_m3_rt = layout.layer(*L_METAL3)
+
+    for idx, ba in enumerate(bit_areas):
+        cx = ba['center'][0]
+        # Bottom plate: via stack at bottom edge of M5 plate (merges with M5)
+        bot_y = ba['y'] - MIM_ENC_M5
+        draw_via_stack_m2_to_m5(top, layout, cx, bot_y)
+        # Top plate: via stack at top edge of cap
+        top_y = ba['y'] + ba['h'] + 0.1
+        draw_via_stack_m2_to_tm1(top, layout, cx, top_y)
+
+    # Common top-plate bus (sampling node) on M3 to avoid M2 congestion
+    if bit_areas:
+        sampling_y = bit_areas[0]['y'] + bit_areas[0]['h'] + 0.1
+        first_cx = bit_areas[0]['center'][0]
+        last_cx = bit_areas[-1]['center'][0]
+        top.shapes(li_m3_rt).insert(rect(first_cx - M2_WIDTH/2, sampling_y - M2_WIDTH/2,
+                                          last_cx + M2_WIDTH/2, sampling_y + M2_WIDTH/2))
+
+    # =====================================================================
     # Sample switch (NMOS, left edge near vin pin)
     # =====================================================================
     sw_sample = draw_nmos_transistor(top, layout, x=2.0, y=20.0, w=3.0, l=0.13)
+
+    # Connect sample switch drain to sampling node via M1→via stack→M3
+    sw_drain_x, sw_drain_y = sw_sample['drain']
+    draw_via1(top, layout, sw_drain_x, sw_drain_y)
+    draw_via2(top, layout, sw_drain_x, sw_drain_y)
+    if bit_areas:
+        sampling_y = bit_areas[0]['y'] + bit_areas[0]['h'] + 0.1
+        # M3 vertical from sample switch to sampling bus
+        li_m3_rt = layout.layer(*L_METAL3)
+        top.shapes(li_m3_rt).insert(rect(sw_drain_x - M2_WIDTH/2, sampling_y - M2_WIDTH/2,
+                                          sw_drain_x + M2_WIDTH/2, sw_drain_y + M2_WIDTH/2))
 
     # =====================================================================
     # Dynamic comparator (right side of macro)
