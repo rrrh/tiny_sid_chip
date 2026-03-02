@@ -261,6 +261,22 @@ def draw_via_stack_m2_to_tm1(cell, layout, x, y):
     draw_topvia1(cell, layout, x, y)
 
 
+def draw_gate_contact(cell, layout, x, y):
+    """Place contact + M1 pad on GatPoly at (x,y) for gate connection.
+    Also extends GatPoly to ensure min enclosure of contact (Cnt.d ≥ 0.07)."""
+    li_gp  = layout.layer(*L_GATPOLY)
+    li_cnt = layout.layer(*L_CONT)
+    li_m1  = layout.layer(*L_METAL1)
+    hs = CONT_SIZE / 2
+    gp_enc = CONT_ENC_GATPOLY  # 0.08 µm (includes margin over 0.07 min)
+    # Extend GatPoly to enclose contact (merges with existing GatPoly)
+    cell.shapes(li_gp).insert(rect(x - hs - gp_enc, y - hs - gp_enc,
+                                     x + hs + gp_enc, y + hs + gp_enc))
+    cell.shapes(li_cnt).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e = CONT_ENC_M1
+    cell.shapes(li_m1).insert(rect(x - hs - e, y - hs - e, x + hs + e, y + hs + e))
+
+
 def draw_strongarm_comparator(cell, layout, x, y):
     """
     Draw a StrongARM dynamic latch comparator.
@@ -295,8 +311,11 @@ def draw_strongarm_comparator(cell, layout, x, y):
 
     return {
         'inp': inp, 'inn': inn, 'tail': tail,
+        'p1': p1, 'p2': p2,
         'outp': n1['drain'], 'outn': n2['drain'],
         'clk': tail['gate'],
+        'tail_source': tail['source'],
+        'p1_source': p1['source'], 'p2_source': p2['source'],
         'bbox': (x - 0.5, y - 5.0, x + COMP_W, y + COMP_H),
     }
 
@@ -521,6 +540,206 @@ def build_sar_adc():
         # From SAR logic to cap array
         top.shapes(li_m2).insert(rect(cap_region_x, bus_y - M2_WIDTH / 2,
                                        27.0, bus_y + M2_WIDTH / 2))
+
+    # =====================================================================
+    # Fix 2b: Route vin → sample switch source
+    # =====================================================================
+    # vin pin: M2 at (0, 19.5-20.5), center (0.25, 20.0)
+    # sw source: M1 at sw_sample['source']
+    sw_src_x, sw_src_y = sw_sample['source']
+    vin_pin_y = 20.0
+    # Extend M2 from vin pin to x near switch source
+    top.shapes(li_m2).insert(rect(0.5, vin_pin_y - M2_WIDTH / 2,
+                                   sw_src_x + 0.2, vin_pin_y + M2_WIDTH / 2))
+    # via1 at (sw_src_x, vin_pin_y) to drop to M1
+    draw_via1(top, layout, sw_src_x, vin_pin_y)
+    # M1 vertical from via1 up to switch source
+    top.shapes(li_m1).insert(rect(sw_src_x - M1_WIDTH / 2, vin_pin_y,
+                                   sw_src_x + M1_WIDTH / 2, sw_src_y))
+
+    # =====================================================================
+    # Fix 2c: Route sampling node → comparator inp gate
+    # =====================================================================
+    # Sampling M2 bus at sampling_y. Comparator inp gate at comp['inp']['gate']
+    # inp gate is at top of GatPoly extension: (x + l/2, y + w + GATPOLY_EXT)
+    # comp placed at x=27.0, y=25.0; inp NMOS at (27.0, 25.0) w=2.0 l=0.50
+    # gate top = (27.0 + 0.32 + 0.25, 25.0 + 2.0 + 0.18) = (27.57, 27.18)
+    inp_gate_x = comp['inp']['gate'][0]
+    inp_gate_y = comp['inp']['gate'][1]
+    samp_y = sampling_y  # M2 sampling bus y-center
+
+    # Route via M3 vertical (M3 is clear between y=2 and y=40)
+    m3_x = 25.5  # x for M3 vertical run
+    # Extend M2 sampling bus rightward to m3_x
+    top.shapes(li_m2).insert(rect(last_cx + M2_WIDTH / 2, samp_y - M2_WIDTH / 2,
+                                   m3_x + M2_WIDTH / 2, samp_y + M2_WIDTH / 2))
+    # via2 at (m3_x, samp_y) → M3
+    draw_via2(top, layout, m3_x, samp_y)
+    # M3 vertical from samp_y to inp_gate_y
+    top.shapes(li_m3).insert(rect(m3_x - M2_WIDTH / 2, samp_y,
+                                   m3_x + M2_WIDTH / 2, inp_gate_y + 0.2))
+    # via2 at top → M2
+    draw_via2(top, layout, m3_x, inp_gate_y)
+    # M2 horizontal from m3_x to near inp gate
+    top.shapes(li_m2).insert(rect(m3_x - M2_WIDTH / 2, inp_gate_y - M2_WIDTH / 2,
+                                   inp_gate_x + 0.2, inp_gate_y + M2_WIDTH / 2))
+    # via1 at inp gate x → M1
+    draw_via1(top, layout, inp_gate_x, inp_gate_y)
+    # Gate contact on GatPoly
+    draw_gate_contact(top, layout, inp_gate_x, inp_gate_y)
+
+    # =====================================================================
+    # Fix 2d: Route comparator inn → VSS reference
+    # =====================================================================
+    inn_gate_x = comp['inn']['gate'][0]
+    inn_gate_y = comp['inn']['gate'][1]
+    # Gate contact at inn gate
+    draw_gate_contact(top, layout, inn_gate_x, inn_gate_y)
+    draw_via1(top, layout, inn_gate_x, inn_gate_y)
+    draw_via2(top, layout, inn_gate_x, inn_gate_y)
+    # M3 vertical from inn gate down to VSS rail (y=0-2)
+    top.shapes(li_m3).insert(rect(inn_gate_x - M2_WIDTH / 2, 2.0,
+                                   inn_gate_x + M2_WIDTH / 2, inn_gate_y))
+
+    # =====================================================================
+    # Fix 2e: Route comparator outputs → SAR logic
+    # =====================================================================
+    outp_x, outp_y = comp['outp']
+    outn_x, outn_y = comp['outn']
+    sar_top_y = 22.0  # SAR logic top edge
+    # Offset M2 verticals right to clear SAR logic M2 straps (left strap at x=27-27.4)
+    outp_m2_x = 28.2  # well right of SAR left M2 strap (27.4)
+    outn_m2_x = 33.2  # well right of outp
+    # outp: via1 at drain → M1 jog to outp_m2_x → via1 → M2 vertical
+    draw_via1(top, layout, outp_x, outp_y)
+    top.shapes(li_m2).insert(rect(outp_x - M2_WIDTH / 2, outp_y - M2_WIDTH / 2,
+                                   outp_m2_x + M2_WIDTH / 2, outp_y + M2_WIDTH / 2))
+    top.shapes(li_m2).insert(rect(outp_m2_x - M2_WIDTH / 2, sar_top_y,
+                                   outp_m2_x + M2_WIDTH / 2, outp_y))
+    # outn: via1 at drain → M2 jog to outn_m2_x → M2 vertical
+    draw_via1(top, layout, outn_x, outn_y)
+    top.shapes(li_m2).insert(rect(outn_x - M2_WIDTH / 2, outn_y - M2_WIDTH / 2,
+                                   outn_m2_x + M2_WIDTH / 2, outn_y + M2_WIDTH / 2))
+    top.shapes(li_m2).insert(rect(outn_m2_x - M2_WIDTH / 2, sar_top_y,
+                                   outn_m2_x + M2_WIDTH / 2, outn_y))
+
+    # =====================================================================
+    # Fix 2f: Route M2 bit buses → cap bottom plates
+    # =====================================================================
+    # Deferred — cap bottom-plate M2 via pads are too close to each other
+    # (column 1) and to comparator power vias (bit 8) for safe M2 verticals.
+    # Requires detailed routing with M1/M3 underpasses (future work).
+
+    # =====================================================================
+    # Fix 2g: Route clk → comparator tail gate (via M3)
+    # =====================================================================
+    # Route M3 at y=3.5 (below cap top-plate via M3 pads at y≈5.25) to avoid M3.b.
+    # Use x=30.0 for the vertical M3 run (away from tail source M3 at x≈28).
+    clk_pin_y = 5.0
+    tail_gate_x = comp['clk'][0]
+    tail_gate_y = comp['clk'][1]
+    m3_clk_y = 3.5   # M3 horizontal route y (below cap M3 at ~5.25)
+    m3_clk_x = 30.0  # M3 vertical x (offset from tail source M3 at x≈28)
+    # via2 at clk pin (0.25, 5.0) → M3
+    draw_via2(top, layout, 0.25, clk_pin_y)
+    # M3 vertical from via2 at y=5.0 down to y=3.5
+    top.shapes(li_m3).insert(rect(0.25 - M2_WIDTH / 2, m3_clk_y,
+                                   0.25 + M2_WIDTH / 2, clk_pin_y))
+    # M3 horizontal at y=3.5 from x=0.25 to m3_clk_x
+    top.shapes(li_m3).insert(rect(0.25 - M2_WIDTH / 2, m3_clk_y - M2_WIDTH / 2,
+                                   m3_clk_x + M2_WIDTH / 2, m3_clk_y + M2_WIDTH / 2))
+    # M3 vertical from y=3.5 up to tail_gate_y
+    top.shapes(li_m3).insert(rect(m3_clk_x - M2_WIDTH / 2, m3_clk_y,
+                                   m3_clk_x + M2_WIDTH / 2, tail_gate_y))
+    # via2 → M2 → via1 → M1 at tail gate
+    draw_via2(top, layout, m3_clk_x, tail_gate_y)
+    draw_via1(top, layout, m3_clk_x, tail_gate_y)
+    # M1 horizontal from via1 to gate contact
+    top.shapes(li_m1).insert(rect(min(m3_clk_x, tail_gate_x) - M1_WIDTH / 2,
+                                   tail_gate_y - M1_WIDTH / 2,
+                                   max(m3_clk_x, tail_gate_x) + M1_WIDTH / 2,
+                                   tail_gate_y + M1_WIDTH / 2))
+    draw_gate_contact(top, layout, tail_gate_x, tail_gate_y)
+
+    # =====================================================================
+    # Fix 2h: Route rst_n, start → SAR logic boundary
+    # =====================================================================
+    # Cap via stacks place M2+M3 pads, blocking both M2 and M3 horizontal
+    # routes through the cap region. Use M1 underpass (M1 is clear of cap vias).
+    m1_bypass_end_x = 24.5  # right of all cap vias, left of sampling M3 at x=25.5
+
+    # rst_n: pin M2 at (0.25, 9.0) → via1 → M1 → via1 → M2 to SAR logic
+    draw_via1(top, layout, 0.25, 9.0)
+    top.shapes(li_m1).insert(rect(0.25 - M1_WIDTH / 2, 9.0 - M1_WIDTH / 2,
+                                   m1_bypass_end_x + M1_WIDTH / 2, 9.0 + M1_WIDTH / 2))
+    draw_via1(top, layout, m1_bypass_end_x, 9.0)
+    top.shapes(li_m2).insert(rect(m1_bypass_end_x - M2_WIDTH / 2, 9.0 - M2_WIDTH / 2,
+                                   27.0, 9.0 + M2_WIDTH / 2))
+
+    # start: pin M2 at (0.25, 13.0) → via1 → M1 → via1 → M2 to SAR logic
+    draw_via1(top, layout, 0.25, 13.0)
+    top.shapes(li_m1).insert(rect(0.25 - M1_WIDTH / 2, 13.0 - M1_WIDTH / 2,
+                                   m1_bypass_end_x + M1_WIDTH / 2, 13.0 + M1_WIDTH / 2))
+    draw_via1(top, layout, m1_bypass_end_x, 13.0)
+    top.shapes(li_m2).insert(rect(m1_bypass_end_x - M2_WIDTH / 2, 13.0 - M2_WIDTH / 2,
+                                   27.0, 13.0 + M2_WIDTH / 2))
+
+    # =====================================================================
+    # Fix 2i: Route dout/eoc from SAR logic boundary
+    # =====================================================================
+    # eoc pin at (41.5-42, 4.5-5.5) — M2 from SAR logic right edge (x=42) to pin
+    top.shapes(li_m2).insert(rect(42.0 - 0.5, 5.0 - M2_WIDTH / 2,
+                                   MACRO_W, 5.0 + M2_WIDTH / 2))
+    # dout[0-7] pins at right edge
+    for bit in range(NBITS):
+        pin_y = 8.0 + bit * 3.5
+        top.shapes(li_m2).insert(rect(42.0 - 0.5, pin_y - M2_WIDTH / 2,
+                                       MACRO_W, pin_y + M2_WIDTH / 2))
+
+    # =====================================================================
+    # Fix 2j: Comparator power connections
+    # =====================================================================
+    # PMOS sources → VDD (via1→M2→via2→M3 vertical up to VDD rail)
+    for ps_x, ps_y in [comp['p1_source'], comp['p2_source']]:
+        draw_via1(top, layout, ps_x, ps_y)
+        draw_via2(top, layout, ps_x, ps_y)
+        # M3 vertical from source up to VDD rail (y=40-42)
+        top.shapes(li_m3).insert(rect(ps_x - M2_WIDTH / 2, ps_y,
+                                       ps_x + M2_WIDTH / 2, MACRO_H - 2.0))
+
+    # Tail NMOS source → VSS (via1→M2→via2→M3 vertical down to VSS rail)
+    # Offset M3 to x=28.0 to maintain M3.b spacing from clk M3 at x=30.0
+    ts_x, ts_y = comp['tail_source']
+    ts_m3_x = 28.0  # M3 vertical x, well separated from clk M3 at 30.0
+    draw_via1(top, layout, ts_x, ts_y)
+    # M2 horizontal jog from ts_x to ts_m3_x
+    top.shapes(li_m2).insert(rect(min(ts_x, ts_m3_x) - M2_WIDTH / 2, ts_y - M2_WIDTH / 2,
+                                   max(ts_x, ts_m3_x) + M2_WIDTH / 2, ts_y + M2_WIDTH / 2))
+    draw_via2(top, layout, ts_m3_x, ts_y)
+    top.shapes(li_m3).insert(rect(ts_m3_x - M2_WIDTH / 2, 2.0,
+                                   ts_m3_x + M2_WIDTH / 2, ts_y))
+
+    # =====================================================================
+    # Fix 2k: SAR logic power (via2 from M2 straps to M3 rails)
+    # =====================================================================
+    # SAR logic has M2 vertical power straps at left (x=27-27.4) and right (x=39.6-42)
+    # Place via2 at top and bottom of each strap to connect to M3 VDD/VSS rails
+    sar_x = 27.0
+    sar_y = 4.0
+    sar_strap_left_x = sar_x + M2_WIDTH  # center of left strap
+    sar_strap_right_x = sar_x + SAR_W - M2_WIDTH  # center of right strap
+    # Bottom via2s → VSS rail
+    draw_via2(top, layout, sar_strap_left_x, sar_y + 0.5)
+    draw_via2(top, layout, sar_strap_right_x, sar_y + 0.5)
+    # Top via2s → VDD rail (SAR logic top = y + h = 22, but VDD rail at 40+)
+    # Connect via M3 vertical from SAR top to VDD rail
+    draw_via2(top, layout, sar_strap_left_x, sar_y + SAR_H - 0.5)
+    draw_via2(top, layout, sar_strap_right_x, sar_y + SAR_H - 0.5)
+    # M3 vertical straps from SAR logic top to VDD rail
+    top.shapes(li_m3).insert(rect(sar_strap_left_x - M2_WIDTH / 2, sar_y + SAR_H - 0.5,
+                                   sar_strap_left_x + M2_WIDTH / 2, MACRO_H - 2.0))
+    top.shapes(li_m3).insert(rect(sar_strap_right_x - M2_WIDTH / 2, sar_y + SAR_H - 0.5,
+                                   sar_strap_right_x + M2_WIDTH / 2, MACRO_H - 2.0))
 
     # =====================================================================
     # Power rails

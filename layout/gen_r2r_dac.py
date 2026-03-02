@@ -208,6 +208,19 @@ def draw_via1(cell, layout, x, y):
 # ===========================================================================
 # Main: build the R-2R DAC
 # ===========================================================================
+def draw_via2(cell, layout, x, y):
+    """Via2 with M2+M3 pads."""
+    li_v2 = layout.layer(*L_VIA2)
+    li_m2 = layout.layer(*L_METAL2)
+    li_m3 = layout.layer(*L_METAL3)
+    hs = VIA2_SIZE / 2
+    cell.shapes(li_v2).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e2 = VIA2_ENC_M2 + hs
+    cell.shapes(li_m2).insert(rect(x - e2, y - e2, x + e2, y + e2))
+    e3 = VIA2_ENC_M3 + hs
+    cell.shapes(li_m3).insert(rect(x - e3, y - e3, x + e3, y + e3))
+
+
 def build_r2r_dac():
     layout = new_layout()
     top = layout.create_cell("r2r_dac_8bit")
@@ -215,12 +228,6 @@ def build_r2r_dac():
     li_m1  = layout.layer(*L_METAL1)
     li_m2  = layout.layer(*L_METAL2)
     li_m3  = layout.layer(*L_METAL3)
-
-    layout2 = new_layout()
-    top2 = layout2.create_cell("r2r_dac_8bit")
-    li_m1  = layout2.layer(*L_METAL1)
-    li_m2  = layout2.layer(*L_METAL2)
-    li_m3  = layout2.layer(*L_METAL3)
     wire_w = M1_WIDTH  # min width — keeps clearance to NMOS source pad
 
     # --- Pass 1: compute series chain positions ---
@@ -237,48 +244,58 @@ def build_r2r_dac():
     x_cursor = x_start
     vref_contact = None
     vout_contact = None
+    prev_rc = None          # track right contact of previous series R (fix 1b)
+    switch_sources = []     # collect switch source positions (fix 1d)
 
     for i, bit in enumerate(range(NBITS - 1, -1, -1)):
         # Series R
-        r_lc, r_rc, _ = draw_resistor_h(top2, layout2, x=x_cursor, y=series_y,
+        r_lc, r_rc, _ = draw_resistor_h(top, layout, x=x_cursor, y=series_y,
                                           length=R_LENGTH)
         if i == 0:
             vref_contact = r_lc  # leftmost = Vref
         vout_contact = r_rc  # rightmost = Vout (updated each iteration)
+
+        # --- Fix 1b: bridge gap between consecutive series resistors ---
+        if prev_rc is not None:
+            bridge_y = series_y + R_WIDTH / 2
+            top.shapes(li_m1).insert(rect(prev_rc[0] - wire_w / 2, bridge_y - wire_w / 2,
+                                            r_lc[0] + wire_w / 2, bridge_y + wire_w / 2))
+        prev_rc = r_rc
 
         jx, jy = r_rc
 
         # 2R shunt (vertical, top aligned just below junction)
         r2_y = jy - r2_total_h - 0.5
         r2_x = jx - R_WIDTH / 2
-        r2_bc, r2_tc, _ = draw_resistor_v(top2, layout2, x=r2_x, y=r2_y,
+        r2_bc, r2_tc, _ = draw_resistor_v(top, layout, x=r2_x, y=r2_y,
                                            length=R2_LENGTH)
 
         # M1 wire: junction → 2R top contact
-        top2.shapes(li_m1).insert(rect(jx - wire_w / 2, r2_tc[1],
+        top.shapes(li_m1).insert(rect(jx - wire_w / 2, r2_tc[1],
                                         jx + wire_w / 2, jy))
 
         # NMOS switch below 2R — align drain center with junction x
         sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV  # 0.32 µm
         sw_x = jx - (sd_ext + NMOS_L + sd_ext / 2)  # drain at jx
         sw_y_pos = r2_y - 4.5
-        sw = draw_nmos(top2, layout2, x=sw_x, y=sw_y_pos)
+        sw = draw_nmos(top, layout, x=sw_x, y=sw_y_pos)
+        switch_sources.append(sw['source'])
 
         # M1 wire: 2R bottom contact → switch drain
-        top2.shapes(li_m1).insert(rect(r2_bc[0] - wire_w / 2, sw['drain'][1],
+        top.shapes(li_m1).insert(rect(r2_bc[0] - wire_w / 2, sw['drain'][1],
                                         r2_bc[0] + wire_w / 2, r2_bc[1]))
 
         # Via1 on gate → Metal2 for d[bit] input
         gv_x = sw['gate'][0]
         gv_y = sw['gate'][1] - 0.5
-        draw_via1(top2, layout2, gv_x, gv_y)
+        draw_via1(top, layout, gv_x, gv_y)
 
         # Metal2 route: left edge pin → gate via
         pin_y = 3.0 + bit * 4.0
-        top2.shapes(li_m2).insert(rect(0.0, pin_y - M2_WIDTH,
+        top.shapes(li_m2).insert(rect(0.0, pin_y - M2_WIDTH,
                                         gv_x + 0.2, pin_y + M2_WIDTH))
         # Vertical jog on M2
-        top2.shapes(li_m2).insert(rect(gv_x - M2_WIDTH, min(pin_y, gv_y) - 0.1,
+        top.shapes(li_m2).insert(rect(gv_x - M2_WIDTH, min(pin_y, gv_y) - 0.1,
                                         gv_x + M2_WIDTH, max(pin_y, gv_y) + 0.1))
 
         x_cursor += r_total + gap
@@ -286,48 +303,94 @@ def build_r2r_dac():
     # --- Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS) ---
     # Taps distributed along the switch row (y ≈ 24-28)
     for xt in [3.0, 9.0, 15.0, 21.0, 27.0, 33.0]:
-        draw_ptap(top2, layout2, xt, 21.0)
+        draw_ptap(top, layout, xt, 21.0)
 
     # --- Vout pin (right edge, Metal2) ---
     vout_via_x = vout_contact[0]
     vout_via_y = vout_contact[1]
-    draw_via1(top2, layout2, vout_via_x, vout_via_y)
+    draw_via1(top, layout, vout_via_x, vout_via_y)
     vout_pin_y = 21.0
-    top2.shapes(li_m2).insert(rect(vout_via_x - 0.1, vout_pin_y - 0.5,
+    top.shapes(li_m2).insert(rect(vout_via_x - 0.1, vout_pin_y - 0.5,
                                     MACRO_W, vout_pin_y + 0.5))
-    top2.shapes(li_m2).insert(rect(vout_via_x - M2_WIDTH,
+    top.shapes(li_m2).insert(rect(vout_via_x - M2_WIDTH,
                                     min(vout_via_y, vout_pin_y),
                                     vout_via_x + M2_WIDTH,
                                     max(vout_via_y, vout_pin_y)))
 
     # --- VDD rail (top, Metal3) ---
-    top2.shapes(li_m3).insert(rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H))
+    top.shapes(li_m3).insert(rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H))
 
     # --- VSS rail (bottom, Metal3) ---
-    top2.shapes(li_m3).insert(rect(0.0, 0.0, MACRO_W, 2.0))
+    top.shapes(li_m3).insert(rect(0.0, 0.0, MACRO_W, 2.0))
+
+    # --- Fix 1c: Vref → VDD rail ---
+    # vref_contact is on M1 at the left end of the series chain.
+    # Route: M1 vertical up → via1 → M2 → via2 → M3 (VDD rail at y=43-45)
+    vref_x = vref_contact[0]
+    vref_y = vref_contact[1]
+    vdd_tap_y = MACRO_H - 1.5  # center of VDD rail
+    # M1 vertical from vref contact up to via point
+    top.shapes(li_m1).insert(rect(vref_x - wire_w / 2, vref_y,
+                                    vref_x + wire_w / 2, vdd_tap_y))
+    # via1 at top of M1 wire
+    draw_via1(top, layout, vref_x, vdd_tap_y)
+    # via2 to reach M3 VDD rail
+    draw_via2(top, layout, vref_x, vdd_tap_y)
+
+    # --- Fix 1d: Switch sources → VSS rail ---
+    # Route each source left by 0.15µm to clear gate via1 M1 pads (M1.b ≥ 0.18).
+    # L-shaped M1: horizontal from source pad left, then vertical down to bus.
+    if switch_sources:
+        bus_y = switch_sources[0][1] - 1.2  # y below switches, above gate vias
+        stub_offset = 0.15  # offset left of source to clear gate via M1 pad
+        # M1 vertical stubs offset left, with short bridge to source pad
+        for sx, sy in switch_sources:
+            stub_x = sx - stub_offset
+            # Horizontal bridge at source y from stub to source pad
+            top.shapes(li_m1).insert(rect(stub_x - wire_w / 2, sy - wire_w / 2,
+                                            sx + wire_w / 2, sy + wire_w / 2))
+            # Vertical stub from bridge down to bus
+            top.shapes(li_m1).insert(rect(stub_x - wire_w / 2, bus_y - wire_w / 2,
+                                            stub_x + wire_w / 2, sy))
+        # M1 horizontal bus connecting all stubs
+        left_x = switch_sources[0][0] - stub_offset
+        right_x = switch_sources[-1][0] - stub_offset
+        # Extend bus left to via point at x=1.0 (clear of all gate vias)
+        vss_via_x = 1.0
+        top.shapes(li_m1).insert(rect(vss_via_x - wire_w / 2, bus_y - wire_w / 2,
+                                        right_x + wire_w / 2, bus_y + wire_w / 2))
+        # Via stack at x=1.0: via1 → M2, via2 → M3 VSS rail
+        vss_tap_y = 1.5  # center of VSS rail
+        draw_via1(top, layout, vss_via_x, bus_y)
+        draw_via2(top, layout, vss_via_x, bus_y)
+        # M3 vertical from bus down to VSS rail
+        top.shapes(li_m3).insert(rect(vss_via_x - M2_WIDTH / 2, vss_tap_y,
+                                        vss_via_x + M2_WIDTH / 2, bus_y))
+        # Ensure M3 overlaps with via2 pad at bus_y and with VSS rail at bottom
+        draw_via2(top, layout, vss_via_x, vss_tap_y)
 
     # --- Pin labels ---
     for bit in range(NBITS):
         pin_y = 3.0 + bit * 4.0
-        add_pin_label(top2, L_METAL2_PIN, L_METAL2_LBL,
+        add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                       rect(0.0, pin_y - 0.5, 0.5, pin_y + 0.5),
-                      f"d[{bit}]", layout2)
+                      f"d[{bit}]", layout)
 
-    add_pin_label(top2, L_METAL2_PIN, L_METAL2_LBL,
+    add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                   rect(MACRO_W - 0.5, vout_pin_y - 0.5, MACRO_W, vout_pin_y + 0.5),
-                  "vout", layout2)
+                  "vout", layout)
 
-    add_pin_label(top2, L_METAL3_PIN, L_METAL3_LBL,
-                  rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H), "vdd", layout2)
+    add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
+                  rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H), "vdd", layout)
 
-    add_pin_label(top2, L_METAL3_PIN, L_METAL3_LBL,
-                  rect(0.0, 0.0, MACRO_W, 2.0), "vss", layout2)
+    add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
+                  rect(0.0, 0.0, MACRO_W, 2.0), "vss", layout)
 
     # --- PR Boundary (IHP SG13G2: layer 189/0) ---
-    li_bnd = layout2.layer(189, 0)
-    top2.shapes(li_bnd).insert(rect(0, 0, MACRO_W, MACRO_H))
+    li_bnd = layout.layer(189, 0)
+    top.shapes(li_bnd).insert(rect(0, 0, MACRO_W, MACRO_H))
 
-    return layout2, top2
+    return layout, top
 
 
 if __name__ == "__main__":
