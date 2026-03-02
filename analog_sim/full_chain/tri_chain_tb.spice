@@ -13,10 +13,14 @@
 .param c_int=1.1e-12
 .param c_q_unit=73.5e-15
 
-* CT equivalent R_eff for each cutoff (Q=1 → R_Q = R_eff)
+* CT equivalent R_eff for each cutoff, Q = R_Q/R_eff → R_Q = Q*R_eff
+.param q_val=0.5
 .param r_fc50=2.894e9
 .param r_fc440=328.8e6
 .param r_fc1200=120.6e6
+.param rq_fc50={q_val*r_fc50}
+.param rq_fc440={q_val*r_fc440}
+.param rq_fc1200={q_val*r_fc1200}
 
 * ============================================================
 * Subcircuit definitions
@@ -106,20 +110,20 @@ Btri880 dac880 0 V = floor(128+100*(2/{pi})*asin(sin(2*{pi}*880*time-{pi}/2))+0.
 * ============================================================
 Vdd vdd 0 {vdd_val}
 
-* === 220 Hz × 3 cutoffs ===
-Xsvf_220_fc50   dac220 svf_220_fc50   vdd 0 sc_svf_bp_ct r_eff_val={r_fc50}   r_q_val={r_fc50}
-Xsvf_220_fc440  dac220 svf_220_fc440  vdd 0 sc_svf_bp_ct r_eff_val={r_fc440}  r_q_val={r_fc440}
-Xsvf_220_fc1200 dac220 svf_220_fc1200 vdd 0 sc_svf_bp_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
+* === 220 Hz × 3 cutoffs (Q=0.5) ===
+Xsvf_220_fc50   dac220 svf_220_fc50   vdd 0 sc_svf_bp_ct r_eff_val={r_fc50}   r_q_val={rq_fc50}
+Xsvf_220_fc440  dac220 svf_220_fc440  vdd 0 sc_svf_bp_ct r_eff_val={r_fc440}  r_q_val={rq_fc440}
+Xsvf_220_fc1200 dac220 svf_220_fc1200 vdd 0 sc_svf_bp_ct r_eff_val={r_fc1200} r_q_val={rq_fc1200}
 
-* === 440 Hz × 3 cutoffs ===
-Xsvf_440_fc50   dac440 svf_440_fc50   vdd 0 sc_svf_bp_ct r_eff_val={r_fc50}   r_q_val={r_fc50}
-Xsvf_440_fc440  dac440 svf_440_fc440  vdd 0 sc_svf_bp_ct r_eff_val={r_fc440}  r_q_val={r_fc440}
-Xsvf_440_fc1200 dac440 svf_440_fc1200 vdd 0 sc_svf_bp_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
+* === 440 Hz × 3 cutoffs (Q=0.5) ===
+Xsvf_440_fc50   dac440 svf_440_fc50   vdd 0 sc_svf_bp_ct r_eff_val={r_fc50}   r_q_val={rq_fc50}
+Xsvf_440_fc440  dac440 svf_440_fc440  vdd 0 sc_svf_bp_ct r_eff_val={r_fc440}  r_q_val={rq_fc440}
+Xsvf_440_fc1200 dac440 svf_440_fc1200 vdd 0 sc_svf_bp_ct r_eff_val={r_fc1200} r_q_val={rq_fc1200}
 
-* === 880 Hz × 3 cutoffs ===
-Xsvf_880_fc50   dac880 svf_880_fc50   vdd 0 sc_svf_bp_ct r_eff_val={r_fc50}   r_q_val={r_fc50}
-Xsvf_880_fc440  dac880 svf_880_fc440  vdd 0 sc_svf_bp_ct r_eff_val={r_fc440}  r_q_val={r_fc440}
-Xsvf_880_fc1200 dac880 svf_880_fc1200 vdd 0 sc_svf_bp_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
+* === 880 Hz × 3 cutoffs (Q=0.5) ===
+Xsvf_880_fc50   dac880 svf_880_fc50   vdd 0 sc_svf_bp_ct r_eff_val={r_fc50}   r_q_val={rq_fc50}
+Xsvf_880_fc440  dac880 svf_880_fc440  vdd 0 sc_svf_bp_ct r_eff_val={r_fc440}  r_q_val={rq_fc440}
+Xsvf_880_fc1200 dac880 svf_880_fc1200 vdd 0 sc_svf_bp_ct r_eff_val={r_fc1200} r_q_val={rq_fc1200}
 
 * === Behavioral 8-bit ADC at each SVF output ===
 * ADC code = floor(Vsvf/VDD * 255 + 0.5), clamped 0-255
@@ -141,7 +145,7 @@ Badc_880_fc1200 adc_880_fc1200 0 V = min(255,max(0,floor(v(svf_880_fc1200)/{vdd_
   shell rm -f tri_chain_*.dat
 
   echo "=== Full Chain 3x3 Triangle Wave Matrix ==="
-  echo "DAC → SC SVF (BP, Q=1) → ADC"
+  echo "DAC → SC SVF (BP, Q=0.5) → ADC"
   echo "Triangle: 220, 440, 880 Hz | Cutoff: 50, 440, 1200 Hz"
   echo ""
 

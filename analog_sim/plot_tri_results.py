@@ -121,7 +121,7 @@ for row, freq in enumerate(freqs):
 axes2[0, 0].set_xlim(0, 25)
 axes2[0, 0].set_ylim(0, 1.1)
 
-fig2.suptitle('SC SVF Bandpass (Q=1) — Triangle Wave 3×3 Matrix', fontsize=13, fontweight='bold')
+fig2.suptitle('SC SVF Bandpass (Q=0.5) — Triangle Wave 3×3 Matrix', fontsize=13, fontweight='bold')
 fig2.tight_layout()
 fig2.savefig('svf/sc_svf_tri_matrix.png', dpi=150)
 print('  Wrote svf/sc_svf_tri_matrix.png')
@@ -251,7 +251,7 @@ for row, freq in enumerate(freqs):
 axes5[0, 0].set_xlim(0, 25)
 axes5[0, 0].set_ylim(0, 1.2)
 
-fig5.suptitle('Full Chain: DAC → SVF (BP, Q=1) → ADC — Triangle Wave 3×3', fontsize=13, fontweight='bold')
+fig5.suptitle('Full Chain: DAC → SVF (BP, Q=0.5) → ADC — Triangle Wave 3×3', fontsize=13, fontweight='bold')
 fig5.tight_layout()
 fig5.savefig('full_chain/tri_chain_matrix.png', dpi=150)
 print('  Wrote full_chain/tri_chain_matrix.png')

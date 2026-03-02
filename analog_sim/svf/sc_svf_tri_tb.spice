@@ -1,7 +1,7 @@
 * SC SVF Triangle Wave Testbench — 3x3 Frequency/Cutoff Matrix
 * IHP SG13G2 PDK — VDD=1.2V
 * Triangle input at 220, 440, 880 Hz through SVF at fc=50, 440, 1200 Hz
-* BP mode (sel=01), Q=1 for all tests
+* BP mode (sel=01), Q=0.5 for all tests
 
 .include ../shared/pdk_include.spice
 
@@ -11,11 +11,15 @@
 .param pi=3.14159265358979
 .param c_int=1.1e-12
 
-* CT equivalent R_eff for each cutoff frequency (Q=1 → R_Q = R_eff)
-*   R_eff = 1/(2*pi*fc*C_int)
+* CT equivalent R_eff for each cutoff frequency
+*   R_eff = 1/(2*pi*fc*C_int), Q = R_Q/R_eff → R_Q = Q*R_eff
+.param q_val=0.5
 .param r_fc50=2.894e9
 .param r_fc440=328.8e6
 .param r_fc1200=120.6e6
+.param rq_fc50={q_val*r_fc50}
+.param rq_fc440={q_val*r_fc440}
+.param rq_fc1200={q_val*r_fc1200}
 
 * ============================================================
 * SC SVF CT equivalent (Tow-Thomas biquad) with output mux
@@ -74,26 +78,26 @@ Vdd vdd 0 {vdd_val}
 Vsel1 sel1 0 0
 Vsel0 sel0 0 {vdd_val}
 
-* --- fc=50 Hz (R_eff=2.894 GΩ, Q=1) ---
-Xsvf_220_fc50  tri220 out_220_fc50  sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc50}  r_q_val={r_fc50}
-Xsvf_440_fc50  tri440 out_440_fc50  sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc50}  r_q_val={r_fc50}
-Xsvf_880_fc50  tri880 out_880_fc50  sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc50}  r_q_val={r_fc50}
+* --- fc=50 Hz (R_eff=2.894 GΩ, Q=0.5) ---
+Xsvf_220_fc50  tri220 out_220_fc50  sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc50}  r_q_val={rq_fc50}
+Xsvf_440_fc50  tri440 out_440_fc50  sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc50}  r_q_val={rq_fc50}
+Xsvf_880_fc50  tri880 out_880_fc50  sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc50}  r_q_val={rq_fc50}
 Rout_220_fc50  out_220_fc50  0 1meg
 Rout_440_fc50  out_440_fc50  0 1meg
 Rout_880_fc50  out_880_fc50  0 1meg
 
-* --- fc=440 Hz (R_eff=328.8 MΩ, Q=1) ---
-Xsvf_220_fc440 tri220 out_220_fc440 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc440} r_q_val={r_fc440}
-Xsvf_440_fc440 tri440 out_440_fc440 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc440} r_q_val={r_fc440}
-Xsvf_880_fc440 tri880 out_880_fc440 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc440} r_q_val={r_fc440}
+* --- fc=440 Hz (R_eff=328.8 MΩ, Q=0.5) ---
+Xsvf_220_fc440 tri220 out_220_fc440 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc440} r_q_val={rq_fc440}
+Xsvf_440_fc440 tri440 out_440_fc440 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc440} r_q_val={rq_fc440}
+Xsvf_880_fc440 tri880 out_880_fc440 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc440} r_q_val={rq_fc440}
 Rout_220_fc440 out_220_fc440 0 1meg
 Rout_440_fc440 out_440_fc440 0 1meg
 Rout_880_fc440 out_880_fc440 0 1meg
 
-* --- fc=1200 Hz (R_eff=120.6 MΩ, Q=1) ---
-Xsvf_220_fc1200 tri220 out_220_fc1200 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
-Xsvf_440_fc1200 tri440 out_440_fc1200 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
-Xsvf_880_fc1200 tri880 out_880_fc1200 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
+* --- fc=1200 Hz (R_eff=120.6 MΩ, Q=0.5) ---
+Xsvf_220_fc1200 tri220 out_220_fc1200 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc1200} r_q_val={rq_fc1200}
+Xsvf_440_fc1200 tri440 out_440_fc1200 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc1200} r_q_val={rq_fc1200}
+Xsvf_880_fc1200 tri880 out_880_fc1200 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc1200} r_q_val={rq_fc1200}
 Rout_220_fc1200 out_220_fc1200 0 1meg
 Rout_440_fc1200 out_440_fc1200 0 1meg
 Rout_880_fc1200 out_880_fc1200 0 1meg
@@ -103,7 +107,7 @@ Rout_880_fc1200 out_880_fc1200 0 1meg
 
   echo "=== SC SVF Triangle Wave 3x3 Matrix ==="
   echo "Triangle frequencies: 220, 440, 880 Hz"
-  echo "SVF cutoff (BP, Q=1): 50, 440, 1200 Hz"
+  echo "SVF cutoff (BP, Q=0.5): 50, 440, 1200 Hz"
   echo ""
 
   * Single transient captures all 9 combinations
