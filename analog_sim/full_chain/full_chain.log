@@ -2,10 +2,10 @@
 Note: No compatibility mode selected!
 
 
-Circuit: * full signal chain testbench: r-2r dac -> svf (bp) -> sar adc
+Circuit: * full signal chain testbench: r-2r dac -> sc svf (bp) -> sar adc
 
-=== Full Chain Simulation: DAC -> SVF -> ADC ===
-10MHz sine, BP filter, 1us transient
+=== Full Chain Simulation: DAC -> SC SVF (CT equiv) -> ADC ===
+1kHz sine, SC BP filter (f0=1kHz, Q=0.25), 5ms transient
 Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
 
 Using SPARSE 1.3 as Direct Linear Solver
@@ -16,25 +16,45 @@ Initial Transient Solution
 Node                                   Voltage
 ----                                   -------
 vdd                                        1.2
-vcm_node                                   0.6
 sine_code                                  128
 dac_out                               0.602353
-xsvf.hp                                 0.6014
-xsvf.lp                               0.601157
-xsvf.bp                               0.601272
-xsvf.xc1.1                            0.601272
-xsvf.xc2.1                            0.601157
-svf_out                               0.601272
-adc_code                                   128
-adc_recon                             0.602353
+xsvf.bp_raw                            0.59994
+xsvf.vcm1                                  0.6
+xsvf.vg1                               0.59994
+xsvf.bp                                0.59994
+xsvf.lp                               0.597528
+xsvf.lp_raw                           0.597526
+xsvf.vcm_inv                               0.6
+xsvf.vg_inv                            0.59994
+xsvf.lp_bar                           0.602352
+xsvf.lpbar_raw                        0.602355
+xsvf.vcm2                                  0.6
+xsvf.vg2                               0.59994
+svf_out                                0.59994
+adc_code                                   127
+adc_recon                             0.597647
 badc_analog#branch                           0
 badc_code#branch                             0
-bdac_ideal#branch                            0
+bdac_ideal#branch                 -1.66266e-11
 bsine_code#branch                            0
-vcm#branch                         4.01411e-08
+e.xsvf.eoa2#branch                -2.41221e-08
+e.xsvf.eoa_inv#branch              2.41387e-08
+e.xsvf.eoa1#branch                 1.03346e-14
+v.xsvf.vcm2#branch                           0
+v.xsvf.vcm_inv#branch                        0
+v.xsvf.vcm1#branch                           0
 vdd#branch                                   0
 
 
-No. of Data Rows : 1008
+No. of Data Rows : 508
+dac_max             =  1.072941e+00 at=  4.262800e-03
+dac_min             =  1.317647e-01 at=  4.762800e-03
+svf_max             =  7.176206e-01 at=  3.752800e-03
+svf_min             =  4.823480e-01 at=  4.252800e-03
+adc_max             =  7.152941e-01 at=  4.792800e-03
+adc_min             =  4.800000e-01 at=  4.252800e-03
+  DAC pk-pk: 0.941176 V
+  SVF pk-pk: 0.235273 V
+  ADC pk-pk: 0.235294 V
 === Full Chain Simulation Complete ===
 Note: Simulation executed from .control section 

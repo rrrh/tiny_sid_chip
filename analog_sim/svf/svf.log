@@ -19,24 +19,24 @@ Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
 
 Using SPARSE 1.3 as Direct Linear Solver
 
-No. of Data Rows : 401
-bp_peak             =  -2.177529e+01 at=  1.513561e+07
-  BP peak gain: -21.7753 dB
+No. of Data Rows : 251
+bp_peak             =  -2.163182e+01 at=  1.905461e+03
+  BP peak gain: -21.6318 dB
 === LP AC Response ===
 Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
 
 Using SPARSE 1.3 as Direct Linear Solver
 
-No. of Data Rows : 401
-  LP DC gain: -26.1679 dB
+No. of Data Rows : 251
+  LP DC gain: -25.6949 dB
 === HP AC Response ===
 Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
 
 Using SPARSE 1.3 as Direct Linear Solver
 
-No. of Data Rows : 401
-  HP high-freq gain: -12.0636 dB
-=== Transient Test (BP, 10MHz) ===
+No. of Data Rows : 251
+  HP high-freq gain: -12.2562 dB
+=== Transient Test (BP, 1kHz) ===
 Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
 
 Using SPARSE 1.3 as Direct Linear Solver
@@ -54,8 +54,6 @@ sel0                                         0
 xsvf.hp                                    0.6
 xsvf.lp                                    0.6
 xsvf.bp                                    0.6
-xsvf.xc1.1                                 0.6
-xsvf.xc2.1                                 0.6
 xsvf.notch                                 0.6
 xsvf.sel_hp                                  1
 xsvf.sel_bp                                  0
@@ -71,10 +69,10 @@ b.xsvf.bsel_hp#branch                        0
 vsel0#branch                                 0
 vsel1#branch                                 0
 vin#branch                                   0
-vcm#branch                         1.09176e-15
+vcm#branch                         2.11758e-22
 vdd#branch                                   0
 
 
-No. of Data Rows : 1008
+No. of Data Rows : 508
 === SVF Simulation Complete ===
 Note: Simulation executed from .control section 
