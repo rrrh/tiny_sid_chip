@@ -3,14 +3,15 @@
     "flow": "Classic",
     "substituting_steps": {
       "Checker.HoldViolations": null,
-      "Checker.SetupViolations": null
+      "Checker.SetupViolations": null,
+      "OpenROAD.RepairDesignPostGPL": null
     }
   },
   "MACROS": {
     "r2r_dac_8bit": {
       "instances": {
         "u_dac": {
-          "location": [164, 49],
+          "location": [163, 49],
           "orientation": "N"
         }
       },
@@ -24,7 +25,7 @@
     "svf_2nd": {
       "instances": {
         "u_svf": {
-          "location": [136, 99],
+          "location": [139, 99],
           "orientation": "N"
         }
       },
@@ -38,7 +39,7 @@
     "sar_adc_8bit": {
       "instances": {
         "u_adc": {
-          "location": [160, 2],
+          "location": [159, 4],
           "orientation": "N"
         }
       },
@@ -51,8 +52,10 @@
     }
   },
   "PL_TARGET_DENSITY_PCT": 50,
-  "FP_MACRO_HORIZONTAL_HALO": 2,
-  "FP_MACRO_VERTICAL_HALO": 2,
+  "GPL_CELL_PADDING": 0,
+  "DPL_CELL_PADDING": 0,
+  "FP_MACRO_HORIZONTAL_HALO": 0,
+  "FP_MACRO_VERTICAL_HALO": 0,
   "FP_SIZING": "absolute",
   "DIE_AREA": "0 0 202.08 313.74",
   "CLOCK_PERIOD": 500,
