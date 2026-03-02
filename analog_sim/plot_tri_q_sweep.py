@@ -23,8 +23,8 @@ plt.rcParams.update({
     'grid.alpha': 0.3,
 })
 
-Q_VALUES = [0.5, 1.5, 3.0, 6.0]
-Q_COLORS = {0.5: '#2166ac', 1.5: '#4daf4a', 3.0: '#ff7f00', 6.0: '#d6604d'}
+Q_VALUES = [0.5, 1.0, 3.0, 6.0]
+Q_COLORS = {0.5: '#2166ac', 1.0: '#4daf4a', 3.0: '#ff7f00', 6.0: '#d6604d'}
 Q_LABELS = {q: f'Q={q}' for q in Q_VALUES}
 
 FREQS = [220, 440, 880]
@@ -106,7 +106,7 @@ for row, freq in enumerate(FREQS):
 axes1[0, 0].set_xlim(0, 25)
 axes1[0, 0].set_ylim(-0.2, 1.6)
 
-fig1.suptitle('SC SVF Bandpass — Q Sweep Comparison (0.5, 1.5, 3.0, 6.0)',
+fig1.suptitle('SC SVF Bandpass — Q Sweep Comparison (0.5, 1.0, 3.0, 6.0)',
               fontsize=13, fontweight='bold')
 fig1.tight_layout()
 fig1.savefig('svf/sc_svf_tri_q_sweep.png', dpi=150)
@@ -156,7 +156,7 @@ for row, freq in enumerate(FREQS):
 axes2[0, 0].set_xlim(0, 25)
 axes2[0, 0].set_ylim(-0.1, 1.3)
 
-fig2.suptitle('Full Chain ADC Output — Q Sweep Comparison (0.5, 1.5, 3.0, 6.0)',
+fig2.suptitle('Full Chain ADC Output — Q Sweep Comparison (0.5, 1.0, 3.0, 6.0)',
               fontsize=13, fontweight='bold')
 fig2.tight_layout()
 fig2.savefig('full_chain/tri_chain_q_sweep.png', dpi=150)
