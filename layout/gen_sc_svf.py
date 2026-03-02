@@ -727,21 +727,18 @@ def build_sc_svf():
 
     # C_int1: top plate (TM1) ← BP via M2→TM1 stack at c1_top
     draw_via_stack_m2_to_tm1(top, layout, c1_top[0], c1_top[1])
-    # C_int1: bottom plate (M5) → VSS via M2→M5 stack at c1_bot
+    # C_int1: bottom plate (M5) → VSS via M5→M4→M3 stack, then M3 to VSS rail
     draw_via_stack_m2_to_m5(top, layout, c1_bot[0], c1_bot[1])
-    # Route C_int1 bottom plate to VSS rail via M2
-    top.shapes(li_m2).insert(rect(c1_bot[0] - wire_w2/2, 2.5,
+    # Route on M3 from via stack down to M3 VSS rail (y=0..2)
+    top.shapes(li_m3).insert(rect(c1_bot[0] - wire_w2/2, 0.0,
                                    c1_bot[0] + wire_w2/2, c1_bot[1] + wire_w2/2))
-    draw_via2(top, layout, c1_bot[0], 1.0)
 
     # C_int2: top plate (TM1) ← LP via M2→TM1 stack at c2_top
     draw_via_stack_m2_to_tm1(top, layout, c2_top[0], c2_top[1])
-    # C_int2: bottom plate (M5) → VSS via M2→M5 stack at c2_bot
+    # C_int2: bottom plate (M5) → VSS via M5→M4→M3 stack, then M3 to VSS rail
     draw_via_stack_m2_to_m5(top, layout, c2_bot[0], c2_bot[1])
-    # Route C_int2 bottom plate to VSS rail via M2
-    top.shapes(li_m2).insert(rect(c2_bot[0] - wire_w2/2, 2.5,
+    top.shapes(li_m3).insert(rect(c2_bot[0] - wire_w2/2, 0.0,
                                    c2_bot[0] + wire_w2/2, c2_bot[1] + wire_w2/2))
-    draw_via2(top, layout, c2_bot[0], 1.0)
 
     # C_sw1: top and bottom plate via stacks
     draw_via_stack_m2_to_tm1(top, layout, csw1_top[0], csw1_top[1])
@@ -752,9 +749,12 @@ def build_sc_svf():
     draw_via_stack_m2_to_m5(top, layout, csw2_bot[0], csw2_bot[1])
 
     # C_Q array: via stacks at each cap's top and bottom contact points
+    # Bottom via stacks offset to left side of cap to avoid M2 conflicts
+    # with NOL NMOS source straps (C_Q bit 3 center coincides with nmos[3])
     for cap_info in cq['caps']:
         draw_via_stack_m2_to_tm1(top, layout, cap_info['top'][0], cap_info['top'][1])
-        draw_via_stack_m2_to_m5(top, layout, cap_info['bot'][0], cap_info['bot'][1])
+        bot_via_x = cap_info['x'] + 1.0
+        draw_via_stack_m2_to_m5(top, layout, bot_via_x, cap_info['bot'][1])
 
     # LP feedback: route LP to OTA1 negative input via M2
     fb_x, fb_y = ota1['inn']

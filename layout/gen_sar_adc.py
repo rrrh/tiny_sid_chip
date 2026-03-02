@@ -437,9 +437,8 @@ def build_sar_adc():
     # Place via stacks at each cap for electrical connectivity.
     # Bottom plate (M5) via stacks at cap bottom edge (overlaps M5 plate).
     # Top plate (TM1) via stacks at cap top edge.
-    # M3 horizontal bus connects all top-plate via stacks (sampling node),
-    # avoiding M2 bus congestion in the SAR bit routing area.
-    li_m3_rt = layout.layer(*L_METAL3)
+    # Sampling node (top plates) uses M2 bus — safe because the sampling bus
+    # at y≈5.25 is well below the SAR bit M2 buses (y≥24).
 
     for idx, ba in enumerate(bit_areas):
         cx = ba['center'][0]
@@ -450,29 +449,29 @@ def build_sar_adc():
         top_y = ba['y'] + ba['h'] + 0.1
         draw_via_stack_m2_to_tm1(top, layout, cx, top_y)
 
-    # Common top-plate bus (sampling node) on M3 to avoid M2 congestion
+    # Common top-plate bus (sampling node) on M2
     if bit_areas:
         sampling_y = bit_areas[0]['y'] + bit_areas[0]['h'] + 0.1
         first_cx = bit_areas[0]['center'][0]
         last_cx = bit_areas[-1]['center'][0]
-        top.shapes(li_m3_rt).insert(rect(first_cx - M2_WIDTH/2, sampling_y - M2_WIDTH/2,
-                                          last_cx + M2_WIDTH/2, sampling_y + M2_WIDTH/2))
+        top.shapes(li_m2).insert(rect(first_cx - M2_WIDTH/2, sampling_y - M2_WIDTH/2,
+                                       last_cx + M2_WIDTH/2, sampling_y + M2_WIDTH/2))
 
     # =====================================================================
     # Sample switch (NMOS, left edge near vin pin)
     # =====================================================================
     sw_sample = draw_nmos_transistor(top, layout, x=2.0, y=20.0, w=3.0, l=0.13)
 
-    # Connect sample switch drain to sampling node via M1→via stack→M3
+    # Connect sample switch drain to sampling node via M1 vertical + via1 at bus
+    # Route on M1 to avoid M2 spacing conflicts with cap bottom-plate via pads.
     sw_drain_x, sw_drain_y = sw_sample['drain']
-    draw_via1(top, layout, sw_drain_x, sw_drain_y)
-    draw_via2(top, layout, sw_drain_x, sw_drain_y)
     if bit_areas:
         sampling_y = bit_areas[0]['y'] + bit_areas[0]['h'] + 0.1
-        # M3 vertical from sample switch to sampling bus
-        li_m3_rt = layout.layer(*L_METAL3)
-        top.shapes(li_m3_rt).insert(rect(sw_drain_x - M2_WIDTH/2, sampling_y - M2_WIDTH/2,
-                                          sw_drain_x + M2_WIDTH/2, sw_drain_y + M2_WIDTH/2))
+        # M1 vertical from sample switch drain down to sampling bus y
+        top.shapes(li_m1).insert(rect(sw_drain_x - M1_WIDTH/2, sampling_y,
+                                       sw_drain_x + M1_WIDTH/2, sw_drain_y + M1_WIDTH/2))
+        # via1 at sampling bus y to jump from M1 to M2
+        draw_via1(top, layout, sw_drain_x, sampling_y)
 
     # =====================================================================
     # Dynamic comparator (right side of macro)
