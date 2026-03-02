@@ -1,4 +1,4 @@
-# Analog Simulation Status — 2026-02-28
+# Analog Simulation Status — 2026-03-02
 
 ## Infrastructure: COMPLETE
 - **ngspice-43** at `/home/shue/.local/bin/ngspice` (KLU+OSDI+XSPICE+OpenMP)
@@ -93,6 +93,83 @@
 
 ![High-Pass Response](filter_sweep/filter_hp.png)
 
+### r2r_dac triangle: PASS (220/440/880 Hz, identical pk-pk)
+- 3 parallel DAC instances driven by quantized 8-bit triangle waves
+- 25ms transient, simultaneous 220/440/880 Hz capture
+- All three frequencies produce identical pk-pk ~0.935V (code 28–228)
+- Confirms frequency-independent DAC behavior with CMOS switches
+- Data: `r2r_dac_tri_{220,440,880}.dat`
+
+![R-2R DAC Triangle Waves](r2r_dac/r2r_dac_tri_waves.png)
+
+### sc_svf triangle 3×3: PASS (bandpass filtering confirmed)
+- 9 parallel SVF instances: 3 triangle frequencies × 3 BP cutoffs (Q=1)
+- CT-equivalent R_eff: fc=50 Hz (2.894 GΩ), fc=440 Hz (328.8 MΩ), fc=1200 Hz (120.6 MΩ)
+- Results (steady-state pk-pk, 15–25ms window):
+
+| Triangle | fc=50 Hz | fc=440 Hz | fc=1200 Hz |
+|----------|----------|-----------|------------|
+| 220 Hz   | 0.167V   | 0.337V    | 0.124V     |
+| 440 Hz   | 0.110V   | **0.667V** | 0.247V    |
+| 880 Hz   | 0.075V   | 0.359V    | **0.514V** |
+
+- fc=50 BP: all signals attenuated (above cutoff), decreasing with frequency
+- fc=440 BP: 440 Hz at peak (0.667V), 220/880 Hz attenuated — triangle reshaped toward sine
+- fc=1200 BP: 880 Hz strongest (0.514V), 440 Hz mild, 220 Hz most attenuated
+- Data: `sc_svf_tri_{freq}_fc{cutoff}.dat` (9 files)
+
+![SVF Triangle 3×3 Matrix](svf/sc_svf_tri_matrix.png)
+
+### sar_adc triangle: PASS (quantization error < 1 LSB)
+- Behavioral 8-bit ADC with triangle analog input at 220/440/880 Hz
+- Quantization fidelity (15–25ms window):
+
+| Frequency | Input pk-pk | Recon pk-pk | Error |
+|-----------|-------------|-------------|-------|
+| 220 Hz    | 0.940V      | 0.936V      | 3.4mV |
+| 440 Hz    | 0.940V      | 0.936V      | 3.1mV |
+| 880 Hz    | 0.940V      | 0.936V      | 3.5mV |
+
+- Max error ~3.5mV < 1 LSB (4.7mV) — confirms 8-bit fidelity
+- Note: StrongARM comparator not included (100MHz clock causes timestep convergence over 25ms); comparator validated separately in `sar_adc_tb.spice`
+- Data: `sar_adc_tri_{220,440,880}.dat`
+
+![SAR ADC Triangle Quantization](sar_adc/sar_adc_tri_waves.png)
+
+### bias_dac verification: PASS (FC codes for target cutoffs)
+- FC channel codes verified for target filter cutoff frequencies
+- Q channel fixed at code 4 (Q=1 baseline)
+
+| FC Code | Binary | Vout_fc | Target fc |
+|---------|--------|---------|-----------|
+| 1       | 0001   | 0.073V  | ~50 Hz    |
+| 6       | 0110   | 0.446V  | ~440 Hz   |
+| 12      | 1100   | 0.896V  | ~1200 Hz  |
+
+- Full 16-code sweep: linear from 0.000V to 1.121V, ~74.7mV/step
+- Data: `bias_dac_fc_verify.dat`
+
+![Bias DAC FC Transfer](bias_dac/bias_dac_fc_sweep.png)
+
+### full_chain 3×3 triangle: PASS (DAC → SVF → ADC, 9 chains)
+- 9 parallel signal chains: R-2R DAC → SC SVF (BP, Q=1) → behavioral 8-bit ADC
+- Single 25ms transient captures all combinations simultaneously
+- Results (steady-state SVF / ADC pk-pk):
+
+| Triangle | fc=50 Hz         | fc=440 Hz         | fc=1200 Hz        |
+|----------|------------------|-------------------|-------------------|
+| 220 Hz   | 0.196 / 0.193V   | 0.396 / 0.400V    | 0.146 / 0.146V    |
+| 440 Hz   | 0.129 / 0.127V   | **0.785 / 0.786V** | 0.291 / 0.287V   |
+| 880 Hz   | 0.089 / 0.089V   | 0.423 / 0.419V    | **0.605 / 0.607V** |
+
+- ADC reconstruction closely tracks SVF output (< 1 LSB error throughout)
+- Bandpass diagonal behavior matches standalone SVF results
+- Data: `tri_chain_{freq}_fc{cutoff}.dat` (9 files)
+
+![Full Chain 3×3 Matrix](full_chain/tri_chain_matrix.png)
+
+![Full Chain Detail: 440 Hz at 3 Cutoffs](full_chain/tri_chain_detail.png)
+
 ### Digital Frequency Sweep (`tests/freq_sweep_tb.v`)
 - Verilog testbench sweeps Voice 0 sawtooth through 16 frequency points in bypass mode
 - Captures PWM output to PWL files, processed through RC filter simulation (`tests/sim_analog.py`)
@@ -117,5 +194,6 @@ The parent module (`tt_um_sid.v`) connects the behavioral models via hierarchica
 Compile with `-DBEHAVIORAL_SIM` to enable (used by Verilog testbenches in `tests/`). All 15 Verilog tests pass with behavioral models enabled.
 
 ## All Sims Run Without Errors
-`make all` completes — all 5 macro-level testbenches execute and produce output data.
+`make all` completes — all 5 original macro-level testbenches execute and produce output data.
+`bash analog_sim/run_tri_sims.sh` — all 5 triangle-wave testbenches pass (including 3×3 full chain).
 Full system sweep: `bash tests/run_freq_sweep.sh` (digital + analog + plots).
