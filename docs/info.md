@@ -9,19 +9,19 @@ You can also include images in this folder and reference them in the markdown. E
 
 ## How it works
 
-This is a triple-voice SID (MOS 6581-inspired) synthesizer with an on-chip switched-capacitor (SC) State Variable Filter. It runs at 24 MHz with a ÷3 clock enable producing an 8 MHz voice pipeline (1.6 MHz effective per voice). A host microcontroller writes per-voice registers through a flat memory-mapped parallel interface and the chip produces 8-bit PWM audio output on `uo_out[0]`.
+This is a triple-voice SID (MOS 6581-inspired) synthesizer with an on-chip switched-capacitor (SC) State Variable Filter. It runs at 24 MHz with a ÷4 clock enable producing a 6 MHz voice pipeline (1 MHz effective per voice). A host microcontroller writes per-voice registers through a flat memory-mapped parallel interface and the chip produces 8-bit PWM audio output on `uo_out[0]`.
 
 **Architecture:**
 
 - **Flat register interface** -- rising-edge-triggered writes via `ui_in[7]` (WE), `ui_in[4:3]` (voice select), `ui_in[2:0]` (register address), `uio_in[7:0]` (data). No SPI or I2C overhead.
-- **3-voice pipelined datapath** -- a ÷3 clock divider produces an 8 MHz clock enable from the 24 MHz system clock. A mod-5 slot counter cycles through voices 0/1/2, giving each voice a 1.6 MHz effective update rate. 16-bit phase accumulators with 16-bit frequency registers provide ~24.4 Hz resolution across the full audio range.
+- **3-voice pipelined datapath** -- a ÷4 clock divider produces a 6 MHz clock enable from the 24 MHz system clock. A mod-6 slot counter cycles through voices 0/1/2, giving each voice a 1 MHz effective update rate. 24-bit phase accumulators with 16-bit frequency registers provide ~0.06 Hz resolution (matching the original C64 SID).
 - **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 15-bit LFSR), AND-combined when multiple waveforms are selected. Sync and ring modulation are fully implemented with circular cross-voice connections (V0←V2, V1←V0, V2←V1).
-- **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, 14-bit shared prescaler (clocked at 8 MHz), exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 9 distinct rate settings from ~128 µs to ~262 ms per full traverse.
+- **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, per-voice 15-bit rate counters with 16 SID-accurate non-power-of-2 period values (matching MOS 6581/8580), secondary 5-bit exponential counter with 6 breakpoints for exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 16 rate settings from ~2.3 ms to ~8 s per full traverse.
 - **3-voice mixer** -- accumulates the three 8-bit voice outputs (8×8 waveform×envelope product, upper byte) into a 10-bit accumulator and divides by 4 to produce an 8-bit mix.
 - **Analog filter chain** -- the mixed digital audio is converted to analog via an 8-bit R-2R DAC (`r2r_dac_8bit`), filtered by a 2nd-order switched-capacitor State Variable Filter (`svf_2nd`, 2 OTAs + 2 MIM caps + SC resistors), and converted back to digital via an 8-bit SAR ADC (`sar_adc_8bit`). A programmable clock divider sets the SC switching frequency (fc tuning), and a 4-bit binary-weighted capacitor array sets Q directly from register values. LP/BP/HP modes via priority mux (HP > BP > LP), with bypass when no voices are routed or no mode is selected. Digital volume scaling (shift-add) is applied post-ADC.
-- **2 kHz lowpass** (`output_lpf`) -- fixed single-pole IIR (6 dB/octave) between filter output and PWM input. Alpha = 1/128 (single shift, fc ≈ 1990 Hz), 10-bit unsigned accumulator (8.2 fixed-point), no multiplier.
+- **2 kHz lowpass** (`output_lpf`) -- fixed single-pole IIR (6 dB/octave) between filter output and PWM input. Alpha = 1/128 (single shift, fc ≈ 1244 Hz), 10-bit unsigned accumulator (8.2 fixed-point), no multiplier.
 - **PWM audio** (`pwm_audio`) -- single instance on `uo_out[0]`. 8-bit PWM with a 255-clock period (~94.1 kHz at 24 MHz).
-- **Analog hard macros** -- three IHP SG13G2 130nm hard macros placed on-die: `r2r_dac_8bit` (38×48 µm), `svf_2nd` (66×72 µm), `sar_adc_8bit` (42×45 µm). Total macro area ~8,466 µm² (~13.4% of die). FC and Q tuning are digital (clock divider + cap switches), eliminating the need for a bias DAC.
+- **Analog hard macros** -- three IHP SG13G2 130nm hard macros placed on-die: `r2r_dac_8bit` (38×45 µm), `svf_2nd` (62×68 µm), `sar_adc_8bit` (42×42 µm). Total macro area ~7,182 µm² (~11.3% of die). FC and Q tuning are digital (clock divider + cap switches), eliminating the need for a bias DAC.
 
 **Clock tree:**
 
@@ -35,44 +35,44 @@ There is a single physical clock (`clk` at 24 MHz). All registers use `posedge c
             ▼               ▼                       ▼
       ┌──────────┐    ┌──────────┐            ┌──────────┐
       │ clk_div  │    │ wr_en_d  │            │ pwm_audio│
-      │ ÷3 ctr   │    │ edge det │            │ 8-bit ctr│
+      │ ÷4 ctr   │    │ edge det │            │ 8-bit ctr│
       │ (2-bit)  │    └──────────┘            │ /255     │
       └────┬─────┘     24 MHz                 │ 94.1 kHz │
            │                                  └──────────┘
            ▼                                    24 MHz
-      clk_en_8m                               (free-running)
-       (8 MHz)
+      clk_en_6m                               (free-running)
+       (6 MHz)
            │
      ┌─────┼──────────────────────┐
      │     │                      │
      ▼     ▼                      ▼
  ┌───────┐ ┌───────────────┐ ┌──────────┐
- │ slot  │ │ pipeline regs │ │ adsr_pre │
- │ mod-5 │ │ (V0/V1/V2     │ │ 14-bit   │
- │(3-bit)│ │  load/compute)│ │ prescaler│
+ │ slot  │ │ pipeline regs │ │ rate_cnt │
+ │ mod-6 │ │ (V0/V1/V2     │ │ 15-bit   │
+ │(3-bit)│ │  load/compute)│ │ per-voice│
  └───┬───┘ └───────────────┘ └──────────┘
      │
      ▼
  voice_active ──► acc/env/ast state (slots 0-2)
      │
      ▼
- mix_acc ──► mix_out (slot 3 latch)
+ mix_acc ──► mix_out (slot 4 latch)
      │
      ▼
- sample_valid ──► 1 clk pulse after slot 3
+ sample_valid ──► 1 clk pulse after slot 4
      │
      ├──► r2r_dac → svf_2nd → sar_adc  (continuous analog)
-     ├──► output_lpf (IIR) @ 1.6 MHz
+     ├──► output_lpf (IIR) @ 1 MHz
      └──► pwm_audio        @ 24 MHz (free-running)
 ```
 
 | Domain | Rate | Drives |
 |--------|------|--------|
 | 24 MHz (`clk`) | 24 MHz | All flip-flops, PWM counter, write-enable edge detect |
-| 8 MHz (`clk_en_8m`) | 8 MHz | Slot counter, pipeline loads, voice state updates, mix, ADSR prescaler |
-| 1.6 MHz (`sample_valid`) | 1.6 MHz | output_lpf IIR (1 pulse per mod-5 frame) |
+| 6 MHz (`clk_en_6m`) | 6 MHz | Slot counter, pipeline loads, voice state updates, mix, ADSR rate counters |
+| 1 MHz (`sample_valid`) | 1 MHz | output_lpf IIR (1 pulse per mod-6 frame) |
 | Continuous | analog | R-2R DAC → SC SVF → SAR ADC (free-running conversion) |
-| Noise LFSR | pitch-dependent | Edge-detected from voice 0 accumulator bit 11 |
+| Noise LFSR | pitch-dependent | Edge-detected from voice 0 accumulator bit 19 |
 
 **Register map** — full address = `{voice_sel[1:0], reg_addr[2:0]}`, selected by `ui_in[4:3]` (voice_sel) and `ui_in[2:0]` (reg_addr):
 
@@ -124,17 +124,17 @@ There is a single physical clock (`clk` at 24 MHz). All registers use `posedge c
 
 **Frequency formula:**
 
-The 16-bit frequency register `{freq_hi, freq_lo}` sets the oscillator pitch:
+The 16-bit frequency register `{freq_hi, freq_lo}` is zero-extended and added to the 24-bit phase accumulator each voice cycle:
 
 ```
-f_out = freq_reg × 1,600,000 / 65,536  ≈  freq_reg × 24.414 Hz
+f_out = freq_reg × 1,000,000 / 16,777,216  ≈  freq_reg × 0.0596 Hz
 ```
 
-Resolution: ~24.4 Hz. Range: 24.4 Hz (reg=1) to ~1.6 MHz (reg=65535). Useful audio range: 24 Hz to ~20 kHz.
+Resolution: ~0.06 Hz. Range: 0.06 Hz (reg=1) to ~3906 Hz (reg=65535). This matches the original C64 SID accumulator geometry (24-bit acc, 16-bit freq reg). Higher audio frequencies are produced as harmonics of the waveform generators.
 
 **Pulse width:**
 
-The 12-bit pulse width `{pw_hi[3:0], pw_lo[7:0]}` is compared against `acc[15:4]`. A value of `0x800` gives a 50% duty cycle.
+The 12-bit pulse width `{pw_hi[3:0], pw_lo[7:0]}` is compared against `acc[23:12]`. A value of `0x800` gives a 50% duty cycle.
 
 ## How to test
 

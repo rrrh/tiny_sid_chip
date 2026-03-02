@@ -290,3 +290,28 @@ recovery through a 3rd-order RC filter.
 
 See [`analog_sim/STATUS.md`](../STATUS.md) for complete results, plots, and
 pass/fail status of all analog macro simulations.
+
+## Behavioral Simulation Model
+
+The `svf_2nd` Verilog source (`macros/nl/svf_2nd.v`) includes a behavioral
+model gated by `` `ifdef BEHAVIORAL_SIM ``, enabling full-chain digital
+simulation without analog tools. The model uses `real` arithmetic and
+executes one SVF iteration per `posedge sc_clk`:
+
+```
+alpha = C_sw / C_int = 73.5 fF / 1.1 pF ≈ 0.0668
+damping = 1 / (0.5 + q_val)       // q_val = {q3,q2,q1,q0}
+
+hp = input - damping*bp - lp
+bp += alpha * hp
+lp += alpha * bp                   // uses updated bp (standard SVF)
+```
+
+Internal registers `sim_data_in[7:0]` and `sim_data_out[7:0]` carry the
+8-bit data bus (the physical single-bit `vin`/`vout` pins carry only the MSB
+for real-analog connectivity). The parent module connects these via
+hierarchical references: `u_dac.sim_data_out` → `u_svf.sim_data_in` and
+`u_svf.sim_data_out` → `u_adc.sim_data_in`.
+
+Output mode is selected by `{sel1, sel0}`: 00=LP, 01=BP, 10=HP, 11=bypass.
+The output is AC-coupled (centered at 128), clamped to 0–255.
