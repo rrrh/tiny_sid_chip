@@ -474,7 +474,43 @@ def build_sar_adc():
         first_cx = bit_areas[0]['center'][0]
         last_cx = bit_areas[-1]['center'][0]
         top.shapes(li_m2).insert(rect(first_cx - M2_WIDTH/2, sampling_y - M2_WIDTH/2,
-                                       last_cx + M2_WIDTH/2, sampling_y + M2_WIDTH/2))
+                                       first_cx + M2_WIDTH/2, sampling_y + M2_WIDTH/2))
+
+    # =====================================================================
+    # Fix 1: TM1 sampling-node strap
+    # =====================================================================
+    # Connect all cap top plates via TopMetal1 to form the sampling node.
+    # All caps already have TM1 top plates; fill gaps between consecutive
+    # caps and bridge across columns so the entire array shares one TM1 net.
+    li_tm1 = layout.layer(*L_TOPMETAL1)
+    TM1_MIN_W = 1.64  # µm
+
+    # Compute TM1 bounding box for each cap (mirrors draw logic above)
+    tm1_bounds = []
+    for ba in bit_areas:
+        w_cap, h_cap = ba['w'], ba['h']
+        cx_ba, cy_ba = ba['x'], ba['y']
+        tw = max(0.1, (1.64 - w_cap) / 2 + 0.01) if w_cap < 1.44 else 0.1
+        th = max(0.1, (1.64 - h_cap) / 2 + 0.01) if h_cap < 1.44 else 0.1
+        tm1_bounds.append((cx_ba - tw, cy_ba - th,
+                           cx_ba + w_cap + tw, cy_ba + h_cap + th))
+
+    # Column 1 TM1 strap (bits 0-5): fill vertical gaps between caps
+    # Use x=1.7 to x=3.4 (width 1.7 µm ≥ TM1 min 1.64 µm), within the
+    # common x overlap of all column 1 caps' TM1 rectangles.
+    for i in range(5):  # 5 gaps: 0-1, 1-2, 2-3, 3-4, 4-5
+        gap_top = tm1_bounds[i][3]      # top edge of cap i TM1
+        gap_bot = tm1_bounds[i + 1][1]  # bottom edge of cap i+1 TM1
+        top.shapes(li_tm1).insert(rect(1.7, gap_top, 3.4, gap_bot))
+
+    # Column 2 TM1 strap (bits 6-7): fill gap between bit 6 and bit 7
+    top.shapes(li_tm1).insert(rect(13.9, tm1_bounds[6][3], 15.54, tm1_bounds[7][1]))
+
+    # TM1 horizontal bridges at y ≈ 4.0 (where all columns have TM1)
+    # Column 1 → Column 2 (bit 0 right edge → bit 6 left edge)
+    top.shapes(li_tm1).insert(rect(3.4, 3.7, 13.9, 5.4))
+    # Column 2 → Column 3 (bit 6 right edge → bit 8 left edge)
+    top.shapes(li_tm1).insert(rect(20.6, 3.86, 25.9, 5.5))
 
     # =====================================================================
     # Sample switch (NMOS, left edge near vin pin)
@@ -571,7 +607,7 @@ def build_sar_adc():
     # Route via M3 vertical (M3 is clear between y=2 and y=40)
     m3_x = 25.5  # x for M3 vertical run
     # Extend M2 sampling bus rightward to m3_x
-    top.shapes(li_m2).insert(rect(last_cx + M2_WIDTH / 2, samp_y - M2_WIDTH / 2,
+    top.shapes(li_m2).insert(rect(first_cx - M2_WIDTH / 2, samp_y - M2_WIDTH / 2,
                                    m3_x + M2_WIDTH / 2, samp_y + M2_WIDTH / 2))
     # via2 at (m3_x, samp_y) → M3
     draw_via2(top, layout, m3_x, samp_y)
@@ -624,11 +660,45 @@ def build_sar_adc():
                                    outn_m2_x + M2_WIDTH / 2, outn_y))
 
     # =====================================================================
-    # Fix 2f: Route M2 bit buses → cap bottom plates
+    # Fix 2f: Route M2 bit buses → cap bottom plates via M3
     # =====================================================================
-    # Deferred — cap bottom-plate M2 via pads are too close to each other
-    # (column 1) and to comparator power vias (bit 8) for safe M2 verticals.
-    # Requires detailed routing with M1/M3 underpasses (future work).
+    # M3 vertical routes at staggered x positions (clear of cap via stacks
+    # and clk M3), with via2 at each end and M2 horizontal jog at the
+    # bottom to reach each cap's bottom-plate M2 pad.
+    m3_x_positions = [6.0, 6.5, 7.0, 7.5, 8.0, 20.0, 21.0, 26.0]
+    # SAR bits 5 and 7: M3 must stop above clk M3 horizontal at y=3.5
+    target_y_override = {5: 4.0, 7: 4.0}
+
+    for sar_bit in range(NBITS):
+        ba = bit_areas[sar_bit + 1]  # +1: bit_areas[0] is dummy cap
+        cap_cx = ba['center'][0]
+        cap_bot_y = ba['y'] - MIM_ENC_M5
+        bus_y = 24.0 + sar_bit * 1.5
+        m3_x = m3_x_positions[sar_bit]
+        tgt_y = target_y_override.get(sar_bit, cap_bot_y)
+
+        # via2 on existing M2 bus → M3
+        draw_via2(top, layout, m3_x, bus_y)
+        # M3 vertical from bus_y down to target_y
+        top.shapes(li_m3).insert(rect(m3_x - M2_WIDTH / 2, tgt_y,
+                                       m3_x + M2_WIDTH / 2, bus_y))
+        # via2 at bottom of M3 → M2
+        draw_via2(top, layout, m3_x, tgt_y)
+
+        if sar_bit in target_y_override:
+            # L-shape M2: horizontal at tgt_y, then vertical to cap_bot_y
+            x_min = min(m3_x, cap_cx) - M2_WIDTH / 2
+            x_max = max(m3_x, cap_cx) + M2_WIDTH / 2
+            top.shapes(li_m2).insert(rect(x_min, tgt_y - M2_WIDTH / 2,
+                                           x_max, tgt_y + M2_WIDTH / 2))
+            top.shapes(li_m2).insert(rect(cap_cx - M2_WIDTH / 2, cap_bot_y - M2_WIDTH / 2,
+                                           cap_cx + M2_WIDTH / 2, tgt_y + M2_WIDTH / 2))
+        else:
+            # Simple M2 horizontal jog from m3_x to cap_cx at cap_bot_y
+            x_min = min(m3_x, cap_cx) - M2_WIDTH / 2
+            x_max = max(m3_x, cap_cx) + M2_WIDTH / 2
+            top.shapes(li_m2).insert(rect(x_min, cap_bot_y - M2_WIDTH / 2,
+                                           x_max, cap_bot_y + M2_WIDTH / 2))
 
     # =====================================================================
     # Fix 2g: Route clk → comparator tail gate (via M3)
