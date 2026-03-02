@@ -1,0 +1,182 @@
+* Dual 4-bit Bias DAC Verification Testbench
+* IHP SG13G2 PDK — VDD=1.2V
+* Verify FC channel codes that map to fc=50, 440, 1200 Hz
+* Static test: bias DAC sets filter parameters, not signal path
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+
+* ============================================================
+* Complementary Switch
+* ============================================================
+.subckt cmos_sw out sel selb vhi vlo vdd vss
+XMp_hi out selb vhi vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMn_lo out selb vlo vss sg13_lv_nmos w=10e-6 l=0.13e-6
+.ends cmos_sw
+
+* ============================================================
+* Dual 4-bit Bias DAC
+* ============================================================
+.subckt bias_dac_2ch dfc3 dfc2 dfc1 dfc0 dq3 dq2 dq1 dq0 vout_fc vout_q vdd vss
+
+* FC channel inverters
+Binv_fc3 dfc3b 0 V = {vdd_val} - v(dfc3)
+Binv_fc2 dfc2b 0 V = {vdd_val} - v(dfc2)
+Binv_fc1 dfc1b 0 V = {vdd_val} - v(dfc1)
+Binv_fc0 dfc0b 0 V = {vdd_val} - v(dfc0)
+
+* FC channel R-2R
+XRterm_fc ftap0 vss vss rhigh w=2e-6 l=6.15e-6
+XR2R_fc0 ftap0 fsw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw_fc0 fsw0 dfc0 dfc0b vdd vss vdd vss cmos_sw
+XRs_fc01 ftap0 ftap1 vss rhigh w=2e-6 l=3.08e-6
+XR2R_fc1 ftap1 fsw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw_fc1 fsw1 dfc1 dfc1b vdd vss vdd vss cmos_sw
+XRs_fc12 ftap1 ftap2 vss rhigh w=2e-6 l=3.08e-6
+XR2R_fc2 ftap2 fsw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw_fc2 fsw2 dfc2 dfc2b vdd vss vdd vss cmos_sw
+XRs_fc23 ftap2 vout_fc vss rhigh w=2e-6 l=3.08e-6
+XR2R_fc3 vout_fc fsw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw_fc3 fsw3 dfc3 dfc3b vdd vss vdd vss cmos_sw
+
+* Q channel inverters
+Binv_q3 dq3b 0 V = {vdd_val} - v(dq3)
+Binv_q2 dq2b 0 V = {vdd_val} - v(dq2)
+Binv_q1 dq1b 0 V = {vdd_val} - v(dq1)
+Binv_q0 dq0b 0 V = {vdd_val} - v(dq0)
+
+* Q channel R-2R
+XRterm_q qtap0 vss vss rhigh w=2e-6 l=6.15e-6
+XR2R_q0 qtap0 qsw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw_q0 qsw0 dq0 dq0b vdd vss vdd vss cmos_sw
+XRs_q01 qtap0 qtap1 vss rhigh w=2e-6 l=3.08e-6
+XR2R_q1 qtap1 qsw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw_q1 qsw1 dq1 dq1b vdd vss vdd vss cmos_sw
+XRs_q12 qtap1 qtap2 vss rhigh w=2e-6 l=3.08e-6
+XR2R_q2 qtap2 qsw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw_q2 qsw2 dq2 dq2b vdd vss vdd vss cmos_sw
+XRs_q23 qtap2 vout_q vss rhigh w=2e-6 l=3.08e-6
+XR2R_q3 vout_q qsw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw_q3 qsw3 dq3 dq3b vdd vss vdd vss cmos_sw
+
+.ends bias_dac_2ch
+
+* ============================================================
+* Testbench
+* ============================================================
+Vdd vdd 0 {vdd_val}
+Vss vss 0 0
+
+Vdfc3 dfc3 0 0
+Vdfc2 dfc2 0 0
+Vdfc1 dfc1 0 0
+Vdfc0 dfc0 0 0
+
+Vdq3 dq3 0 0
+Vdq2 dq2 0 0
+Vdq1 dq1 0 0
+Vdq0 dq0 0 0
+
+Rload_fc vout_fc 0 1meg
+Rload_q  vout_q  0 1meg
+
+Xbdac dfc3 dfc2 dfc1 dfc0 dq3 dq2 dq1 dq0 vout_fc vout_q vdd vss bias_dac_2ch
+
+* ============================================================
+* FC codes for target cutoff frequencies:
+*   Bias DAC output controls the SC clock divider.
+*   4-bit code → Vout/VDD fraction → clock divider → f_clk → fc
+*
+*   The bias DAC maps fc codes to clock frequencies:
+*     fc=50 Hz → very low f_clk → high code (slow clock)
+*     fc=440 Hz → moderate f_clk → mid code
+*     fc=1200 Hz → higher f_clk → low code (fast clock)
+*
+*   Test FC codes: 1 (low fc), 6 (mid fc ≈440Hz), 12 (high fc)
+*   Q channel: fixed at code 4 (Q=1 baseline)
+* ============================================================
+
+.control
+  shell rm -f bias_dac_fc_verify.dat
+
+  echo "=== Bias DAC FC Verification ==="
+  echo "Testing FC codes for target cutoff frequencies"
+  echo "Q channel fixed at code 4"
+  echo ""
+
+  * Set Q channel to code 4 (0100) — Q=1 baseline
+  alter vdq3 = 0
+  alter vdq2 = 1.2
+  alter vdq1 = 0
+  alter vdq0 = 0
+
+  * --- FC code 1 (0001): lowest non-zero → fc ≈ 50 Hz region ---
+  alter vdfc3 = 0
+  alter vdfc2 = 0
+  alter vdfc1 = 0
+  alter vdfc0 = 1.2
+  op
+  let vfc_code1 = v(vout_fc)
+  let vq_code4  = v(vout_q)
+  echo "  FC code  1 (0001): Vout_fc = $&vfc_code1 V, Vout_q = $&vq_code4 V"
+  echo "$&vfc_code1 $&vq_code4" >> bias_dac_fc_verify.dat
+  destroy all
+
+  * --- FC code 6 (0110): mid-range → fc ≈ 440 Hz region ---
+  alter vdfc3 = 0
+  alter vdfc2 = 1.2
+  alter vdfc1 = 1.2
+  alter vdfc0 = 0
+  op
+  let vfc_code6 = v(vout_fc)
+  let vq_code4  = v(vout_q)
+  echo "  FC code  6 (0110): Vout_fc = $&vfc_code6 V, Vout_q = $&vq_code4 V"
+  echo "$&vfc_code6 $&vq_code4" >> bias_dac_fc_verify.dat
+  destroy all
+
+  * --- FC code 12 (1100): upper range → fc ≈ 1200 Hz region ---
+  alter vdfc3 = 1.2
+  alter vdfc2 = 1.2
+  alter vdfc1 = 0
+  alter vdfc0 = 0
+  op
+  let vfc_code12 = v(vout_fc)
+  let vq_code4   = v(vout_q)
+  echo "  FC code 12 (1100): Vout_fc = $&vfc_code12 V, Vout_q = $&vq_code4 V"
+  echo "$&vfc_code12 $&vq_code4" >> bias_dac_fc_verify.dat
+  destroy all
+
+  * --- Full FC sweep for reference ---
+  echo ""
+  echo "--- Full FC Channel Sweep (Q fixed at code 4) ---"
+  let i = 0
+  while i < 16
+    let rem = i
+    let b3v = floor(rem / 8) * 1.2
+    let rem = rem - floor(rem / 8) * 8
+    let b2v = floor(rem / 4) * 1.2
+    let rem = rem - floor(rem / 4) * 4
+    let b1v = floor(rem / 2) * 1.2
+    let rem = rem - floor(rem / 2) * 2
+    let b0v = rem * 1.2
+
+    alter vdfc3 = $&b3v
+    alter vdfc2 = $&b2v
+    alter vdfc1 = $&b1v
+    alter vdfc0 = $&b0v
+
+    op
+    let vout_val = v(vout_fc)
+    echo "  FC code $&i : Vout_fc = $&vout_val V"
+    echo "$&i $&vout_val" >> bias_dac_fc_verify.dat
+    destroy all
+    let i = i + 1
+  end
+
+  echo ""
+  echo "=== Bias DAC Verification Complete ==="
+
+.endc
+
+.end

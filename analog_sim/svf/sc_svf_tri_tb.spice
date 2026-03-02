@@ -1,0 +1,180 @@
+* SC SVF Triangle Wave Testbench — 3x3 Frequency/Cutoff Matrix
+* IHP SG13G2 PDK — VDD=1.2V
+* Triangle input at 220, 440, 880 Hz through SVF at fc=50, 440, 1200 Hz
+* BP mode (sel=01), Q=1 for all tests
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+.param vcm=0.6
+.param vdd_sq=1.44
+.param pi=3.14159265358979
+.param c_int=1.1e-12
+
+* CT equivalent R_eff for each cutoff frequency (Q=1 → R_Q = R_eff)
+*   R_eff = 1/(2*pi*fc*C_int)
+.param r_fc50=2.894e9
+.param r_fc440=328.8e6
+.param r_fc1200=120.6e6
+
+* ============================================================
+* SC SVF CT equivalent (Tow-Thomas biquad) with output mux
+* ============================================================
+.subckt sc_svf_ct vin vout sel1 sel0 vdd vss r_eff_val=145.1e6 r_q_val=145.1e6
+
+* Integrator 1 (inverting): produces BP
+Eoa1 bp_raw 0 vcm1 vg1 10000
+Vcm1 vcm1 0 {vcm}
+Rout1 bp_raw bp 100
+Cint1 vg1 bp {c_int}
+Rin1 vin vg1 {r_eff_val}
+Rfb lp vg1 {r_eff_val}
+Rq bp vg1 {r_q_val}
+
+* Unity-gain inverter: LP_bar → LP
+Eoa_inv lp_raw 0 vcm_inv vg_inv 10000
+Vcm_inv vcm_inv 0 {vcm}
+Rout_inv lp_raw lp 100
+Rinv_in lp_bar vg_inv 100k
+Rinv_fb vg_inv lp 100k
+
+* Integrator 2 (inverting): produces LP_bar
+Eoa2 lpbar_raw 0 vcm2 vg2 10000
+Vcm2 vcm2 0 {vcm}
+Rout2 lpbar_raw lp_bar 100
+Cint2 vg2 lp_bar {c_int}
+Rin2 bp vg2 {r_eff_val}
+
+* HP output (behavioral)
+Bhp hp 0 V = v(vin) - v(lp)
+
+* 4:1 Output Mux (behavioral)
+Bsel_hp  sel_hp  0 V = ({vdd_val}-v(sel1))*({vdd_val}-v(sel0))/{vdd_sq}
+Bsel_bp  sel_bp  0 V = ({vdd_val}-v(sel1))*v(sel0)/{vdd_sq}
+Bsel_lp  sel_lp  0 V = v(sel1)*({vdd_val}-v(sel0))/{vdd_sq}
+Bsel_byp sel_byp 0 V = v(sel1)*v(sel0)/{vdd_sq}
+Bmux vmux 0 V = v(hp)*v(sel_hp)+v(bp)*v(sel_bp)+v(lp)*v(sel_lp)+v(vin)*v(sel_byp)
+Rmux vmux vout 100
+
+.ends sc_svf_ct
+
+* ============================================================
+* Triangle wave sources (analog voltage, centered at VCM=0.6V)
+* Amplitude: ±0.4V around 0.6V → 0.2V to 1.0V
+* ============================================================
+Btri220 tri220 0 V = {vcm} + 0.4*(2/{pi})*asin(sin(2*{pi}*220*time - {pi}/2))
+Btri440 tri440 0 V = {vcm} + 0.4*(2/{pi})*asin(sin(2*{pi}*440*time - {pi}/2))
+Btri880 tri880 0 V = {vcm} + 0.4*(2/{pi})*asin(sin(2*{pi}*880*time - {pi}/2))
+
+* ============================================================
+* Testbench — 9 SVF instances (3 frequencies × 3 cutoffs)
+* BP mode: sel1=0, sel0=VDD
+* ============================================================
+Vdd vdd 0 {vdd_val}
+Vsel1 sel1 0 0
+Vsel0 sel0 0 {vdd_val}
+
+* --- fc=50 Hz (R_eff=2.894 GΩ, Q=1) ---
+Xsvf_220_fc50  tri220 out_220_fc50  sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc50}  r_q_val={r_fc50}
+Xsvf_440_fc50  tri440 out_440_fc50  sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc50}  r_q_val={r_fc50}
+Xsvf_880_fc50  tri880 out_880_fc50  sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc50}  r_q_val={r_fc50}
+Rout_220_fc50  out_220_fc50  0 1meg
+Rout_440_fc50  out_440_fc50  0 1meg
+Rout_880_fc50  out_880_fc50  0 1meg
+
+* --- fc=440 Hz (R_eff=328.8 MΩ, Q=1) ---
+Xsvf_220_fc440 tri220 out_220_fc440 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc440} r_q_val={r_fc440}
+Xsvf_440_fc440 tri440 out_440_fc440 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc440} r_q_val={r_fc440}
+Xsvf_880_fc440 tri880 out_880_fc440 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc440} r_q_val={r_fc440}
+Rout_220_fc440 out_220_fc440 0 1meg
+Rout_440_fc440 out_440_fc440 0 1meg
+Rout_880_fc440 out_880_fc440 0 1meg
+
+* --- fc=1200 Hz (R_eff=120.6 MΩ, Q=1) ---
+Xsvf_220_fc1200 tri220 out_220_fc1200 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
+Xsvf_440_fc1200 tri440 out_440_fc1200 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
+Xsvf_880_fc1200 tri880 out_880_fc1200 sel1 sel0 vdd 0 sc_svf_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
+Rout_220_fc1200 out_220_fc1200 0 1meg
+Rout_440_fc1200 out_440_fc1200 0 1meg
+Rout_880_fc1200 out_880_fc1200 0 1meg
+
+.control
+  shell rm -f sc_svf_tri_*.dat
+
+  echo "=== SC SVF Triangle Wave 3x3 Matrix ==="
+  echo "Triangle frequencies: 220, 440, 880 Hz"
+  echo "SVF cutoff (BP, Q=1): 50, 440, 1200 Hz"
+  echo ""
+
+  * Single transient captures all 9 combinations
+  * 25ms gives ~5 cycles of 220 Hz
+  tran 5u 25m
+
+  * Write all 9 waveform files
+  wrdata sc_svf_tri_220_fc50.dat   v(tri220) v(out_220_fc50)
+  wrdata sc_svf_tri_220_fc440.dat  v(tri220) v(out_220_fc440)
+  wrdata sc_svf_tri_220_fc1200.dat v(tri220) v(out_220_fc1200)
+  wrdata sc_svf_tri_440_fc50.dat   v(tri440) v(out_440_fc50)
+  wrdata sc_svf_tri_440_fc440.dat  v(tri440) v(out_440_fc440)
+  wrdata sc_svf_tri_440_fc1200.dat v(tri440) v(out_440_fc1200)
+  wrdata sc_svf_tri_880_fc50.dat   v(tri880) v(out_880_fc50)
+  wrdata sc_svf_tri_880_fc440.dat  v(tri880) v(out_880_fc440)
+  wrdata sc_svf_tri_880_fc1200.dat v(tri880) v(out_880_fc1200)
+
+  * Measure pk-pk for all 9 (steady state: 15-25ms)
+  echo "--- Results (pk-pk in steady state 15-25ms) ---"
+
+  * fc=50 Hz
+  meas tran pp_220_fc50_max max v(out_220_fc50) from=15m to=25m
+  meas tran pp_220_fc50_min min v(out_220_fc50) from=15m to=25m
+  let pp_220_fc50 = pp_220_fc50_max - pp_220_fc50_min
+  echo "  220Hz / fc=50Hz:   pk-pk = $&pp_220_fc50 V (expect: attenuated, signal >> fc)"
+
+  meas tran pp_440_fc50_max max v(out_440_fc50) from=15m to=25m
+  meas tran pp_440_fc50_min min v(out_440_fc50) from=15m to=25m
+  let pp_440_fc50 = pp_440_fc50_max - pp_440_fc50_min
+  echo "  440Hz / fc=50Hz:   pk-pk = $&pp_440_fc50 V (expect: heavily attenuated)"
+
+  meas tran pp_880_fc50_max max v(out_880_fc50) from=15m to=25m
+  meas tran pp_880_fc50_min min v(out_880_fc50) from=15m to=25m
+  let pp_880_fc50 = pp_880_fc50_max - pp_880_fc50_min
+  echo "  880Hz / fc=50Hz:   pk-pk = $&pp_880_fc50 V (expect: very attenuated)"
+
+  * fc=440 Hz
+  meas tran pp_220_fc440_max max v(out_220_fc440) from=15m to=25m
+  meas tran pp_220_fc440_min min v(out_220_fc440) from=15m to=25m
+  let pp_220_fc440 = pp_220_fc440_max - pp_220_fc440_min
+  echo "  220Hz / fc=440Hz:  pk-pk = $&pp_220_fc440 V (expect: below BP center)"
+
+  meas tran pp_440_fc440_max max v(out_440_fc440) from=15m to=25m
+  meas tran pp_440_fc440_min min v(out_440_fc440) from=15m to=25m
+  let pp_440_fc440 = pp_440_fc440_max - pp_440_fc440_min
+  echo "  440Hz / fc=440Hz:  pk-pk = $&pp_440_fc440 V (expect: BP peak, triangle→sine)"
+
+  meas tran pp_880_fc440_max max v(out_880_fc440) from=15m to=25m
+  meas tran pp_880_fc440_min min v(out_880_fc440) from=15m to=25m
+  let pp_880_fc440 = pp_880_fc440_max - pp_880_fc440_min
+  echo "  880Hz / fc=440Hz:  pk-pk = $&pp_880_fc440 V (expect: above BP center)"
+
+  * fc=1200 Hz
+  meas tran pp_220_fc1200_max max v(out_220_fc1200) from=15m to=25m
+  meas tran pp_220_fc1200_min min v(out_220_fc1200) from=15m to=25m
+  let pp_220_fc1200 = pp_220_fc1200_max - pp_220_fc1200_min
+  echo "  220Hz / fc=1200Hz: pk-pk = $&pp_220_fc1200 V (expect: below BP center)"
+
+  meas tran pp_440_fc1200_max max v(out_440_fc1200) from=15m to=25m
+  meas tran pp_440_fc1200_min min v(out_440_fc1200) from=15m to=25m
+  let pp_440_fc1200 = pp_440_fc1200_max - pp_440_fc1200_min
+  echo "  440Hz / fc=1200Hz: pk-pk = $&pp_440_fc1200 V (expect: mild filtering)"
+
+  meas tran pp_880_fc1200_max max v(out_880_fc1200) from=15m to=25m
+  meas tran pp_880_fc1200_min min v(out_880_fc1200) from=15m to=25m
+  let pp_880_fc1200 = pp_880_fc1200_max - pp_880_fc1200_min
+  echo "  880Hz / fc=1200Hz: pk-pk = $&pp_880_fc1200 V (expect: near BP peak)"
+
+  echo ""
+  echo "=== SC SVF Triangle 3x3 Test Complete ==="
+
+.endc
+
+.end

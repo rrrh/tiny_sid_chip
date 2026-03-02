@@ -1,0 +1,149 @@
+* 8-bit R-2R DAC Triangle Wave Testbench
+* IHP SG13G2 PDK — VDD=1.2V
+* Behavioral triangle wave stimulus at 220, 440, 880 Hz
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+.param pi=3.14159265358979
+
+* ============================================================
+* Complementary Switch Subcircuit
+* ============================================================
+.subckt cmos_sw out sel selb vhi vlo vdd vss
+XMp_hi out selb vhi vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMn_lo out selb vlo vss sg13_lv_nmos w=10e-6 l=0.13e-6
+.ends cmos_sw
+
+* ============================================================
+* 8-bit R-2R DAC Subcircuit (complementary switches)
+* Pins: b7 b6 b5 b4 b3 b2 b1 b0 vout vdd vss
+* ============================================================
+.subckt r2r_dac_8bit b7 b6 b5 b4 b3 b2 b1 b0 vout vdd vss
+Binv7 b7b 0 V = {vdd_val} - v(b7)
+Binv6 b6b 0 V = {vdd_val} - v(b6)
+Binv5 b5b 0 V = {vdd_val} - v(b5)
+Binv4 b4b 0 V = {vdd_val} - v(b4)
+Binv3 b3b 0 V = {vdd_val} - v(b3)
+Binv2 b2b 0 V = {vdd_val} - v(b2)
+Binv1 b1b 0 V = {vdd_val} - v(b1)
+Binv0 b0b 0 V = {vdd_val} - v(b0)
+XRterm tap0 vss vss rhigh w=2e-6 l=6.15e-6
+XR2R_0 tap0 sw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw0 sw0 b0 b0b vdd vss vdd vss cmos_sw
+XRs01 tap0 tap1 vss rhigh w=2e-6 l=3.08e-6
+XR2R_1 tap1 sw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw1 sw1 b1 b1b vdd vss vdd vss cmos_sw
+XRs12 tap1 tap2 vss rhigh w=2e-6 l=3.08e-6
+XR2R_2 tap2 sw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw2 sw2 b2 b2b vdd vss vdd vss cmos_sw
+XRs23 tap2 tap3 vss rhigh w=2e-6 l=3.08e-6
+XR2R_3 tap3 sw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw3 sw3 b3 b3b vdd vss vdd vss cmos_sw
+XRs34 tap3 tap4 vss rhigh w=2e-6 l=3.08e-6
+XR2R_4 tap4 sw4 vss rhigh w=2e-6 l=6.15e-6
+Xsw4 sw4 b4 b4b vdd vss vdd vss cmos_sw
+XRs45 tap4 tap5 vss rhigh w=2e-6 l=3.08e-6
+XR2R_5 tap5 sw5 vss rhigh w=2e-6 l=6.15e-6
+Xsw5 sw5 b5 b5b vdd vss vdd vss cmos_sw
+XRs56 tap5 tap6 vss rhigh w=2e-6 l=3.08e-6
+XR2R_6 tap6 sw6 vss rhigh w=2e-6 l=6.15e-6
+Xsw6 sw6 b6 b6b vdd vss vdd vss cmos_sw
+XRs67 tap6 vout vss rhigh w=2e-6 l=3.08e-6
+XR2R_7 vout sw7 vss rhigh w=2e-6 l=6.15e-6
+Xsw7 sw7 b7 b7b vdd vss vdd vss cmos_sw
+.ends r2r_dac_8bit
+
+* ============================================================
+* Triangle wave stimulus — behavioral B source
+* tri_code = floor(128 + amp*(2/pi)*asin(sin(2*pi*f*t - pi/2)) + 0.5)
+* Produces 8-bit quantized triangle (0-228 codes), centered at code 128
+* ============================================================
+
+* --- 220 Hz triangle ---
+Btri220 tri220_code 0 V = floor(128 + 100*(2/{pi})*asin(sin(2*{pi}*220*time - {pi}/2)) + 0.5)
+Bb7_220 b7_220 0 V = floor(v(tri220_code)/128)*{vdd_val}
+Bb6_220 b6_220 0 V = (floor(v(tri220_code)/64) - 2*floor(v(tri220_code)/128))*{vdd_val}
+Bb5_220 b5_220 0 V = (floor(v(tri220_code)/32) - 2*floor(v(tri220_code)/64))*{vdd_val}
+Bb4_220 b4_220 0 V = (floor(v(tri220_code)/16) - 2*floor(v(tri220_code)/32))*{vdd_val}
+Bb3_220 b3_220 0 V = (floor(v(tri220_code)/8) - 2*floor(v(tri220_code)/16))*{vdd_val}
+Bb2_220 b2_220 0 V = (floor(v(tri220_code)/4) - 2*floor(v(tri220_code)/8))*{vdd_val}
+Bb1_220 b1_220 0 V = (floor(v(tri220_code)/2) - 2*floor(v(tri220_code)/4))*{vdd_val}
+Bb0_220 b0_220 0 V = (v(tri220_code) - 2*floor(v(tri220_code)/2))*{vdd_val}
+
+* --- 440 Hz triangle ---
+Btri440 tri440_code 0 V = floor(128 + 100*(2/{pi})*asin(sin(2*{pi}*440*time - {pi}/2)) + 0.5)
+Bb7_440 b7_440 0 V = floor(v(tri440_code)/128)*{vdd_val}
+Bb6_440 b6_440 0 V = (floor(v(tri440_code)/64) - 2*floor(v(tri440_code)/128))*{vdd_val}
+Bb5_440 b5_440 0 V = (floor(v(tri440_code)/32) - 2*floor(v(tri440_code)/64))*{vdd_val}
+Bb4_440 b4_440 0 V = (floor(v(tri440_code)/16) - 2*floor(v(tri440_code)/32))*{vdd_val}
+Bb3_440 b3_440 0 V = (floor(v(tri440_code)/8) - 2*floor(v(tri440_code)/16))*{vdd_val}
+Bb2_440 b2_440 0 V = (floor(v(tri440_code)/4) - 2*floor(v(tri440_code)/8))*{vdd_val}
+Bb1_440 b1_440 0 V = (floor(v(tri440_code)/2) - 2*floor(v(tri440_code)/4))*{vdd_val}
+Bb0_440 b0_440 0 V = (v(tri440_code) - 2*floor(v(tri440_code)/2))*{vdd_val}
+
+* --- 880 Hz triangle ---
+Btri880 tri880_code 0 V = floor(128 + 100*(2/{pi})*asin(sin(2*{pi}*880*time - {pi}/2)) + 0.5)
+Bb7_880 b7_880 0 V = floor(v(tri880_code)/128)*{vdd_val}
+Bb6_880 b6_880 0 V = (floor(v(tri880_code)/64) - 2*floor(v(tri880_code)/128))*{vdd_val}
+Bb5_880 b5_880 0 V = (floor(v(tri880_code)/32) - 2*floor(v(tri880_code)/64))*{vdd_val}
+Bb4_880 b4_880 0 V = (floor(v(tri880_code)/16) - 2*floor(v(tri880_code)/32))*{vdd_val}
+Bb3_880 b3_880 0 V = (floor(v(tri880_code)/8) - 2*floor(v(tri880_code)/16))*{vdd_val}
+Bb2_880 b2_880 0 V = (floor(v(tri880_code)/4) - 2*floor(v(tri880_code)/8))*{vdd_val}
+Bb1_880 b1_880 0 V = (floor(v(tri880_code)/2) - 2*floor(v(tri880_code)/4))*{vdd_val}
+Bb0_880 b0_880 0 V = (v(tri880_code) - 2*floor(v(tri880_code)/2))*{vdd_val}
+
+* ============================================================
+* Testbench — 3 DAC instances (one per frequency)
+* ============================================================
+Vdd vdd 0 {vdd_val}
+Vss vss 0 0
+
+Xdac220 b7_220 b6_220 b5_220 b4_220 b3_220 b2_220 b1_220 b0_220 dac220 vdd vss r2r_dac_8bit
+Rload220 dac220 0 1meg
+
+Xdac440 b7_440 b6_440 b5_440 b4_440 b3_440 b2_440 b1_440 b0_440 dac440 vdd vss r2r_dac_8bit
+Rload440 dac440 0 1meg
+
+Xdac880 b7_880 b6_880 b5_880 b4_880 b3_880 b2_880 b1_880 b0_880 dac880 vdd vss r2r_dac_8bit
+Rload880 dac880 0 1meg
+
+.control
+  shell rm -f r2r_dac_tri_220.dat r2r_dac_tri_440.dat r2r_dac_tri_880.dat
+
+  echo "=== R-2R DAC Triangle Wave Test ==="
+  echo "Running transient for 220, 440, 880 Hz triangles simultaneously..."
+
+  * Single transient captures all 3 frequencies
+  * 220 Hz: period=4.55ms, need ~5 cycles → 25ms
+  tran 5u 25m
+
+  wrdata r2r_dac_tri_220.dat v(tri220_code) v(dac220)
+  wrdata r2r_dac_tri_440.dat v(tri440_code) v(dac440)
+  wrdata r2r_dac_tri_880.dat v(tri880_code) v(dac880)
+
+  * Measure pk-pk for each frequency (steady-state window: 15-25ms)
+  meas tran dac220_max max v(dac220) from=15m to=25m
+  meas tran dac220_min min v(dac220) from=15m to=25m
+  let dac220_pp = dac220_max - dac220_min
+  echo "  220 Hz: DAC pk-pk = $&dac220_pp V"
+
+  meas tran dac440_max max v(dac440) from=15m to=25m
+  meas tran dac440_min min v(dac440) from=15m to=25m
+  let dac440_pp = dac440_max - dac440_min
+  echo "  440 Hz: DAC pk-pk = $&dac440_pp V"
+
+  meas tran dac880_max max v(dac880) from=15m to=25m
+  meas tran dac880_min min v(dac880) from=15m to=25m
+  let dac880_pp = dac880_max - dac880_min
+  echo "  880 Hz: DAC pk-pk = $&dac880_pp V"
+
+  * Expected: all three should give ~0.94V pk-pk (code 28-228 → 0.132-1.073V)
+  * INL/DNL spot check: sample mid-code region
+  echo "  (All three should have identical pk-pk ~0.94V — frequency independent)"
+
+  echo "=== R-2R DAC Triangle Test Complete ==="
+
+.endc
+
+.end

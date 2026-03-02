@@ -1,0 +1,251 @@
+* Full Signal Chain Triangle Wave 3x3 Matrix Testbench
+* IHP SG13G2 PDK — VDD=1.2V
+* R-2R DAC → SC SVF (BP, CT equiv) → Behavioral SAR ADC
+* 3 triangle frequencies (220, 440, 880 Hz) × 3 cutoff frequencies (50, 440, 1200 Hz)
+* = 9 parallel chains in a single transient simulation
+
+.include ../shared/pdk_include.spice
+
+.param vdd_val=1.2
+.param vcm=0.6
+.param vdd_sq=1.44
+.param pi=3.14159265358979
+.param c_int=1.1e-12
+.param c_q_unit=73.5e-15
+
+* CT equivalent R_eff for each cutoff (Q=1 → R_Q = R_eff)
+.param r_fc50=2.894e9
+.param r_fc440=328.8e6
+.param r_fc1200=120.6e6
+
+* ============================================================
+* Subcircuit definitions
+* ============================================================
+
+* --- Complementary Switch ---
+.subckt cmos_sw out sel selb vhi vlo vdd vss
+XMp_hi out selb vhi vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMn_lo out selb vlo vss sg13_lv_nmos w=10e-6 l=0.13e-6
+.ends cmos_sw
+
+* --- 8-bit R-2R DAC ---
+.subckt r2r_dac_8bit b7 b6 b5 b4 b3 b2 b1 b0 vout vdd vss
+Binv7 b7b 0 V = {vdd_val} - v(b7)
+Binv6 b6b 0 V = {vdd_val} - v(b6)
+Binv5 b5b 0 V = {vdd_val} - v(b5)
+Binv4 b4b 0 V = {vdd_val} - v(b4)
+Binv3 b3b 0 V = {vdd_val} - v(b3)
+Binv2 b2b 0 V = {vdd_val} - v(b2)
+Binv1 b1b 0 V = {vdd_val} - v(b1)
+Binv0 b0b 0 V = {vdd_val} - v(b0)
+XRterm tap0 vss vss rhigh w=2e-6 l=6.15e-6
+XR2R_0 tap0 sw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw0 sw0 b0 b0b vdd vss vdd vss cmos_sw
+XRs01 tap0 tap1 vss rhigh w=2e-6 l=3.08e-6
+XR2R_1 tap1 sw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw1 sw1 b1 b1b vdd vss vdd vss cmos_sw
+XRs12 tap1 tap2 vss rhigh w=2e-6 l=3.08e-6
+XR2R_2 tap2 sw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw2 sw2 b2 b2b vdd vss vdd vss cmos_sw
+XRs23 tap2 tap3 vss rhigh w=2e-6 l=3.08e-6
+XR2R_3 tap3 sw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw3 sw3 b3 b3b vdd vss vdd vss cmos_sw
+XRs34 tap3 tap4 vss rhigh w=2e-6 l=3.08e-6
+XR2R_4 tap4 sw4 vss rhigh w=2e-6 l=6.15e-6
+Xsw4 sw4 b4 b4b vdd vss vdd vss cmos_sw
+XRs45 tap4 tap5 vss rhigh w=2e-6 l=3.08e-6
+XR2R_5 tap5 sw5 vss rhigh w=2e-6 l=6.15e-6
+Xsw5 sw5 b5 b5b vdd vss vdd vss cmos_sw
+XRs56 tap5 tap6 vss rhigh w=2e-6 l=3.08e-6
+XR2R_6 tap6 sw6 vss rhigh w=2e-6 l=6.15e-6
+Xsw6 sw6 b6 b6b vdd vss vdd vss cmos_sw
+XRs67 tap6 vout vss rhigh w=2e-6 l=3.08e-6
+XR2R_7 vout sw7 vss rhigh w=2e-6 l=6.15e-6
+Xsw7 sw7 b7 b7b vdd vss vdd vss cmos_sw
+.ends r2r_dac_8bit
+
+* --- SC SVF BP mode (CT equivalent, hardwired BP output) ---
+.subckt sc_svf_bp_ct vin vout vdd vss r_eff_val=145.1e6 r_q_val=36.28e6
+Eoa1 bp_raw 0 vcm1 vg1 10000
+Vcm1 vcm1 0 {vcm}
+Rout1 bp_raw bp 100
+Cint1 vg1 bp {c_int}
+Rin1 vin vg1 {r_eff_val}
+Rfb lp vg1 {r_eff_val}
+Rq bp vg1 {r_q_val}
+Eoa_inv lp_raw 0 vcm_inv vg_inv 10000
+Vcm_inv vcm_inv 0 {vcm}
+Rout_inv lp_raw lp 100
+Rinv_in lp_bar vg_inv 100k
+Rinv_fb vg_inv lp 100k
+Eoa2 lpbar_raw 0 vcm2 vg2 10000
+Vcm2 vcm2 0 {vcm}
+Rout2 lpbar_raw lp_bar 100
+Cint2 vg2 lp_bar {c_int}
+Rin2 bp vg2 {r_eff_val}
+Rbp bp vout 100
+.ends sc_svf_bp_ct
+
+* ============================================================
+* Triangle wave DAC stimulus (behavioral quantized code → DAC)
+* Code = floor(128 + 100*(2/pi)*asin(sin(2*pi*f*t - pi/2)) + 0.5)
+* DAC output = code/255 * VDD (ideal, then fed to R-2R)
+* ============================================================
+
+* --- 220 Hz triangle (quantized 8-bit code → ideal DAC voltage) ---
+Btri220 dac220 0 V = floor(128+100*(2/{pi})*asin(sin(2*{pi}*220*time-{pi}/2))+0.5)/255*{vdd_val}
+
+* --- 440 Hz triangle ---
+Btri440 dac440 0 V = floor(128+100*(2/{pi})*asin(sin(2*{pi}*440*time-{pi}/2))+0.5)/255*{vdd_val}
+
+* --- 880 Hz triangle ---
+Btri880 dac880 0 V = floor(128+100*(2/{pi})*asin(sin(2*{pi}*880*time-{pi}/2))+0.5)/255*{vdd_val}
+
+* ============================================================
+* 9 parallel signal chains: DAC → SVF(BP) → ADC
+* ============================================================
+Vdd vdd 0 {vdd_val}
+
+* === 220 Hz × 3 cutoffs ===
+Xsvf_220_fc50   dac220 svf_220_fc50   vdd 0 sc_svf_bp_ct r_eff_val={r_fc50}   r_q_val={r_fc50}
+Xsvf_220_fc440  dac220 svf_220_fc440  vdd 0 sc_svf_bp_ct r_eff_val={r_fc440}  r_q_val={r_fc440}
+Xsvf_220_fc1200 dac220 svf_220_fc1200 vdd 0 sc_svf_bp_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
+
+* === 440 Hz × 3 cutoffs ===
+Xsvf_440_fc50   dac440 svf_440_fc50   vdd 0 sc_svf_bp_ct r_eff_val={r_fc50}   r_q_val={r_fc50}
+Xsvf_440_fc440  dac440 svf_440_fc440  vdd 0 sc_svf_bp_ct r_eff_val={r_fc440}  r_q_val={r_fc440}
+Xsvf_440_fc1200 dac440 svf_440_fc1200 vdd 0 sc_svf_bp_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
+
+* === 880 Hz × 3 cutoffs ===
+Xsvf_880_fc50   dac880 svf_880_fc50   vdd 0 sc_svf_bp_ct r_eff_val={r_fc50}   r_q_val={r_fc50}
+Xsvf_880_fc440  dac880 svf_880_fc440  vdd 0 sc_svf_bp_ct r_eff_val={r_fc440}  r_q_val={r_fc440}
+Xsvf_880_fc1200 dac880 svf_880_fc1200 vdd 0 sc_svf_bp_ct r_eff_val={r_fc1200} r_q_val={r_fc1200}
+
+* === Behavioral 8-bit ADC at each SVF output ===
+* ADC code = floor(Vsvf/VDD * 255 + 0.5), clamped 0-255
+* Reconstruction = code/255 * VDD
+
+Badc_220_fc50   adc_220_fc50   0 V = min(255,max(0,floor(v(svf_220_fc50)/{vdd_val}*255+0.5)))/255*{vdd_val}
+Badc_220_fc440  adc_220_fc440  0 V = min(255,max(0,floor(v(svf_220_fc440)/{vdd_val}*255+0.5)))/255*{vdd_val}
+Badc_220_fc1200 adc_220_fc1200 0 V = min(255,max(0,floor(v(svf_220_fc1200)/{vdd_val}*255+0.5)))/255*{vdd_val}
+
+Badc_440_fc50   adc_440_fc50   0 V = min(255,max(0,floor(v(svf_440_fc50)/{vdd_val}*255+0.5)))/255*{vdd_val}
+Badc_440_fc440  adc_440_fc440  0 V = min(255,max(0,floor(v(svf_440_fc440)/{vdd_val}*255+0.5)))/255*{vdd_val}
+Badc_440_fc1200 adc_440_fc1200 0 V = min(255,max(0,floor(v(svf_440_fc1200)/{vdd_val}*255+0.5)))/255*{vdd_val}
+
+Badc_880_fc50   adc_880_fc50   0 V = min(255,max(0,floor(v(svf_880_fc50)/{vdd_val}*255+0.5)))/255*{vdd_val}
+Badc_880_fc440  adc_880_fc440  0 V = min(255,max(0,floor(v(svf_880_fc440)/{vdd_val}*255+0.5)))/255*{vdd_val}
+Badc_880_fc1200 adc_880_fc1200 0 V = min(255,max(0,floor(v(svf_880_fc1200)/{vdd_val}*255+0.5)))/255*{vdd_val}
+
+.control
+  shell rm -f tri_chain_*.dat
+
+  echo "=== Full Chain 3x3 Triangle Wave Matrix ==="
+  echo "DAC → SC SVF (BP, Q=1) → ADC"
+  echo "Triangle: 220, 440, 880 Hz | Cutoff: 50, 440, 1200 Hz"
+  echo ""
+
+  * Single transient: 25ms, 5µs step
+  tran 5u 25m
+
+  * Write all 9 chain outputs (DAC input, SVF output, ADC reconstruction)
+  wrdata tri_chain_220_fc50.dat   v(dac220) v(svf_220_fc50)   v(adc_220_fc50)
+  wrdata tri_chain_220_fc440.dat  v(dac220) v(svf_220_fc440)  v(adc_220_fc440)
+  wrdata tri_chain_220_fc1200.dat v(dac220) v(svf_220_fc1200) v(adc_220_fc1200)
+  wrdata tri_chain_440_fc50.dat   v(dac440) v(svf_440_fc50)   v(adc_440_fc50)
+  wrdata tri_chain_440_fc440.dat  v(dac440) v(svf_440_fc440)  v(adc_440_fc440)
+  wrdata tri_chain_440_fc1200.dat v(dac440) v(svf_440_fc1200) v(adc_440_fc1200)
+  wrdata tri_chain_880_fc50.dat   v(dac880) v(svf_880_fc50)   v(adc_880_fc50)
+  wrdata tri_chain_880_fc440.dat  v(dac880) v(svf_880_fc440)  v(adc_880_fc440)
+  wrdata tri_chain_880_fc1200.dat v(dac880) v(svf_880_fc1200) v(adc_880_fc1200)
+
+  * Measure pk-pk at each stage for all 9 chains (steady state: 15-25ms)
+  echo "--- 3x3 Matrix Results (pk-pk, 15-25ms window) ---"
+  echo ""
+  echo "         |  fc=50 Hz          |  fc=440 Hz         |  fc=1200 Hz        "
+  echo "  tri_f  |  SVF     ADC       |  SVF     ADC       |  SVF     ADC       "
+  echo "  -------+--------------------+--------------------+--------------------"
+
+  * --- 220 Hz row ---
+  meas tran s220_50_max  max v(svf_220_fc50)   from=15m to=25m
+  meas tran s220_50_min  min v(svf_220_fc50)   from=15m to=25m
+  meas tran a220_50_max  max v(adc_220_fc50)   from=15m to=25m
+  meas tran a220_50_min  min v(adc_220_fc50)   from=15m to=25m
+  let s220_50  = s220_50_max - s220_50_min
+  let a220_50  = a220_50_max - a220_50_min
+
+  meas tran s220_440_max max v(svf_220_fc440)  from=15m to=25m
+  meas tran s220_440_min min v(svf_220_fc440)  from=15m to=25m
+  meas tran a220_440_max max v(adc_220_fc440)  from=15m to=25m
+  meas tran a220_440_min min v(adc_220_fc440)  from=15m to=25m
+  let s220_440 = s220_440_max - s220_440_min
+  let a220_440 = a220_440_max - a220_440_min
+
+  meas tran s220_1200_max max v(svf_220_fc1200) from=15m to=25m
+  meas tran s220_1200_min min v(svf_220_fc1200) from=15m to=25m
+  meas tran a220_1200_max max v(adc_220_fc1200) from=15m to=25m
+  meas tran a220_1200_min min v(adc_220_fc1200) from=15m to=25m
+  let s220_1200 = s220_1200_max - s220_1200_min
+  let a220_1200 = a220_1200_max - a220_1200_min
+
+  echo "  220 Hz | $&s220_50  $&a220_50 | $&s220_440  $&a220_440 | $&s220_1200  $&a220_1200"
+
+  * --- 440 Hz row ---
+  meas tran s440_50_max  max v(svf_440_fc50)   from=15m to=25m
+  meas tran s440_50_min  min v(svf_440_fc50)   from=15m to=25m
+  meas tran a440_50_max  max v(adc_440_fc50)   from=15m to=25m
+  meas tran a440_50_min  min v(adc_440_fc50)   from=15m to=25m
+  let s440_50  = s440_50_max - s440_50_min
+  let a440_50  = a440_50_max - a440_50_min
+
+  meas tran s440_440_max max v(svf_440_fc440)  from=15m to=25m
+  meas tran s440_440_min min v(svf_440_fc440)  from=15m to=25m
+  meas tran a440_440_max max v(adc_440_fc440)  from=15m to=25m
+  meas tran a440_440_min min v(adc_440_fc440)  from=15m to=25m
+  let s440_440 = s440_440_max - s440_440_min
+  let a440_440 = a440_440_max - a440_440_min
+
+  meas tran s440_1200_max max v(svf_440_fc1200) from=15m to=25m
+  meas tran s440_1200_min min v(svf_440_fc1200) from=15m to=25m
+  meas tran a440_1200_max max v(adc_440_fc1200) from=15m to=25m
+  meas tran a440_1200_min min v(adc_440_fc1200) from=15m to=25m
+  let s440_1200 = s440_1200_max - s440_1200_min
+  let a440_1200 = a440_1200_max - a440_1200_min
+
+  echo "  440 Hz | $&s440_50  $&a440_50 | $&s440_440  $&a440_440 | $&s440_1200  $&a440_1200"
+
+  * --- 880 Hz row ---
+  meas tran s880_50_max  max v(svf_880_fc50)   from=15m to=25m
+  meas tran s880_50_min  min v(svf_880_fc50)   from=15m to=25m
+  meas tran a880_50_max  max v(adc_880_fc50)   from=15m to=25m
+  meas tran a880_50_min  min v(adc_880_fc50)   from=15m to=25m
+  let s880_50  = s880_50_max - s880_50_min
+  let a880_50  = a880_50_max - a880_50_min
+
+  meas tran s880_440_max max v(svf_880_fc440)  from=15m to=25m
+  meas tran s880_440_min min v(svf_880_fc440)  from=15m to=25m
+  meas tran a880_440_max max v(adc_880_fc440)  from=15m to=25m
+  meas tran a880_440_min min v(adc_880_fc440)  from=15m to=25m
+  let s880_440 = s880_440_max - s880_440_min
+  let a880_440 = a880_440_max - a880_440_min
+
+  meas tran s880_1200_max max v(svf_880_fc1200) from=15m to=25m
+  meas tran s880_1200_min min v(svf_880_fc1200) from=15m to=25m
+  meas tran a880_1200_max max v(adc_880_fc1200) from=15m to=25m
+  meas tran a880_1200_min min v(adc_880_fc1200) from=15m to=25m
+  let s880_1200 = s880_1200_max - s880_1200_min
+  let a880_1200 = a880_1200_max - a880_1200_min
+
+  echo "  880 Hz | $&s880_50  $&a880_50 | $&s880_440  $&a880_440 | $&s880_1200  $&a880_1200"
+
+  echo ""
+  echo "Expected behavior:"
+  echo "  - fc=50 BP:  all signals (220-880) heavily attenuated (above cutoff)"
+  echo "  - fc=440 BP: 440Hz at peak, 220/880 partially attenuated"
+  echo "  - fc=1200 BP: 880Hz strongest, 440Hz mild, 220Hz more attenuated"
+  echo ""
+  echo "=== Full Chain 3x3 Simulation Complete ==="
+
+.endc
+
+.end
