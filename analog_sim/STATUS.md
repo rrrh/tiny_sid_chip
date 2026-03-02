@@ -103,7 +103,7 @@
 ![R-2R DAC Triangle Waves](r2r_dac/r2r_dac_tri_waves.png)
 
 ### sc_svf triangle 3×3: PASS (bandpass filtering confirmed)
-- 9 parallel SVF instances: 3 triangle frequencies × 3 BP cutoffs (Q=1)
+- 9 parallel SVF instances: 3 triangle frequencies × 3 BP cutoffs (Q=0.5)
 - CT-equivalent R_eff: fc=50 Hz (2.894 GΩ), fc=440 Hz (328.8 MΩ), fc=1200 Hz (120.6 MΩ)
 - Results (steady-state pk-pk, 15–25ms window):
 
@@ -152,7 +152,7 @@
 ![Bias DAC FC Transfer](bias_dac/bias_dac_fc_sweep.png)
 
 ### full_chain 3×3 triangle: PASS (DAC → SVF → ADC, 9 chains)
-- 9 parallel signal chains: R-2R DAC → SC SVF (BP, Q=1) → behavioral 8-bit ADC
+- 9 parallel signal chains: R-2R DAC → SC SVF (BP, Q=0.5) → behavioral 8-bit ADC
 - Single 25ms transient captures all combinations simultaneously
 - Results (steady-state SVF / ADC pk-pk):
 
@@ -169,6 +169,31 @@
 ![Full Chain 3×3 Matrix](full_chain/tri_chain_matrix.png)
 
 ![Full Chain Detail: 440 Hz at 3 Cutoffs](full_chain/tri_chain_detail.png)
+
+### Q-Sweep Comparison: Q=0.5, 1.0, 3.0, 6.0
+- SVF and full-chain 3×3 testbenches rerun at 4 Q values
+- Q parameterization: R_Q = Q × R_eff (Tow-Thomas biquad)
+- Q-tagged data files: `*_q{Q}.dat` for each combination
+
+**SVF bandpass 440 Hz / fc=440 Hz (on-resonance) across Q:**
+
+| Q   | SVF pk-pk | ADC pk-pk | Clipped? |
+|-----|-----------|-----------|----------|
+| 0.5 | 0.348V    | 0.409V    | no       |
+| 1.0 | 0.667V    | 0.786V    | no       |
+| 3.0 | 1.952V    | 1.200V    | YES      |
+| 6.0 | 3.873V    | 1.200V    | YES      |
+
+- At Q≥3, SVF output exceeds 1.2V supply — ADC clips to 0–1.2V range
+- Q=0.5: broad, gentle filtering; Q=6: narrow, high-gain resonance
+- Off-resonance signals (220 Hz, 880 Hz) attenuated more sharply at higher Q
+- Design implication: Q>2 requires output attenuation or headroom extension for 0.8V pk-pk input
+
+![SVF Q-Sweep 3×3 Overlay](svf/sc_svf_tri_q_sweep.png)
+
+![Full Chain Q-Sweep 3×3 Overlay](full_chain/tri_chain_q_sweep.png)
+
+![440 Hz Q-Sweep Detail](full_chain/tri_chain_q_detail.png)
 
 ### Digital Frequency Sweep (`tests/freq_sweep_tb.v`)
 - Verilog testbench sweeps Voice 0 sawtooth through 16 frequency points in bypass mode
