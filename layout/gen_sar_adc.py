@@ -801,6 +801,11 @@ def build_sar_adc():
     # Bottom via2s → VSS rail
     draw_via2(top, layout, sar_strap_left_x, sar_y + 0.5)
     draw_via2(top, layout, sar_strap_right_x, sar_y + 0.5)
+    # M3 vertical straps from SAR logic bottom to VSS rail
+    top.shapes(li_m3).insert(rect(sar_strap_left_x - M2_WIDTH / 2, 2.0,
+                                   sar_strap_left_x + M2_WIDTH / 2, sar_y + 0.5))
+    top.shapes(li_m3).insert(rect(sar_strap_right_x - M2_WIDTH / 2, 2.0,
+                                   sar_strap_right_x + M2_WIDTH / 2, sar_y + 0.5))
     # Top via2s → VDD rail (SAR logic top = y + h = 22, but VDD rail at 40+)
     # Connect via M3 vertical from SAR top to VDD rail
     draw_via2(top, layout, sar_strap_left_x, sar_y + SAR_H - 0.5)
