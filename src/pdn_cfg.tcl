@@ -37,10 +37,6 @@ define_pdn_grid \
     -voltage_domain CORE \
     -pins "TopMetal1"
 
-set arg_list [list]
-append_if_equals arg_list PDN_EXTEND_TO "core_ring" -extend_to_core_ring
-append_if_equals arg_list PDN_EXTEND_TO "boundary" -extend_to_boundary
-
 add_pdn_stripe \
     -grid stdcell_grid \
     -layer TopMetal1 \
@@ -49,7 +45,7 @@ add_pdn_stripe \
     -offset 13.6 \
     -spacing 4.0 \
     -starts_with POWER \
-    {*}$arg_list
+    -extend_to_core_ring
 
 # Standard cell rails on Metal1
 if { $::env(PDN_ENABLE_RAILS) == 1 } {
