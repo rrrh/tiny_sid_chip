@@ -20,7 +20,7 @@ Components:
   4 × NMOS pass gate (analog mux with sel[1:0])
   2 × Bias circuit (NMOS current mirrors: fc mirror + q mirror)
 
-Macro size: 70 × 85 µm
+Macro size: 62 × 80 µm
 """
 
 import sys, os
@@ -31,7 +31,7 @@ from sg13g2_layers import *
 # Design parameters
 # ===========================================================================
 MACRO_W = 62.0
-MACRO_H = 95.0
+MACRO_H = 80.0
 
 # OTA transistor sizes
 OTA_DP_W  = 4.0    # NMOS diff pair width (µm)
@@ -308,7 +308,7 @@ def draw_ota(cell, layout, x, y):
     m2 = draw_nmos(cell, layout, x + dp_act_len + dp_gap, dp_y, w=OTA_DP_W, l=OTA_DP_L)
 
     # --- M3, M4: PMOS current mirror load ---
-    ld_y = dp_y + OTA_DP_W + 4.0  # was +2.5; increased for M1.b clearance near gate contacts
+    ld_y = dp_y + OTA_DP_W + 3.0  # DP-to-load gap (bias now on M2, so 3.0 is ample for M1.b)
     nw_enc = NWELL_ENC_ACTIV
     li_nw = layout.layer(*L_NWELL)
     nw_x1 = x - nw_enc
@@ -488,9 +488,9 @@ def build_svf():
     #   y=0..2     : VSS rail (Metal3)
     #   y=6..28    : Analog mux + output routing
     #   y=30..56   : MIM caps (C1 at y=30, C2 at y=30 shifted right)
-    #   y=57..63   : Dual bias circuits (fc mirror left, q mirror right)
-    #   y=63..83   : OTA row (4 OTAs side by side, ~18µm tall)
-    #   y=83..85   : VDD rail (Metal3)
+    #   y=57..61   : Dual bias circuits (fc mirror left, q mirror right)
+    #   y=64..77   : OTA row (4 OTAs side by side, ~13µm tall)
+    #   y=78..80   : VDD rail (Metal3)
     # =====================================================================
 
     # --- VDD rail (top, Metal3) ---
@@ -502,8 +502,8 @@ def build_svf():
     # =====================================================================
     # OTA row: 4 OTAs side by side (summing, int1, int2, damping)
     # =====================================================================
-    ota_y = 68.0    # was 63; shifted up to accommodate taller OTAs + ptap clearance
-    ota_gap = 5.0   # was 2.5; increased for Gat.b / M1.b clearance between OTAs
+    ota_y = 64.0    # OTA base y (bias at 57, routes at 58.5-63)
+    ota_gap = 3.0   # gap between adjacent OTAs (bias on M2 eliminates M1 conflicts)
 
     ota_sum = draw_ota(top, layout, x=2.0, y=ota_y)
     ota1_x = 2.0 + ota_sum['total_w'] + ota_gap
@@ -514,11 +514,11 @@ def build_svf():
     ota_damp = draw_ota(top, layout, x=ota_damp_x, y=ota_y)
 
     # Connect OTA PMOS sources to VDD rail via M1 vertical + via2 to M3
-    # Stagger via1/via2 y-positions (left=MACRO_H-3.0, right=MACRO_H-2.0) for M2.b/V2.b
+    # Stagger via1/via2 y-positions (left=MACRO_H-2.0, right=MACRO_H-1.4) for M2.b clearance
     for ota in [ota_sum, ota_int1, ota_int2, ota_damp]:
         for idx, vdd_pin in enumerate(['vdd_l', 'vdd_r']):
             px, py = ota[vdd_pin]
-            via1_y = MACRO_H - 3.0 if idx == 0 else MACRO_H - 2.0
+            via1_y = MACRO_H - 2.0 if idx == 0 else MACRO_H - 1.4
             via2_y = via1_y + 0.5
             top.shapes(li_m1).insert(rect(px - wire_w/2, py - wire_w/2,
                                           px + wire_w/2, via1_y))
@@ -844,8 +844,8 @@ def build_svf():
                                    fc_ref_x + wire_w2/2,
                                    max(ibias_fc_pin_y, fc_ref_y) + wire_w2/2))
 
-    # --- ibias_q pin: left edge, y≈66 ---
-    ibias_q_pin_y = 66.0
+    # --- ibias_q pin: left edge, y≈62 ---
+    ibias_q_pin_y = 62.0
     q_ref_x, q_ref_y = bias_q['ref_drain']
     draw_via1(top, layout, q_ref_x, q_ref_y)
     top.shapes(li_m2).insert(rect(0.0, ibias_q_pin_y - wire_w2/2,
