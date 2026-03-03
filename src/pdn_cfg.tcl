@@ -30,7 +30,8 @@ foreach vdd $::env(VDD_NETS) gnd $::env(GND_NETS) {
 set_voltage_domain -name CORE -power $::env(VDD_NET) -ground $::env(GND_NET) \
     -secondary_power $secondary
 
-# Stdcell grid: single-layer (TopMetal1 vertical stripes only)
+# Stdcell grid: TopMetal1 vertical stripes, placed entirely left of macro area
+# (macros on right side from x~140 to x~202; with pitch=82, stripes at x=38,120)
 define_pdn_grid \
     -name stdcell_grid \
     -starts_with POWER \
@@ -41,8 +42,8 @@ add_pdn_stripe \
     -grid stdcell_grid \
     -layer TopMetal1 \
     -width 2.2 \
-    -pitch 35.7 \
-    -offset 13.6 \
+    -pitch 82.0 \
+    -offset 38.0 \
     -spacing 4.0 \
     -starts_with POWER \
     -extend_to_core_ring
@@ -60,22 +61,5 @@ if { $::env(PDN_ENABLE_RAILS) == 1 } {
         -layers "Metal1 TopMetal1"
 }
 
-# Macro grid: connect Metal3 (macro power pins) to TopMetal1 (PDN stripes)
-define_pdn_grid \
-    -macro \
-    -default \
-    -name macro \
-    -starts_with POWER \
-    -halo "$::env(PDN_HORIZONTAL_HALO) $::env(PDN_VERTICAL_HALO)"
-
-add_pdn_connect \
-    -grid macro \
-    -layers "Metal3 Metal4"
-
-add_pdn_connect \
-    -grid macro \
-    -layers "Metal4 Metal5"
-
-add_pdn_connect \
-    -grid macro \
-    -layers "Metal5 TopMetal1"
+# No macro grid — analog macros get power through physical via stacks
+# in the GDS (Metal3→TopMetal1), not through the PDN generator.
