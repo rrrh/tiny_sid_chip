@@ -121,8 +121,6 @@ MACRO svf_2nd
       RECT 0.500 0.500 61.500 67.500 ;
     LAYER Metal2 ;
       RECT 0.500 0.500 61.500 67.500 ;
-    LAYER TopMetal1 ;
-      RECT 0.500 2.000 61.500 66.000 ;
   END
 
 END svf_2nd
