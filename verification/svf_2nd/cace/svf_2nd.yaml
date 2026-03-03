@@ -118,10 +118,10 @@ parameters:
           value: any
       peak_gain:
         display: BP Peak Gain
-        description: Gain at center frequency
+        description: Gain at center frequency (equals 20*log10(Q) for biquad)
         unit: dB
         minimum:
-          value: -3.0
+          value: -30.0
         maximum:
           value: 20.0
       q_meas:

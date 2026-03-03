@@ -221,6 +221,53 @@ def draw_via2(cell, layout, x, y):
     cell.shapes(li_m3).insert(rect(x - e3, y - e3, x + e3, y + e3))
 
 
+def draw_via3(cell, layout, x, y):
+    """Via3 with M3+M4 pads."""
+    li_v3 = layout.layer(*L_VIA3)
+    li_m3 = layout.layer(*L_METAL3)
+    li_m4 = layout.layer(*L_METAL4)
+    hs = VIA3_SIZE / 2
+    cell.shapes(li_v3).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e3 = VIA3_ENC_M3 + hs
+    cell.shapes(li_m3).insert(rect(x - e3, y - e3, x + e3, y + e3))
+    e4 = VIA3_ENC_M4 + hs
+    cell.shapes(li_m4).insert(rect(x - e4, y - e4, x + e4, y + e4))
+
+
+def draw_via4(cell, layout, x, y):
+    """Via4 with M4+M5 pads."""
+    li_v4 = layout.layer(*L_VIA4)
+    li_m4 = layout.layer(*L_METAL4)
+    li_m5 = layout.layer(*L_METAL5)
+    hs = VIA4_SIZE / 2
+    cell.shapes(li_v4).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e4 = VIA4_ENC_M4 + hs
+    cell.shapes(li_m4).insert(rect(x - e4, y - e4, x + e4, y + e4))
+    e5 = VIA4_ENC_M5 + hs
+    cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
+
+
+def draw_topvia1(cell, layout, x, y):
+    """TopVia1 with M5+TM1 pads. TM1 pad enforces min width 1.64µm."""
+    li_tv1 = layout.layer(*L_TOPVIA1)
+    li_m5  = layout.layer(*L_METAL5)
+    li_tm1 = layout.layer(*L_TOPMETAL1)
+    hs = TOPVIA1_SIZE / 2
+    cell.shapes(li_tv1).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e5 = TOPVIA1_ENC_M5 + hs
+    cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
+    TM1_MIN_HALF = 1.64 / 2
+    et = max(TOPVIA1_ENC_TM1 + hs, TM1_MIN_HALF)
+    cell.shapes(li_tm1).insert(rect(x - et, y - et, x + et, y + et))
+
+
+def draw_power_via_stack(cell, layout, x, y):
+    """Full via stack from M3 to TM1 for power rail connection."""
+    draw_via3(cell, layout, x, y)
+    draw_via4(cell, layout, x, y)
+    draw_topvia1(cell, layout, x, y)
+
+
 def build_r2r_dac():
     layout = new_layout()
     top = layout.create_cell("r2r_dac_8bit")
@@ -415,6 +462,15 @@ def build_r2r_dac():
                                         vss_via_x + M2_WIDTH / 2, bus_y))
         # Ensure M3 overlaps with via2 pad at bus_y and with VSS rail at bottom
         draw_via2(top, layout, vss_via_x, vss_tap_y)
+
+    # --- Power via stacks (M3→M4→M5→TM1) along VDD/VSS rails ---
+    # Place at 2µm pitch for low-resistance power delivery
+    vdd_rail_y = MACRO_H - 0.75  # center of VDD M3 rail
+    vss_rail_y = 0.75            # center of VSS M3 rail
+    for px in [x * 2.0 + 1.0 for x in range(int(MACRO_W / 2))]:
+        if px < MACRO_W - 0.5:
+            draw_power_via_stack(top, layout, px, vdd_rail_y)
+            draw_power_via_stack(top, layout, px, vss_rail_y)
 
     # --- Pin labels ---
     for bit in range(NBITS):

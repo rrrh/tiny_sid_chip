@@ -67,8 +67,10 @@ def draw_mim_unit(cell, layout, x, y, side):
     # Metal5 bottom plate
     enc = MIM_ENC_M5
     cell.shapes(li_m5).insert(rect(x - enc, y - enc, x + side + enc, y + side + enc))
-    # TopMetal1 top plate (min TM1 width = 1.64 µm)
-    tm1_enc = max(0.1, (1.64 - side) / 2 + 0.01) if side < 1.44 else 0.1
+    # TopMetal1 top plate — enforce TM1 min width 1.64µm
+    TM1_MIN = 1.64
+    tm1_side = max(side + 0.2, TM1_MIN)
+    tm1_enc = (tm1_side - side) / 2
     cell.shapes(li_tm1).insert(rect(x - tm1_enc, y - tm1_enc, x + side + tm1_enc, y + side + tm1_enc))
 
     return (x + side / 2, y + side / 2)
@@ -131,8 +133,10 @@ def draw_nmos_transistor(cell, layout, x, y, w, l):
                                     d_cx + CONT_SIZE + CONT_ENC_M1,
                                     s_cy + CONT_SIZE + CONT_ENC_M1))
 
+    # Offset gate contact 0.10µm beyond GatPoly extension for Cnt.e clearance
+    gc_offset = 0.10
     return {
-        'gate':   (gp_x1 + l / 2, y + w + GATPOLY_EXT),
+        'gate':   (gp_x1 + l / 2, y + w + GATPOLY_EXT + gc_offset),
         'source': (x + sd_ext / 2, y + w / 2),
         'drain':  (gp_x1 + l + sd_ext / 2, y + w / 2),
     }
@@ -176,8 +180,10 @@ def draw_pmos_transistor(cell, layout, x, y, w, l, draw_nwell=True):
                                     d_cx + CONT_SIZE + CONT_ENC_M1,
                                     s_cy + CONT_SIZE + CONT_ENC_M1))
 
+    # Offset gate contact 0.10µm beyond GatPoly extension for Cnt.e clearance
+    gc_offset = 0.10
     return {
-        'gate':   (gp_x1 + l / 2, y - GATPOLY_EXT),
+        'gate':   (gp_x1 + l / 2, y - GATPOLY_EXT - gc_offset),
         'source': (x + sd_ext / 2, y + w / 2),
         'drain':  (gp_x1 + l + sd_ext / 2, y + w / 2),
     }
@@ -236,7 +242,7 @@ def draw_via4(cell, layout, x, y):
 
 
 def draw_topvia1(cell, layout, x, y):
-    """TopVia1 with M5+TM1 pads."""
+    """TopVia1 with M5+TM1 pads. TM1 pad enforces min width 1.64µm."""
     li_tv1 = layout.layer(*L_TOPVIA1)
     li_m5  = layout.layer(*L_METAL5)
     li_tm1 = layout.layer(*L_TOPMETAL1)
@@ -244,7 +250,8 @@ def draw_topvia1(cell, layout, x, y):
     cell.shapes(li_tv1).insert(rect(x - hs, y - hs, x + hs, y + hs))
     e5 = TOPVIA1_ENC_M5 + hs
     cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
-    et = TOPVIA1_ENC_TM1 + hs
+    TM1_MIN_HALF = 1.64 / 2
+    et = max(TOPVIA1_ENC_TM1 + hs, TM1_MIN_HALF)
     cell.shapes(li_tm1).insert(rect(x - et, y - et, x + et, y + et))
 
 
@@ -434,9 +441,12 @@ def build_sar_adc():
         enc = MIM_ENC_M5
         top.shapes(li_m5).insert(rect(cx - enc, cy - enc,
                                        cx + w_cap + enc, cy + h_cap + enc))
-        # TopMetal1 top plate (min TM1 width = 1.64 µm)
-        tm1_enc_w = max(0.1, (1.64 - w_cap) / 2 + 0.01) if w_cap < 1.44 else 0.1
-        tm1_enc_h = max(0.1, (1.64 - h_cap) / 2 + 0.01) if h_cap < 1.44 else 0.1
+        # TopMetal1 top plate — enforce TM1 min width 1.64µm in BOTH dimensions
+        TM1_MIN = 1.64
+        tm1_w = max(w_cap + 0.2, TM1_MIN)  # at least 1.64µm wide
+        tm1_h = max(h_cap + 0.2, TM1_MIN)  # at least 1.64µm tall
+        tm1_enc_w = (tm1_w - w_cap) / 2
+        tm1_enc_h = (tm1_h - h_cap) / 2
         top.shapes(li_tm1).insert(rect(cx - tm1_enc_w, cy - tm1_enc_h,
                                         cx + w_cap + tm1_enc_w, cy + h_cap + tm1_enc_h))
 
@@ -497,21 +507,44 @@ def build_sar_adc():
                            cx_ba + w_cap + tw, cy_ba + h_cap + th))
 
     # Column 1 TM1 strap (bits 0-5): fill vertical gaps between caps
-    # Use x=1.7 to x=3.4 (width 1.7 µm ≥ TM1 min 1.64 µm), within the
-    # common x overlap of all column 1 caps' TM1 rectangles.
+    # Width must be >= TM1 min 1.64µm; use 1.84µm for margin
+    TM1_STRAP_W = 1.84
+    strap_x1_c1 = 1.7
+    strap_x2_c1 = strap_x1_c1 + TM1_STRAP_W
     for i in range(5):  # 5 gaps: 0-1, 1-2, 2-3, 3-4, 4-5
         gap_top = tm1_bounds[i][3]      # top edge of cap i TM1
         gap_bot = tm1_bounds[i + 1][1]  # bottom edge of cap i+1 TM1
-        top.shapes(li_tm1).insert(rect(1.7, gap_top, 3.4, gap_bot))
+        # Only fill if gap height >= TM1 min (otherwise caps already touch)
+        if gap_bot > gap_top:
+            # Ensure strap height is also >= TM1 min
+            strap_h = gap_bot - gap_top
+            if strap_h < TM1_MIN:
+                # Extend strap vertically to meet min height
+                mid_y = (gap_top + gap_bot) / 2
+                gap_top = mid_y - TM1_MIN / 2
+                gap_bot = mid_y + TM1_MIN / 2
+            top.shapes(li_tm1).insert(rect(strap_x1_c1, gap_top, strap_x2_c1, gap_bot))
 
     # Column 2 TM1 strap (bits 6-7): fill gap between bit 6 and bit 7
-    top.shapes(li_tm1).insert(rect(13.9, tm1_bounds[6][3], 15.54, tm1_bounds[7][1]))
+    strap_x1_c2 = 13.9
+    strap_x2_c2 = strap_x1_c2 + TM1_STRAP_W
+    g6_top = tm1_bounds[6][3]
+    g7_bot = tm1_bounds[7][1]
+    if g7_bot > g6_top:
+        strap_h = g7_bot - g6_top
+        if strap_h < TM1_MIN:
+            mid_y = (g6_top + g7_bot) / 2
+            g6_top = mid_y - TM1_MIN / 2
+            g7_bot = mid_y + TM1_MIN / 2
+        top.shapes(li_tm1).insert(rect(strap_x1_c2, g6_top, strap_x2_c2, g7_bot))
 
     # TM1 horizontal bridges at y ≈ 4.0 (where all columns have TM1)
+    # Height >= TM1 min 1.64µm; use 1.84µm
+    bridge_h = max(TM1_MIN + 0.2, 1.84)
     # Column 1 → Column 2 (bit 0 right edge → bit 6 left edge)
-    top.shapes(li_tm1).insert(rect(3.4, 3.7, 13.9, 5.4))
+    top.shapes(li_tm1).insert(rect(strap_x2_c1, 3.7, strap_x1_c2, 3.7 + bridge_h))
     # Column 2 → Column 3 (bit 6 right edge → bit 8 left edge)
-    top.shapes(li_tm1).insert(rect(20.6, 3.86, 25.9, 5.5))
+    top.shapes(li_tm1).insert(rect(strap_x2_c2 + 5.0, 3.86, 25.9, 3.86 + bridge_h))
 
     # =====================================================================
     # Sample switch (NMOS, left edge near vin pin)
@@ -606,7 +639,7 @@ def build_sar_adc():
     samp_y = sampling_y  # M2 sampling bus y-center
 
     # Route via M3 vertical (M3 is clear between y=2 and y=40)
-    m3_x = 25.5  # x for M3 vertical run
+    m3_x = 25.0  # x for M3 vertical run (offset from bit M3 routes for M3.b)
     # Extend M2 sampling bus rightward to m3_x
     top.shapes(li_m2).insert(rect(first_cx - M2_WIDTH / 2, samp_y - M2_WIDTH / 2,
                                    m3_x + M2_WIDTH / 2, samp_y + M2_WIDTH / 2))
@@ -666,7 +699,7 @@ def build_sar_adc():
     # M3 vertical routes at staggered x positions (clear of cap via stacks
     # and clk M3), with via2 at each end and M2 horizontal jog at the
     # bottom to reach each cap's bottom-plate M2 pad.
-    m3_x_positions = [6.0, 6.5, 7.0, 7.5, 8.0, 20.0, 21.0, 26.0]
+    m3_x_positions = [5.0, 6.0, 7.0, 8.0, 9.0, 20.0, 21.5, 23.5]  # was [6,6.5,7,7.5,8,20,21,26]; widened for M3.b
     # SAR bits 5 and 7: M3 must stop above clk M3 horizontal at y=3.5
     target_y_override = {5: 4.0, 7: 4.0}
 

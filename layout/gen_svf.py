@@ -30,8 +30,8 @@ from sg13g2_layers import *
 # ===========================================================================
 # Design parameters
 # ===========================================================================
-MACRO_W = 70.0
-MACRO_H = 85.0
+MACRO_W = 62.0
+MACRO_H = 95.0
 
 # OTA transistor sizes
 OTA_DP_W  = 4.0    # NMOS diff pair width (µm)
@@ -92,8 +92,11 @@ def draw_nmos(cell, layout, x, y, w, l):
                                     d_cx + CONT_SIZE + CONT_ENC_M1,
                                     s_cy + CONT_SIZE + CONT_ENC_M1))
 
+    # Offset gate contact 0.10µm beyond GatPoly extension for Cnt.e clearance
+    # (contact on GatPoly must be >= 0.14µm from Activ; 0.18+0.10-0.08 = 0.20 > 0.14)
+    gc_offset = 0.10
     return {
-        'gate':   (gp_x1 + l / 2, y + w + GATPOLY_EXT),
+        'gate':   (gp_x1 + l / 2, y + w + GATPOLY_EXT + gc_offset),
         'source': (x + sd_ext / 2, y + w / 2),
         'drain':  (gp_x1 + l + sd_ext / 2, y + w / 2),
         'width':  act_len,
@@ -137,8 +140,10 @@ def draw_pmos(cell, layout, x, y, w, l, draw_nwell=True):
                                     d_cx + CONT_SIZE + CONT_ENC_M1,
                                     s_cy + CONT_SIZE + CONT_ENC_M1))
 
+    # Offset gate contact 0.10µm beyond GatPoly extension for Cnt.e clearance
+    gc_offset = 0.10
     return {
-        'gate':   (gp_x1 + l / 2, y - GATPOLY_EXT),
+        'gate':   (gp_x1 + l / 2, y - GATPOLY_EXT - gc_offset),
         'source': (x + sd_ext / 2, y + w / 2),
         'drain':  (gp_x1 + l + sd_ext / 2, y + w / 2),
         'width':  act_len,
@@ -212,7 +217,7 @@ def draw_via4(cell, layout, x, y):
 
 
 def draw_topvia1(cell, layout, x, y):
-    """TopVia1 with M5+TM1 pads."""
+    """TopVia1 with M5+TM1 pads. TM1 pad enforces min width 1.64µm."""
     li_tv1 = layout.layer(*L_TOPVIA1)
     li_m5  = layout.layer(*L_METAL5)
     li_tm1 = layout.layer(*L_TOPMETAL1)
@@ -220,7 +225,9 @@ def draw_topvia1(cell, layout, x, y):
     cell.shapes(li_tv1).insert(rect(x - hs, y - hs, x + hs, y + hs))
     e5 = TOPVIA1_ENC_M5 + hs
     cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
-    et = TOPVIA1_ENC_TM1 + hs
+    # TM1 min width = 1.64µm; ensure pad is at least that
+    TM1_MIN_HALF = 1.64 / 2
+    et = max(TOPVIA1_ENC_TM1 + hs, TM1_MIN_HALF)
     cell.shapes(li_tm1).insert(rect(x - et, y - et, x + et, y + et))
 
 
@@ -281,7 +288,7 @@ def draw_ota(cell, layout, x, y):
 
     Returns dict with pin centers and bounding box.
     """
-    dp_gap = 1.5
+    dp_gap = 2.5   # was 1.5; increased for M1.b clearance between diff pair halves
 
     sd_ext_n = CONT_SIZE + 2 * CONT_ENC_ACTIV
     dp_act_len = sd_ext_n + OTA_DP_L + sd_ext_n
@@ -301,7 +308,7 @@ def draw_ota(cell, layout, x, y):
     m2 = draw_nmos(cell, layout, x + dp_act_len + dp_gap, dp_y, w=OTA_DP_W, l=OTA_DP_L)
 
     # --- M3, M4: PMOS current mirror load ---
-    ld_y = dp_y + OTA_DP_W + 2.5
+    ld_y = dp_y + OTA_DP_W + 4.0  # was +2.5; increased for M1.b clearance near gate contacts
     nw_enc = NWELL_ENC_ACTIV
     li_nw = layout.layer(*L_NWELL)
     nw_x1 = x - nw_enc
@@ -495,8 +502,8 @@ def build_svf():
     # =====================================================================
     # OTA row: 4 OTAs side by side (summing, int1, int2, damping)
     # =====================================================================
-    ota_y = 63.0
-    ota_gap = 2.5
+    ota_y = 68.0    # was 63; shifted up to accommodate taller OTAs + ptap clearance
+    ota_gap = 5.0   # was 2.5; increased for Gat.b / M1.b clearance between OTAs
 
     ota_sum = draw_ota(top, layout, x=2.0, y=ota_y)
     ota1_x = 2.0 + ota_sum['total_w'] + ota_gap
@@ -507,15 +514,18 @@ def build_svf():
     ota_damp = draw_ota(top, layout, x=ota_damp_x, y=ota_y)
 
     # Connect OTA PMOS sources to VDD rail via M1 vertical + via2 to M3
+    # Stagger via1/via2 y-positions (left=MACRO_H-3.0, right=MACRO_H-2.0) for M2.b/V2.b
     for ota in [ota_sum, ota_int1, ota_int2, ota_damp]:
-        for vdd_pin in ['vdd_l', 'vdd_r']:
+        for idx, vdd_pin in enumerate(['vdd_l', 'vdd_r']):
             px, py = ota[vdd_pin]
+            via1_y = MACRO_H - 3.0 if idx == 0 else MACRO_H - 2.0
+            via2_y = via1_y + 0.5
             top.shapes(li_m1).insert(rect(px - wire_w/2, py - wire_w/2,
-                                          px + wire_w/2, MACRO_H - 2.5))
-            draw_via1(top, layout, px, MACRO_H - 2.5)
-            top.shapes(li_m2).insert(rect(px - wire_w2/2, MACRO_H - 2.5,
-                                          px + wire_w2/2, MACRO_H - 1.0))
-            draw_via2(top, layout, px, MACRO_H - 1.0)
+                                          px + wire_w/2, via1_y))
+            draw_via1(top, layout, px, via1_y)
+            top.shapes(li_m2).insert(rect(px - wire_w2/2, via1_y,
+                                          px + wire_w2/2, via2_y))
+            draw_via2(top, layout, px, via2_y)
 
     # Connect OTA VSS (tail source) to VSS rail
     for ota in [ota_sum, ota_int1, ota_int2, ota_damp]:
@@ -538,46 +548,58 @@ def build_svf():
     bias_q_x = bias_fc_x + bias_fc['total_w'] + 2.0
     bias_q = draw_bias(top, layout, bias_q_x, bias_y)
 
-    # Connect fc bias mirror drain to OTA1/2/3 tail gates via M1 horizontal bus
+    # Connect fc bias mirror drain to OTA1/2/3 tail gates via M2 horizontal bus
+    # (was M1, causing shorts with bias_q transistor pads and OTA source bars)
     fc_bus_y = bias_fc['mir_drain'][1]
     bx_fc = bias_fc['mir_drain'][0]
     rightmost_fc_tail_x = ota_int2['tail'][0]
-    top.shapes(li_m1).insert(rect(bx_fc - wire_w/2, fc_bus_y - wire_w/2,
-                                   rightmost_fc_tail_x + wire_w/2, fc_bus_y + wire_w/2))
+    # via1 at fc mirror drain to jump to M2
+    draw_via1(top, layout, bx_fc, fc_bus_y)
+    top.shapes(li_m2).insert(rect(bx_fc - wire_w2/2, fc_bus_y - wire_w2/2,
+                                   rightmost_fc_tail_x + wire_w2/2, fc_bus_y + wire_w2/2))
     for ota in [ota_sum, ota_int1, ota_int2]:
         tx, ty = ota['tail']
+        # via1 at each OTA tail gate to drop from M2 to M1
+        draw_via1(top, layout, tx, fc_bus_y)
         top.shapes(li_m1).insert(rect(tx - wire_w/2, fc_bus_y - wire_w/2,
                                        tx + wire_w/2, ty + wire_w/2))
 
-    # Connect q bias mirror drain to OTA4 (damping) tail gate
+    # Connect q bias mirror drain to OTA4 (damping) tail gate via M2
     q_bus_y = bias_q['mir_drain'][1]
     bx_q = bias_q['mir_drain'][0]
     damp_tail_x = ota_damp['tail'][0]
-    top.shapes(li_m1).insert(rect(bx_q - wire_w/2, q_bus_y - wire_w/2,
-                                   damp_tail_x + wire_w/2, q_bus_y + wire_w/2))
-    # Vertical tap to OTA4 tail gate
+    draw_via1(top, layout, bx_q, q_bus_y)
+    top.shapes(li_m2).insert(rect(bx_q - wire_w2/2, q_bus_y - wire_w2/2,
+                                   damp_tail_x + wire_w2/2, q_bus_y + wire_w2/2))
+    # via1 + M1 vertical tap to OTA4 tail gate
     tx, ty = ota_damp['tail']
+    draw_via1(top, layout, tx, q_bus_y)
     top.shapes(li_m1).insert(rect(tx - wire_w/2, q_bus_y - wire_w/2,
                                    tx + wire_w/2, ty + wire_w/2))
 
-    # Bias sources to VSS
+    # Bias sources to VSS — stagger via2 y-positions to avoid M4.b violations
+    # between adjacent via stacks (ref at y=1.5, mir at y=1.0)
     for bias in [bias_fc, bias_q]:
-        for src in [bias['ref_source'], bias['mir_source']]:
+        for i, src in enumerate([bias['ref_source'], bias['mir_source']]):
             sx, sy = src
+            vss_via_y = 1.5 if i == 0 else 1.0  # stagger ref vs mir
             draw_via1(top, layout, sx, sy)
-            top.shapes(li_m2).insert(rect(sx - wire_w2/2, 1.0,
+            top.shapes(li_m2).insert(rect(sx - wire_w2/2, vss_via_y,
                                            sx + wire_w2/2, sy))
-            draw_via2(top, layout, sx, 1.0)
+            draw_via2(top, layout, sx, vss_via_y)
 
     # =====================================================================
     # Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS)
     # =====================================================================
-    # Along OTA NMOS region (tails at y≈63, diff pairs at y≈65)
+    # Along OTA NMOS region — place 2µm below OTA base for Cnt.b clearance
+    # (tails at y=ota_y, diff pairs at y=ota_y+4; ptaps must be >0.5µm from contacts)
+    ptap_ota_y = ota_y - 2.0
     for xt in [2.0, 10.0, 18.0, 26.0, 34.0, 42.0, 50.0]:
-        draw_ptap(top, layout, xt, 62.0)
-    # Along bias mirror region (y≈57)
+        draw_ptap(top, layout, xt, ptap_ota_y)
+    # Along bias mirror region — place 1µm below bias_y for clearance
+    ptap_bias_y = bias_y - 1.5
     for xt in [2.0, 8.0, 14.0, 20.0]:
-        draw_ptap(top, layout, xt, 55.5)
+        draw_ptap(top, layout, xt, ptap_bias_y)
     # Near mux NMOS switches (x=42, y=6-20)
     draw_ptap(top, layout, 41.0, 4.5)
     draw_ptap(top, layout, 41.0, 12.0)
