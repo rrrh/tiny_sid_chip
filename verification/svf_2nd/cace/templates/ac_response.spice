@@ -1,0 +1,51 @@
+* SVF 2nd-order — AC Frequency Response
+* CACE template: AC analysis from 1 Hz to 1 MHz
+*
+* Conditions substituted by CACE:
+*   CACE{vdd}       — supply voltage (V)
+*   CACE{f_clk}     — switching clock frequency (Hz)
+*   CACE{q_code}    — Q control code (1..15)
+*   CACE{sel0}      — mux select bit 0 voltage (0 or vdd)
+*   CACE{sel1}      — mux select bit 1 voltage (0 or vdd)
+
+* ── PDK Models (needed for vdd_val param) ───────────────────
+* No transistor-level models needed; CT equivalent is behavioral.
+
+* ── DUT ─────────────────────────────────────────────────────
+.include CACE{DUT_path}
+
+* ── SC design parameters ────────────────────────────────────
+.param vdd_val = CACE{vdd}
+.param f_clk = CACE{f_clk}
+.param q_code = CACE{q_code}
+.param c_sw = 73.5e-15
+.param c_q_unit = 73.5e-15
+.param r_eff = {1/(f_clk*c_sw)}
+.param c_q = {q_code*c_q_unit}
+.param r_q = {1/(f_clk*c_q)}
+
+* ── Power supplies ──────────────────────────────────────────
+Vdd  vdd 0 {vdd_val}
+Vss  vss 0 0
+
+* ── Input: DC bias + 1V AC stimulus ────────────────────────
+Vin  vin 0 dc 0.6 ac 1
+
+* ── Mux control ─────────────────────────────────────────────
+Vsel0 sel0 0 CACE{sel0}
+Vsel1 sel1 0 CACE{sel1}
+
+* ── Output load ─────────────────────────────────────────────
+Rload vout 0 1meg
+
+* ── DUT instantiation ──────────────────────────────────────
+Xsvf vin vout sel1 sel0 vdd vss svf_2nd r_eff_val={r_eff} r_q_val={r_q}
+
+* ── AC analysis: 1 Hz to 1 MHz, 50 pts/decade ──────────────
+.control
+  ac dec 50 1 1e6
+  wrdata CACE{simpath}/CACE{filename}_CACE{N}.data v(vout)
+  quit
+.endc
+
+.end

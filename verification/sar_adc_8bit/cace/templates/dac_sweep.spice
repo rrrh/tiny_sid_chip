@@ -1,0 +1,34 @@
+* SAR ADC — Cap DAC Transfer Function Sweep
+* CACE template: analytical cap DAC output for all 256 codes
+*
+* The binary-weighted cap DAC output is computed analytically:
+*   V_top = VREF * (b7*256 + b6*128 + ... + b0*2) / 512
+*         = VREF * code / 256  (since sum = 2*code)
+*
+* This provides the ideal baseline; parasitic-extracted netlists
+* will show real mismatch effects when available.
+*
+* Conditions:
+*   CACE{vdd}  — supply/reference voltage (V)
+
+* ── DUT (not used — analytical model) ──────────────────────
+* .include CACE{DUT_path}
+
+* ── Parameters ──────────────────────────────────────────────
+.param vdd_val = CACE{vdd}
+
+* ── Code input (swept 0–255) ───────────────────────────────
+Vcode code 0 0
+
+* ── Analytical cap DAC output ──────────────────────────────
+* V_top = VREF * 2*code / 512 = VREF * code / 256
+Bvtop vtop 0 V = vdd_val * v(code) / 256.0
+
+* ── DC sweep ───────────────────────────────────────────────
+.control
+  dc Vcode 0 255 1
+  wrdata CACE{simpath}/CACE{filename}_CACE{N}.data v(vtop)
+  quit
+.endc
+
+.end

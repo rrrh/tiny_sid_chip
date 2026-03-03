@@ -1,0 +1,47 @@
+* SAR ADC — StrongARM Comparator Resolve Time
+* CACE template: transient test with differential input
+*
+* Conditions:
+*   CACE{vdd}         — supply voltage (V)
+*   CACE{temperature}  — temperature (deg C)
+*   CACE{corner}       — MOS process corner
+*   CACE{vdiff}        — differential input voltage (mV)
+
+* ── PDK Models ──────────────────────────────────────────────
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib CACE{corner}
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerRES.lib res_typ
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerCAP.lib cap_typ
+
+* ── DUT ─────────────────────────────────────────────────────
+.include CACE{DUT_path}
+
+* ── Parameters ──────────────────────────────────────────────
+.param vdd_val = CACE{vdd}
+.param vcm = 0.6
+.param vdiff_mv = CACE{vdiff}
+
+* ── Temperature ─────────────────────────────────────────────
+.temp CACE{temperature}
+
+* ── Power supply ────────────────────────────────────────────
+Vdd vdd 0 {vdd_val}
+
+* ── Comparator clock — 100 MHz ──────────────────────────────
+Vclk clk 0 pulse(0 {vdd_val} 5n 0.1n 0.1n 4.9n 10n)
+
+* ── Differential input ──────────────────────────────────────
+* vinp = vcm + vdiff/2, vinn = vcm - vdiff/2
+Vinn vinn 0 {vcm - vdiff_mv*0.5e-3}
+Vinp vinp 0 {vcm + vdiff_mv*0.5e-3}
+
+* ── DUT instantiation ──────────────────────────────────────
+Xcomp vinp vinn outp outn clk vdd 0 strongarm_comp
+
+* ── Transient: 3 clock cycles (30 ns) ──────────────────────
+.control
+  tran 0.05n 30n
+  wrdata CACE{simpath}/CACE{filename}_CACE{N}.data v(outp) v(outn) v(clk)
+  quit
+.endc
+
+.end

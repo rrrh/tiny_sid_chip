@@ -1,0 +1,56 @@
+* 2nd-order Switched-Capacitor State Variable Filter
+* IHP SG13G2 — Continuous-time equivalent for AC characterization
+*
+* Topology: Tow-Thomas biquad (two inverting integrators + inverter)
+*   f0 = f_clk * C_sw / (2*pi*C_int)
+*   Q  = C_sw / C_Q   (where C_Q = q_code * C_q_unit)
+*
+* Pins: vin vout sel1 sel0 vdd vss
+* Parameters: r_eff_val (SC equiv resistance), r_q_val (Q damping resistance)
+
+.param vcm_val = 0.6
+.param vdd_sq_val = 1.44
+.param c_int_val = 1.1e-12
+
+.subckt svf_2nd vin vout sel1 sel0 vdd vss r_eff_val=145.1e6 r_q_val=145.1e6
+
+* ==== Integrator 1 (inverting): produces BP ====
+Eoa1  bp_raw 0 vcm1 vg1 10000
+Vcm1  vcm1 0 {vcm_val}
+Rout1 bp_raw bp 100
+Cint1 vg1 bp {c_int_val}
+
+* Input resistor (Vin -> vg1)
+Rin1 vin vg1 {r_eff_val}
+* LP negative feedback resistor (LP -> vg1)
+Rfb lp vg1 {r_eff_val}
+* Damping resistor (BP -> vg1)
+Rq bp vg1 {r_q_val}
+
+* ==== Unity-gain inverter: LP_bar -> LP ====
+Eoa_inv  lp_raw 0 vcm_inv vg_inv 10000
+Vcm_inv  vcm_inv 0 {vcm_val}
+Rout_inv lp_raw lp 100
+Rinv_in  lp_bar vg_inv 100k
+Rinv_fb  vg_inv lp 100k
+
+* ==== Integrator 2 (inverting): produces LP_bar ====
+Eoa2  lpbar_raw 0 vcm2 vg2 10000
+Vcm2  vcm2 0 {vcm_val}
+Rout2 lpbar_raw lp_bar 100
+Cint2 vg2 lp_bar {c_int_val}
+Rin2  bp vg2 {r_eff_val}
+
+* ==== HP output (behavioral) ====
+Bhp hp 0 V = v(vin) - v(lp)
+
+* ==== 4:1 Output Mux (behavioral) ====
+Bsel_hp  sel_hp  0 V = ({vdd_val}-v(sel1))*({vdd_val}-v(sel0))/{vdd_sq_val}
+Bsel_bp  sel_bp  0 V = ({vdd_val}-v(sel1))*v(sel0)/{vdd_sq_val}
+Bsel_lp  sel_lp  0 V = v(sel1)*({vdd_val}-v(sel0))/{vdd_sq_val}
+Bsel_byp sel_byp 0 V = v(sel1)*v(sel0)/{vdd_sq_val}
+
+Bmux vmux 0 V = v(hp)*v(sel_hp)+v(bp)*v(sel_bp)+v(lp)*v(sel_lp)+v(vin)*v(sel_byp)
+Rmux vmux vout 100
+
+.ends svf_2nd

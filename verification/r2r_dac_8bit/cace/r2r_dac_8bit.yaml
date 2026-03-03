@@ -1,0 +1,221 @@
+#--------------------------------------------------------------
+# CACE circuit characterization file
+# 8-bit R-2R DAC — IHP SG13G2 130nm
+#--------------------------------------------------------------
+
+name:           r2r_dac_8bit
+description:    8-bit R-2R DAC with complementary CMOS switches
+PDK:            ihp-sg13g2
+
+cace_format:    5.2
+
+authorship:
+  designer:         shue
+  creation_date:    March 3, 2026
+  license:          Apache 2.0
+
+paths:
+  root:             ..
+  schematic:        xschem
+  layout:           gds
+  netlist:          netlist
+  documentation:    doc
+
+pins:
+  d0:
+    description: Digital input bit 0 (LSB)
+    type: digital
+    direction: input
+  d1:
+    description: Digital input bit 1
+    type: digital
+    direction: input
+  d2:
+    description: Digital input bit 2
+    type: digital
+    direction: input
+  d3:
+    description: Digital input bit 3
+    type: digital
+    direction: input
+  d4:
+    description: Digital input bit 4
+    type: digital
+    direction: input
+  d5:
+    description: Digital input bit 5
+    type: digital
+    direction: input
+  d6:
+    description: Digital input bit 6
+    type: digital
+    direction: input
+  d7:
+    description: Digital input bit 7 (MSB)
+    type: digital
+    direction: input
+  vout:
+    description: Analog output voltage
+    type: signal
+    direction: output
+    Vmin: 0
+    Vmax: vdd
+  vdd:
+    description: Positive power supply
+    type: power
+    direction: inout
+    Vmin: 1.08
+    Vmax: 1.32
+  vss:
+    description: Ground
+    type: ground
+    direction: inout
+
+default_conditions:
+  vdd:
+    description: Power supply voltage
+    display: Vdd
+    unit: V
+    typical: 1.2
+  temperature:
+    description: Ambient temperature
+    display: Temp
+    unit: "\u00B0C"
+    typical: 27
+  corner:
+    description: Process corner (MOS)
+    display: Corner
+    typical: mos_tt
+  res_corner:
+    description: Resistor process corner
+    display: Res Corner
+    typical: res_typ
+
+parameters:
+
+  # ── Static linearity (INL / DNL) ──────────────────────────
+  static_linearity:
+    description: DC transfer function — sweep all 256 codes
+    display: Static Linearity
+    spec:
+      inl:
+        display: INL
+        description: Max integral non-linearity (endpoint corrected)
+        unit: LSB
+        maximum:
+          value: 1.0
+      dnl:
+        display: DNL
+        description: Max differential non-linearity
+        unit: LSB
+        maximum:
+          value: 1.0
+    tool:
+      ngspice:
+        template: dc_sweep.spice
+        format: ascii
+        suffix: .data
+        variables: [null, vout]
+        script: inl_dnl.py
+        script_variables: [inl, dnl]
+    conditions:
+      corner:
+        enumerate: [mos_tt, mos_ff, mos_ss]
+      res_corner:
+        enumerate: [res_typ]
+      temperature:
+        enumerate: [27]
+      vdd:
+        typical: 1.2
+    plot:
+      transfer_function:
+        type: xyplot
+        xaxis: null
+        yaxis: vout
+      inl_vs_corner:
+        type: xyplot
+        xaxis: corner
+        yaxis: inl
+      dnl_vs_corner:
+        type: xyplot
+        xaxis: corner
+        yaxis: dnl
+
+  # ── Temperature sweep linearity ────────────────────────────
+  linearity_vs_temp:
+    description: INL/DNL across temperature
+    display: Linearity vs Temperature
+    spec:
+      inl:
+        display: INL
+        description: Max integral non-linearity
+        unit: LSB
+        maximum:
+          value: 1.0
+      dnl:
+        display: DNL
+        description: Max differential non-linearity
+        unit: LSB
+        maximum:
+          value: 1.0
+    tool:
+      ngspice:
+        template: dc_sweep.spice
+        format: ascii
+        suffix: .data
+        variables: [null, vout]
+        script: inl_dnl.py
+        script_variables: [inl, dnl]
+    conditions:
+      corner:
+        enumerate: [mos_tt]
+      res_corner:
+        enumerate: [res_typ]
+      temperature:
+        enumerate: [-40, 27, 130]
+      vdd:
+        typical: 1.2
+    plot:
+      inl_vs_temp:
+        type: xyplot
+        xaxis: temperature
+        yaxis: inl
+      dnl_vs_temp:
+        type: xyplot
+        xaxis: temperature
+        yaxis: dnl
+
+  # ── Full-scale range ───────────────────────────────────────
+  full_scale:
+    description: Output voltage at code 0 and code 255
+    display: Full Scale Range
+    spec:
+      vout_min:
+        display: Vout(0)
+        description: Output at code 0 (all bits low)
+        unit: V
+        maximum:
+          value: 0.050
+      vout_max:
+        display: Vout(255)
+        description: Output at code 255 (all bits high)
+        unit: V
+        minimum:
+          value: 1.10
+    tool:
+      ngspice:
+        template: dc_sweep.spice
+        format: ascii
+        suffix: .data
+        variables: [null, vout]
+        script: full_scale.py
+        script_variables: [vout_min, vout_max]
+    conditions:
+      corner:
+        enumerate: [mos_tt, mos_ff, mos_ss]
+      res_corner:
+        enumerate: [res_typ, res_bcs, res_wcs]
+      temperature:
+        enumerate: [-40, 27, 130]
+      vdd:
+        typical: 1.2

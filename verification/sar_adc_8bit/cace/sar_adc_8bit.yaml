@@ -1,0 +1,190 @@
+#--------------------------------------------------------------
+# CACE circuit characterization file
+# 8-bit SAR ADC — IHP SG13G2 130nm
+#--------------------------------------------------------------
+
+name:           sar_adc_8bit
+description:    8-bit successive-approximation ADC with StrongARM comparator
+PDK:            ihp-sg13g2
+
+cace_format:    5.2
+
+authorship:
+  designer:         shue
+  creation_date:    March 3, 2026
+  license:          Apache 2.0
+
+paths:
+  root:             ..
+  schematic:        xschem
+  layout:           gds
+  netlist:          netlist
+  documentation:    doc
+
+pins:
+  clk:
+    description: Comparator/SAR clock (100 MHz)
+    type: digital
+    direction: input
+  rst_n:
+    description: Active-low asynchronous reset
+    type: digital
+    direction: input
+  vin:
+    description: Analog input voltage
+    type: signal
+    direction: input
+    Vmin: 0
+    Vmax: vdd
+  start:
+    description: Start conversion (rising edge)
+    type: digital
+    direction: input
+  eoc:
+    description: End-of-conversion pulse
+    type: digital
+    direction: output
+  dout0:
+    description: Digital output bit 0 (LSB)
+    type: digital
+    direction: output
+  dout1:
+    description: Digital output bit 1
+    type: digital
+    direction: output
+  dout2:
+    description: Digital output bit 2
+    type: digital
+    direction: output
+  dout3:
+    description: Digital output bit 3
+    type: digital
+    direction: output
+  dout4:
+    description: Digital output bit 4
+    type: digital
+    direction: output
+  dout5:
+    description: Digital output bit 5
+    type: digital
+    direction: output
+  dout6:
+    description: Digital output bit 6
+    type: digital
+    direction: output
+  dout7:
+    description: Digital output bit 7 (MSB)
+    type: digital
+    direction: output
+  vdd:
+    description: Positive power supply / reference
+    type: power
+    direction: inout
+    Vmin: 1.08
+    Vmax: 1.32
+  vss:
+    description: Ground
+    type: ground
+    direction: inout
+
+default_conditions:
+  vdd:
+    description: Power supply voltage
+    display: Vdd
+    unit: V
+    typical: 1.2
+  temperature:
+    description: Ambient temperature
+    display: Temp
+    unit: "\u00B0C"
+    typical: 27
+  corner:
+    description: Process corner (MOS)
+    display: Corner
+    typical: mos_tt
+
+parameters:
+
+  # ── Comparator resolve time ────────────────────────────────
+  comp_resolve_time:
+    description: StrongARM comparator resolve time vs differential input
+    display: Comparator Resolve Time
+    spec:
+      t_resolve:
+        display: Resolve Time
+        description: Time from clk rise to |outp-outn| > VDD/2
+        unit: ns
+        maximum:
+          value: 5.0
+      decision:
+        display: Correct Decision
+        description: 1.0 if comparator decides correctly
+        minimum:
+          value: 1.0
+    tool:
+      ngspice:
+        template: comp_resolve.spice
+        format: ascii
+        suffix: .data
+        variables: [time, outp, null, outn, null, clk]
+        script: comp_params.py
+        script_variables: [t_resolve, decision]
+    conditions:
+      corner:
+        enumerate: [mos_tt, mos_ff, mos_ss]
+      temperature:
+        enumerate: [-40, 27, 130]
+      vdd:
+        typical: 1.2
+      vdiff:
+        description: Differential input voltage
+        display: Vdiff
+        unit: mV
+        enumerate: [1, 5, 10, 50, 100]
+    plot:
+      resolve_vs_vdiff:
+        type: semilogx
+        xaxis: vdiff
+        yaxis: t_resolve
+      resolve_vs_corner:
+        type: xyplot
+        xaxis: corner
+        yaxis: t_resolve
+      resolve_vs_temp:
+        type: xyplot
+        xaxis: temperature
+        yaxis: t_resolve
+
+  # ── Cap DAC linearity (ideal baseline) ─────────────────────
+  cap_dac_linearity:
+    description: Binary-weighted cap DAC transfer function (ideal caps)
+    display: Cap DAC Linearity
+    spec:
+      inl:
+        display: INL
+        description: Max integral non-linearity (ideal = 0)
+        unit: LSB
+        maximum:
+          value: 0.5
+      dnl:
+        display: DNL
+        description: Max differential non-linearity (ideal = 0)
+        unit: LSB
+        maximum:
+          value: 0.5
+    tool:
+      ngspice:
+        template: dac_sweep.spice
+        format: ascii
+        suffix: .data
+        variables: [null, vtop]
+        script: dac_linearity.py
+        script_variables: [inl, dnl]
+    conditions:
+      vdd:
+        enumerate: [1.08, 1.2, 1.32]
+    plot:
+      transfer_function:
+        type: xyplot
+        xaxis: null
+        yaxis: vtop

@@ -1,0 +1,75 @@
+* 8-bit R-2R DAC — IHP SG13G2
+* Complementary-switch R-2R: each 2R leg steered to VDD or VSS
+* Pin order: d7 d6 d5 d4 d3 d2 d1 d0 vout vdd vss
+
+* ============================================================
+* Complementary Switch Subcircuit
+* When d=VDD: out connects to vhi (PMOS on, NMOS off)
+* When d=0:   out connects to vlo (NMOS on, PMOS off)
+* ============================================================
+.subckt cmos_sw out sel selb vhi vlo vdd vss
+XMp_hi out selb vhi vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMn_lo out selb vlo vss sg13_lv_nmos w=10e-6 l=0.13e-6
+.ends cmos_sw
+
+* ============================================================
+* 8-bit R-2R DAC
+* Pins: d7 d6 d5 d4 d3 d2 d1 d0 vout vdd vss
+*   d7 = MSB, d0 = LSB
+*   bit = VDD → 2R leg to VDD, bit = 0 → 2R leg to VSS
+* ============================================================
+.subckt r2r_dac_8bit d7 d6 d5 d4 d3 d2 d1 d0 vout vdd vss
+
+* Complementary gate signals
+Binv7 d7b 0 V = v(vdd) - v(d7)
+Binv6 d6b 0 V = v(vdd) - v(d6)
+Binv5 d5b 0 V = v(vdd) - v(d5)
+Binv4 d4b 0 V = v(vdd) - v(d4)
+Binv3 d3b 0 V = v(vdd) - v(d3)
+Binv2 d2b 0 V = v(vdd) - v(d2)
+Binv1 d1b 0 V = v(vdd) - v(d1)
+Binv0 d0b 0 V = v(vdd) - v(d0)
+
+* Termination resistor at LSB end (2R from tap0 to VSS)
+XRterm tap0 vss vss rhigh w=2e-6 l=6.15e-6
+
+* Bit 0 (LSB)
+XR2R_0  tap0 sw0 vss rhigh w=2e-6 l=6.15e-6
+Xsw0    sw0 d0 d0b vdd vss vdd vss cmos_sw
+XRs01   tap0 tap1 vss rhigh w=2e-6 l=3.08e-6
+
+* Bit 1
+XR2R_1  tap1 sw1 vss rhigh w=2e-6 l=6.15e-6
+Xsw1    sw1 d1 d1b vdd vss vdd vss cmos_sw
+XRs12   tap1 tap2 vss rhigh w=2e-6 l=3.08e-6
+
+* Bit 2
+XR2R_2  tap2 sw2 vss rhigh w=2e-6 l=6.15e-6
+Xsw2    sw2 d2 d2b vdd vss vdd vss cmos_sw
+XRs23   tap2 tap3 vss rhigh w=2e-6 l=3.08e-6
+
+* Bit 3
+XR2R_3  tap3 sw3 vss rhigh w=2e-6 l=6.15e-6
+Xsw3    sw3 d3 d3b vdd vss vdd vss cmos_sw
+XRs34   tap3 tap4 vss rhigh w=2e-6 l=3.08e-6
+
+* Bit 4
+XR2R_4  tap4 sw4 vss rhigh w=2e-6 l=6.15e-6
+Xsw4    sw4 d4 d4b vdd vss vdd vss cmos_sw
+XRs45   tap4 tap5 vss rhigh w=2e-6 l=3.08e-6
+
+* Bit 5
+XR2R_5  tap5 sw5 vss rhigh w=2e-6 l=6.15e-6
+Xsw5    sw5 d5 d5b vdd vss vdd vss cmos_sw
+XRs56   tap5 tap6 vss rhigh w=2e-6 l=3.08e-6
+
+* Bit 6
+XR2R_6  tap6 sw6 vss rhigh w=2e-6 l=6.15e-6
+Xsw6    sw6 d6 d6b vdd vss vdd vss cmos_sw
+XRs67   tap6 vout vss rhigh w=2e-6 l=3.08e-6
+
+* Bit 7 (MSB)
+XR2R_7  vout sw7 vss rhigh w=2e-6 l=6.15e-6
+Xsw7    sw7 d7 d7b vdd vss vdd vss cmos_sw
+
+.ends r2r_dac_8bit

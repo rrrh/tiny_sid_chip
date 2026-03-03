@@ -1,0 +1,55 @@
+* R2R DAC 8-bit — DC Transfer Function Sweep
+* CACE template: sweeps all 256 digital codes via .dc
+*
+* Conditions substituted by CACE:
+*   CACE{vdd}          — supply voltage (V)
+*   CACE{temperature}  — temperature (deg C)
+*   CACE{corner}       — MOS process corner (mos_tt, mos_ff, mos_ss)
+*   CACE{res_corner}   — resistor corner (res_typ, res_bcs, res_wcs)
+
+* ── PDK Models ──────────────────────────────────────────────
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib CACE{corner}
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerRES.lib CACE{res_corner}
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerCAP.lib cap_typ
+
+* ── DUT ─────────────────────────────────────────────────────
+.include CACE{DUT_path}
+
+* ── Parameters ──────────────────────────────────────────────
+.param vdd_val = CACE{vdd}
+
+* ── Temperature ─────────────────────────────────────────────
+.temp CACE{temperature}
+
+* ── Power supplies ──────────────────────────────────────────
+Vdd  vdd 0 {vdd_val}
+Vss  vss 0 0
+
+* ── Digital code input (swept 0–255 as a voltage) ──────────
+Vcode code 0 0
+
+* ── Bit extraction from code voltage ────────────────────────
+* Each bit = vdd_val * ( floor(code/2^n) mod 2 )
+Bb7 d7 0 V = vdd_val * (floor(v(code)/128) - 2*floor(v(code)/256))
+Bb6 d6 0 V = vdd_val * (floor(v(code)/64)  - 2*floor(v(code)/128))
+Bb5 d5 0 V = vdd_val * (floor(v(code)/32)  - 2*floor(v(code)/64))
+Bb4 d4 0 V = vdd_val * (floor(v(code)/16)  - 2*floor(v(code)/32))
+Bb3 d3 0 V = vdd_val * (floor(v(code)/8)   - 2*floor(v(code)/16))
+Bb2 d2 0 V = vdd_val * (floor(v(code)/4)   - 2*floor(v(code)/8))
+Bb1 d1 0 V = vdd_val * (floor(v(code)/2)   - 2*floor(v(code)/4))
+Bb0 d0 0 V = vdd_val * (floor(v(code)/1)   - 2*floor(v(code)/2))
+
+* ── Output load ─────────────────────────────────────────────
+Rload vout 0 1meg
+
+* ── DUT instantiation ──────────────────────────────────────
+Xdac d7 d6 d5 d4 d3 d2 d1 d0 vout vdd vss r2r_dac_8bit
+
+* ── DC sweep: code 0 → 255 ─────────────────────────────────
+.control
+  dc Vcode 0 255 1
+  wrdata CACE{simpath}/CACE{filename}_CACE{N}.data v(vout)
+  quit
+.endc
+
+.end
