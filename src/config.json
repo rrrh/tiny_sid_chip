@@ -5,7 +5,9 @@
       "Checker.HoldViolations": null,
       "Checker.SetupViolations": null,
       "OpenROAD.RepairDesignPostGPL": null,
-      "OpenROAD.IRDropReport": null
+      "OpenROAD.IRDropReport": null,
+      "odb.AddPDNObstructions": null,
+      "odb.RemovePDNObstructions": null
     }
   },
   "MACROS": {
