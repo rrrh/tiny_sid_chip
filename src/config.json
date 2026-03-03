@@ -11,7 +11,7 @@
     "r2r_dac_8bit": {
       "instances": {
         "u_dac": {
-          "location": [158, 49],
+          "location": [152, 49],
           "orientation": "N"
         }
       },
@@ -25,7 +25,7 @@
     "svf_2nd": {
       "instances": {
         "u_svf": {
-          "location": [132, 99],
+          "location": [126, 99],
           "orientation": "N"
         }
       },
@@ -39,7 +39,7 @@
     "sar_adc_8bit": {
       "instances": {
         "u_adc": {
-          "location": [152, 4],
+          "location": [146, 4],
           "orientation": "N"
         }
       },
@@ -79,7 +79,7 @@
   "ERROR_ON_TR_DRC": false,
   "IO_PIN_H_LENGTH": 2,
   "IO_PIN_V_LENGTH": 2,
-  "PDN_MACRO_CONNECTIONS": ["u_dac vdd VDD vss VSS", "u_svf vdd VDD vss VSS", "u_adc vdd VDD vss VSS"],
+  "PDN_MACRO_CONNECTIONS": ["u_dac vdd VPWR vss VGND", "u_svf vdd VPWR vss VGND", "u_adc vdd VPWR vss VGND"],
   "PDN_MULTILAYER": false,
   "PDN_VPITCH": 38.87,
   "RT_MAX_LAYER": "TopMetal1",
