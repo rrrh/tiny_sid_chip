@@ -347,7 +347,8 @@ def draw_sar_logic_block(cell, layout, x, y, w, h):
     for r in range(nrows):
         ry = y + r * row_h
         # Alternating NMOS/PMOS rows (simplified: just draw transistors)
-        ncols = int(w / 1.5)
+        # Leave 2µm margin on right for perimeter ptaps (Gat.d, Cnt.g1 clearance)
+        ncols = int((w - 2.0) / 1.5)
         for c in range(ncols):
             tx = x + c * 1.5
             if r % 2 == 0:
@@ -456,7 +457,7 @@ def build_sar_adc():
             'center': (cx + w_cap / 2, cy + h_cap / 2),
         })
 
-        cap_cursor_y += h_cap + MIM_SPACE + 2 * MIM_ENC_M5 + 1.0
+        cap_cursor_y += h_cap + MIM_SPACE + 2 * MIM_ENC_M5 + 1.5  # +1.5 (was 1.0) for TM1.b clearance
 
     # =====================================================================
     # Via stacks: connect cap plates to M2 routing
@@ -491,60 +492,52 @@ def build_sar_adc():
     # Fix 1: TM1 sampling-node strap
     # =====================================================================
     # Connect all cap top plates via TopMetal1 to form the sampling node.
-    # All caps already have TM1 top plates; fill gaps between consecutive
-    # caps and bridge across columns so the entire array shares one TM1 net.
+    # Use one continuous TM1 strap per column (≥1.64µm wide) that overlaps
+    # all cap TM1 plates, then bridge between columns. This avoids complex
+    # per-gap shapes that create TM1.a/TM1.b violations from narrow notches.
     li_tm1 = layout.layer(*L_TOPMETAL1)
-    TM1_MIN_W = 1.64  # µm
+    TM1_MIN = 1.64  # µm
 
-    # Compute TM1 bounding box for each cap (mirrors draw logic above)
-    tm1_bounds = []
+    # Group caps by column (column changes when cap_cursor_x advances)
+    columns = {}
     for ba in bit_areas:
-        w_cap, h_cap = ba['w'], ba['h']
-        cx_ba, cy_ba = ba['x'], ba['y']
-        tw = max(0.1, (1.64 - w_cap) / 2 + 0.01) if w_cap < 1.44 else 0.1
-        th = max(0.1, (1.64 - h_cap) / 2 + 0.01) if h_cap < 1.44 else 0.1
-        tm1_bounds.append((cx_ba - tw, cy_ba - th,
-                           cx_ba + w_cap + tw, cy_ba + h_cap + th))
+        col_x = round(ba['x'], 1)  # round to 0.1µm to group by column
+        if col_x not in columns:
+            columns[col_x] = []
+        columns[col_x].append(ba)
 
-    # Column 1 TM1 strap (bits 0-5): fill vertical gaps between caps
-    # Width must be >= TM1 min 1.64µm; use 1.84µm for margin
-    TM1_STRAP_W = 1.84
-    strap_x1_c1 = 1.7
-    strap_x2_c1 = strap_x1_c1 + TM1_STRAP_W
-    for i in range(5):  # 5 gaps: 0-1, 1-2, 2-3, 3-4, 4-5
-        gap_top = tm1_bounds[i][3]      # top edge of cap i TM1
-        gap_bot = tm1_bounds[i + 1][1]  # bottom edge of cap i+1 TM1
-        # Only fill if gap height >= TM1 min (otherwise caps already touch)
-        if gap_bot > gap_top:
-            # Ensure strap height is also >= TM1 min
-            strap_h = gap_bot - gap_top
-            if strap_h < TM1_MIN:
-                # Extend strap vertically to meet min height
-                mid_y = (gap_top + gap_bot) / 2
-                gap_top = mid_y - TM1_MIN / 2
-                gap_bot = mid_y + TM1_MIN / 2
-            top.shapes(li_tm1).insert(rect(strap_x1_c1, gap_top, strap_x2_c1, gap_bot))
+    # Draw one continuous TM1 strap per column, wide enough to overlap all
+    # cap TM1 plates AND topvia1 TM1 pads (avoids narrow gaps → TM1.b)
+    strap_positions = []  # (x1, y1, x2, y2) for bridge routing
+    for col_x in sorted(columns.keys()):
+        caps = columns[col_x]
+        # Find the full horizontal extent of TM1 in this column
+        # (cap TM1 plates + topvia1 TM1 pads at cap center ± 0.82µm)
+        TM1_ENC = 0.1  # cap TM1 extension beyond Cmim
+        TV1_HALF = max(TOPVIA1_ENC_TM1 + TOPVIA1_SIZE / 2, TM1_MIN / 2)  # 0.82µm
+        sx1 = col_x - TM1_ENC
+        sx2 = col_x - TM1_ENC
+        for cap in caps:
+            cap_right = cap['x'] + cap['w'] + TM1_ENC
+            via_right = cap['x'] + cap['w'] / 2 + TV1_HALF
+            sx2 = max(sx2, cap_right, via_right)
+        # Ensure min width ≥ TM1_MIN
+        if sx2 - sx1 < TM1_MIN:
+            sx2 = sx1 + TM1_MIN
+        # Strap spans from first cap bottom to last cap top (with TM1 enc)
+        first_y = caps[0]['y'] - TM1_ENC
+        last_y = caps[-1]['y'] + caps[-1]['h'] + TM1_ENC
+        top.shapes(li_tm1).insert(rect(sx1, first_y, sx2, last_y))
+        strap_positions.append((sx1, first_y, sx2, last_y))
 
-    # Column 2 TM1 strap (bits 6-7): fill gap between bit 6 and bit 7
-    strap_x1_c2 = 13.9
-    strap_x2_c2 = strap_x1_c2 + TM1_STRAP_W
-    g6_top = tm1_bounds[6][3]
-    g7_bot = tm1_bounds[7][1]
-    if g7_bot > g6_top:
-        strap_h = g7_bot - g6_top
-        if strap_h < TM1_MIN:
-            mid_y = (g6_top + g7_bot) / 2
-            g6_top = mid_y - TM1_MIN / 2
-            g7_bot = mid_y + TM1_MIN / 2
-        top.shapes(li_tm1).insert(rect(strap_x1_c2, g6_top, strap_x2_c2, g7_bot))
-
-    # TM1 horizontal bridges at y ≈ 4.0 (where all columns have TM1)
-    # Height >= TM1 min 1.64µm; use 1.84µm
-    bridge_h = max(TM1_MIN + 0.2, 1.84)
-    # Column 1 → Column 2 (bit 0 right edge → bit 6 left edge)
-    top.shapes(li_tm1).insert(rect(strap_x2_c1, 3.7, strap_x1_c2, 3.7 + bridge_h))
-    # Column 2 → Column 3 (bit 6 right edge → bit 8 left edge)
-    top.shapes(li_tm1).insert(rect(strap_x2_c2 + 5.0, 3.86, 25.9, 3.86 + bridge_h))
+    # TM1 horizontal bridge connecting all columns at the bottom
+    if len(strap_positions) >= 2:
+        bridge_y = strap_positions[0][1]  # bottom of first column
+        bridge_h = TM1_MIN + 0.2  # 1.84µm
+        # Bridge from first column right edge to last column left edge
+        bx1 = strap_positions[0][2]   # right edge of first column strap
+        bx2 = strap_positions[-1][0]  # left edge of last column strap
+        top.shapes(li_tm1).insert(rect(bx1, bridge_y, bx2, bridge_y + bridge_h))
 
     # =====================================================================
     # Sample switch (NMOS, left edge near vin pin)
@@ -605,11 +598,12 @@ def build_sar_adc():
     # SAR logic → cap DAC switch control (per-bit)
 
     # M2 horizontal bus for SAR bit outputs → cap switches
+    # Base at 23.0 to avoid M2.b conflict with cap top-plate vias and comp inp route
+    # End at 24.0: m3_x_positions max is 23.5, so bus only needs to cover via2 pads
     for bit in range(NBITS):
-        bus_y = 24.0 + bit * 1.5
-        # From SAR logic to cap array
+        bus_y = 23.0 + bit * 1.5
         top.shapes(li_m2).insert(rect(cap_region_x, bus_y - M2_WIDTH / 2,
-                                       27.0, bus_y + M2_WIDTH / 2))
+                                       24.0, bus_y + M2_WIDTH / 2))
 
     # =====================================================================
     # Fix 2b: Route vin → sample switch source
@@ -707,7 +701,7 @@ def build_sar_adc():
         ba = bit_areas[sar_bit + 1]  # +1: bit_areas[0] is dummy cap
         cap_cx = ba['center'][0]
         cap_bot_y = ba['y'] - MIM_ENC_M5
-        bus_y = 24.0 + sar_bit * 1.5
+        bus_y = 23.0 + sar_bit * 1.5
         m3_x = m3_x_positions[sar_bit]
         tgt_y = target_y_override.get(sar_bit, cap_bot_y)
 

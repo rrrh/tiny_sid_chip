@@ -62,8 +62,8 @@ RULES = [
     ("TV1.a",  "Min TopVia1 size (width)",           L_TOPVIA1,  "width",   0.42),
     ("TV1.b",  "Min TopVia1 spacing",                L_TOPVIA1,  "space",   0.42),
     # --- TopMetal1 ---
-    ("TM1.a",  "Min TopMetal1 width",               L_TOPMETAL1,"width",  0.20),
-    ("TM1.b",  "Min TopMetal1 spacing",             L_TOPMETAL1,"space",  0.21),
+    ("TM1.a",  "Min TopMetal1 width",               L_TOPMETAL1,"width",  1.64),
+    ("TM1.b",  "Min TopMetal1 spacing",             L_TOPMETAL1,"space",  1.64),
 ]
 
 # Enclosure rules: (name, desc, inner_layer, outer_layer, min_enc_um)

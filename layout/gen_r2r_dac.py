@@ -262,10 +262,10 @@ def draw_topvia1(cell, layout, x, y):
 
 
 def draw_power_via_stack(cell, layout, x, y):
-    """Full via stack from M3 to TM1 for power rail connection."""
+    """Via stack from M3 to M5 for power rail connection.
+    No TM1: R2R DAC draws µA current, M5 is sufficient."""
     draw_via3(cell, layout, x, y)
     draw_via4(cell, layout, x, y)
-    draw_topvia1(cell, layout, x, y)
 
 
 def build_r2r_dac():

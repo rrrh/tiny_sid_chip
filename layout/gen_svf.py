@@ -545,7 +545,8 @@ def build_svf():
     bias_fc = draw_bias(top, layout, bias_fc_x, bias_y)
 
     # q bias mirror (right) — drives OTA4 (damping) tail
-    bias_q_x = bias_fc_x + bias_fc['total_w'] + 2.0
+    # Gap 2.5 (was 2.0) so q mir_drain via1 clears OTA_sum tail via1 (V1.b, M1.b)
+    bias_q_x = bias_fc_x + bias_fc['total_w'] + 2.5
     bias_q = draw_bias(top, layout, bias_q_x, bias_y)
 
     # Connect fc bias mirror drain to OTA1/2/3 tail gates via M2 horizontal bus
