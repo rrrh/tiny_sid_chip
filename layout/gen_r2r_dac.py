@@ -25,7 +25,7 @@ Layout:
   Metal2:     d[7:0] input pins (left edge), vout pin (right edge)
   Metal3:     VDD (top), VSS (bottom) power rails
 
-Macro size: 38 × 45 µm
+Macro size: 36 × 38 µm
 """
 
 import sys, os
@@ -45,8 +45,8 @@ NMOS_W    = 2.0         # switch width
 NMOS_L    = 0.13        # gate length (min for 1.2V)
 
 NBITS     = 8
-MACRO_W   = 38.0
-MACRO_H   = 45.0
+MACRO_W   = 36.0
+MACRO_H   = 38.0
 
 # Derived: resistor total length (body + contact pads + SalBlock clearance)
 PAD_W     = CONT_SIZE + 2 * CONT_ENC_GATPOLY  # ~0.30 µm
@@ -235,12 +235,12 @@ def build_r2r_dac():
     # --- Pass 1: compute series chain positions ---
     r_total = PAD_W + SAL_SPACE_CONT + R_LENGTH + SAL_SPACE_CONT + PAD_W
     r2_total_h = PAD_W + SAL_SPACE_CONT + R2_LENGTH + SAL_SPACE_CONT + PAD_W
-    gap = 0.3  # gap between consecutive series R
+    gap = 0.18  # gap between consecutive series R
 
     chain_width = NBITS * r_total + (NBITS - 1) * gap
     x_start = (MACRO_W - chain_width) / 2  # center the chain
 
-    series_y = 35.0  # Y for series chain
+    series_y = 33.5  # Y for series chain
 
     # --- Pass 2: draw everything ---
     x_cursor = x_start
@@ -267,7 +267,7 @@ def build_r2r_dac():
         jx, jy = r_rc
 
         # 2R shunt (vertical, top aligned just below junction)
-        r2_y = jy - r2_total_h - 0.5
+        r2_y = jy - r2_total_h - 0.3
         r2_x = jx - R_WIDTH / 2
         r2_bc, r2_tc, _ = draw_resistor_v(top, layout, x=r2_x, y=r2_y,
                                            length=R2_LENGTH)
@@ -279,7 +279,7 @@ def build_r2r_dac():
         # NMOS switch below 2R — align drain center with junction x
         sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV  # 0.32 µm
         sw_x = jx - (sd_ext + NMOS_L + sd_ext / 2)  # drain at jx
-        sw_y_pos = r2_y - 4.5
+        sw_y_pos = r2_y - 3.0
         sw = draw_nmos(top, layout, x=sw_x, y=sw_y_pos)
         switch_sources.append(sw['source'])
 
@@ -308,7 +308,7 @@ def build_r2r_dac():
         draw_via1(top, layout, gate_x, gc_y)
 
         # Metal2/3 route: left edge pin → gate via (M3 horizontal, M2 vertical)
-        pin_y = 3.0 + bit * 4.0
+        pin_y = 2.5 + bit * 3.5
         hw = M2_WIDTH / 2  # half-width for centering
 
         # 1) M2 pin extension from x=0 to x=1.5 at pin_y
@@ -332,12 +332,12 @@ def build_r2r_dac():
     # --- Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS) ---
     # Taps distributed along the switch row (y ≈ 24-28)
     for xt in [3.0, 9.0, 15.0, 21.0, 27.0, 33.0]:
-        draw_ptap(top, layout, xt, 21.0)
+        draw_ptap(top, layout, xt, 22.0)
 
     # --- Vout pin (right edge, Metal2 → Metal3 route to avoid d[0] short) ---
     vout_via_x = vout_contact[0]
     vout_via_y = vout_contact[1]
-    vout_pin_y = 21.0
+    vout_pin_y = 18.0
     hw = M2_WIDTH / 2
 
     # Via1 at vout_contact (M1→M2, existing)
@@ -365,17 +365,17 @@ def build_r2r_dac():
                                     MACRO_W, vout_pin_y + 0.5))
 
     # --- VDD rail (top, Metal3) ---
-    top.shapes(li_m3).insert(rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H))
+    top.shapes(li_m3).insert(rect(0.0, MACRO_H - 1.5, MACRO_W, MACRO_H))
 
     # --- VSS rail (bottom, Metal3) ---
-    top.shapes(li_m3).insert(rect(0.0, 0.0, MACRO_W, 2.0))
+    top.shapes(li_m3).insert(rect(0.0, 0.0, MACRO_W, 1.5))
 
     # --- Fix 1c: Vref → VDD rail ---
     # vref_contact is on M1 at the left end of the series chain.
     # Route: M1 vertical up → via1 → M2 → via2 → M3 (VDD rail at y=43-45)
     vref_x = vref_contact[0]
     vref_y = vref_contact[1]
-    vdd_tap_y = MACRO_H - 1.5  # center of VDD rail
+    vdd_tap_y = MACRO_H - 0.75  # center of VDD rail
     # M1 vertical from vref contact up to via point
     top.shapes(li_m1).insert(rect(vref_x - wire_w / 2, vref_y,
                                     vref_x + wire_w / 2, vdd_tap_y))
@@ -388,7 +388,7 @@ def build_r2r_dac():
     # Route each source left by 0.15µm to clear gate via1 M1 pads (M1.b ≥ 0.18).
     # L-shaped M1: horizontal from source pad left, then vertical down to bus.
     if switch_sources:
-        bus_y = switch_sources[0][1] - 1.2  # y below switches, above gate vias
+        bus_y = switch_sources[0][1] - 0.8  # y below switches, above gate vias
         stub_offset = 0.15  # offset left of source to clear gate via M1 pad
         # M1 vertical stubs offset left, with short bridge to source pad
         for sx, sy in switch_sources:
@@ -407,7 +407,7 @@ def build_r2r_dac():
         top.shapes(li_m1).insert(rect(vss_via_x - wire_w / 2, bus_y - wire_w / 2,
                                         right_x + wire_w / 2, bus_y + wire_w / 2))
         # Via stack at x=1.0: via1 → M2, via2 → M3 VSS rail
-        vss_tap_y = 1.5  # center of VSS rail
+        vss_tap_y = 0.75  # center of VSS rail
         draw_via1(top, layout, vss_via_x, bus_y)
         draw_via2(top, layout, vss_via_x, bus_y)
         # M3 vertical from bus down to VSS rail
@@ -418,7 +418,7 @@ def build_r2r_dac():
 
     # --- Pin labels ---
     for bit in range(NBITS):
-        pin_y = 3.0 + bit * 4.0
+        pin_y = 2.5 + bit * 3.5
         add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                       rect(0.0, pin_y - 0.5, 0.5, pin_y + 0.5),
                       f"d[{bit}]", layout)
@@ -428,10 +428,10 @@ def build_r2r_dac():
                   "vout", layout)
 
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
-                  rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H), "vdd", layout)
+                  rect(0.0, MACRO_H - 1.5, MACRO_W, MACRO_H), "vdd", layout)
 
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
-                  rect(0.0, 0.0, MACRO_W, 2.0), "vss", layout)
+                  rect(0.0, 0.0, MACRO_W, 1.5), "vss", layout)
 
     # --- PR Boundary (IHP SG13G2: layer 189/0) ---
     li_bnd = layout.layer(189, 0)
@@ -449,7 +449,7 @@ if __name__ == "__main__":
     layout.write(outpath)
 
     r_total = PAD_W + SAL_SPACE_CONT + R_LENGTH + SAL_SPACE_CONT + PAD_W
-    chain_w = NBITS * r_total + (NBITS - 1) * 0.3
+    chain_w = NBITS * r_total + (NBITS - 1) * 0.18
     print(f"Wrote {outpath}")
     print(f"  R = {R_TARGET:.0f} Ω  (rhigh: W={R_WIDTH} µm, L={R_LENGTH:.2f} µm)")
     print(f"  2R = {R_TARGET*2:.0f} Ω  (L={R2_LENGTH:.2f} µm)")
