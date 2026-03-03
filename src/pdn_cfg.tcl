@@ -35,7 +35,7 @@ define_pdn_grid \
     -name stdcell_grid \
     -starts_with POWER \
     -voltage_domain CORE \
-    -pins "$::env(PDN_VERTICAL_LAYER)"
+    -pins "TopMetal1"
 
 set arg_list [list]
 append_if_equals arg_list PDN_EXTEND_TO "core_ring" -extend_to_core_ring
@@ -43,11 +43,11 @@ append_if_equals arg_list PDN_EXTEND_TO "boundary" -extend_to_boundary
 
 add_pdn_stripe \
     -grid stdcell_grid \
-    -layer $::env(PDN_VERTICAL_LAYER) \
-    -width $::env(PDN_VWIDTH) \
-    -pitch $::env(PDN_VPITCH) \
-    -offset $::env(PDN_VOFFSET) \
-    -spacing $::env(PDN_VSPACING) \
+    -layer TopMetal1 \
+    -width 2.2 \
+    -pitch 35.7 \
+    -offset 13.6 \
+    -spacing 4.0 \
     -starts_with POWER \
     {*}$arg_list
 
@@ -61,7 +61,7 @@ if { $::env(PDN_ENABLE_RAILS) == 1 } {
 
     add_pdn_connect \
         -grid stdcell_grid \
-        -layers "$::env(PDN_RAIL_LAYER) $::env(PDN_VERTICAL_LAYER)"
+        -layers "Metal1 TopMetal1"
 }
 
 # Macro grid: connect Metal3 (macro power pins) to TopMetal1 (PDN stripes)
@@ -74,4 +74,4 @@ define_pdn_grid \
 
 add_pdn_connect \
     -grid macro \
-    -layers "Metal3 $::env(PDN_VERTICAL_LAYER)"
+    -layers "Metal3 TopMetal1"
