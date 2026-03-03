@@ -4,7 +4,8 @@
     "substituting_steps": {
       "Checker.HoldViolations": null,
       "Checker.SetupViolations": null,
-      "OpenROAD.RepairDesignPostGPL": null
+      "OpenROAD.RepairDesignPostGPL": null,
+      "OpenROAD.IRDropReport": null
     }
   },
   "MACROS": {
