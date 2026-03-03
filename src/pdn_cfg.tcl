@@ -70,12 +70,4 @@ define_pdn_grid \
 
 add_pdn_connect \
     -grid macro \
-    -layers "Metal3 Metal4"
-
-add_pdn_connect \
-    -grid macro \
-    -layers "Metal4 Metal5"
-
-add_pdn_connect \
-    -grid macro \
-    -layers "Metal5 TopMetal1"
+    -layers "Metal3 TopMetal1"

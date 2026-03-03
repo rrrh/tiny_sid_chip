@@ -133,6 +133,10 @@ MACRO sar_adc_8bit
       LAYER Metal3 ;
         RECT 0.000 40.000 42.000 42.000 ;
     END
+    PORT
+      LAYER TopMetal1 ;
+        RECT 0.000 40.100 42.000 41.900 ;
+    END
   END vdd
 
   PIN vss
@@ -142,6 +146,10 @@ MACRO sar_adc_8bit
       LAYER Metal3 ;
         RECT 0.000 0.000 42.000 2.000 ;
     END
+    PORT
+      LAYER TopMetal1 ;
+        RECT 0.000 0.100 42.000 1.900 ;
+    END
   END vss
 
   OBS
@@ -149,6 +157,8 @@ MACRO sar_adc_8bit
       RECT 0.500 0.500 41.500 41.500 ;
     LAYER Metal2 ;
       RECT 0.500 0.500 41.500 41.500 ;
+    LAYER TopMetal1 ;
+      RECT 0.500 2.000 41.500 40.000 ;
   END
 
 END sar_adc_8bit
