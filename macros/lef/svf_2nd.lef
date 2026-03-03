@@ -97,6 +97,18 @@ MACRO svf_2nd
       LAYER Metal3 ;
         RECT 0.000 66.000 62.000 68.000 ;
     END
+    PORT
+      LAYER Metal4 ;
+        RECT 0.000 66.000 62.000 68.000 ;
+    END
+    PORT
+      LAYER Metal5 ;
+        RECT 0.000 66.000 62.000 68.000 ;
+    END
+    PORT
+      LAYER TopMetal1 ;
+        RECT 0.000 66.100 62.000 67.900 ;
+    END
   END vdd
 
   PIN vss
@@ -105,6 +117,18 @@ MACRO svf_2nd
     PORT
       LAYER Metal3 ;
         RECT 0.000 0.000 62.000 2.000 ;
+    END
+    PORT
+      LAYER Metal4 ;
+        RECT 0.000 0.000 62.000 2.000 ;
+    END
+    PORT
+      LAYER Metal5 ;
+        RECT 0.000 0.000 62.000 2.000 ;
+    END
+    PORT
+      LAYER TopMetal1 ;
+        RECT 0.000 0.100 62.000 1.900 ;
     END
   END vss
 
