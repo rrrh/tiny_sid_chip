@@ -360,9 +360,10 @@ def draw_sar_logic_block(cell, layout, x, y, w, h):
         cell.shapes(li_m1).insert(rect(x, ry, x + w, ry + M1_WIDTH))
         cell.shapes(li_m1).insert(rect(x, ry + row_h - M1_WIDTH, x + w, ry + row_h))
 
-    # M2 vertical power straps
-    cell.shapes(li_m2).insert(rect(x, y, x + M2_WIDTH * 2, y + h))
-    cell.shapes(li_m2).insert(rect(x + w - M2_WIDTH * 2, y, x + w, y + h))
+    # M2 vertical power straps (offset inward to avoid shorting to signal pins;
+    # left strap starts at y+0.5 to clear bit 7 cap M2 jog at y=4.0)
+    cell.shapes(li_m2).insert(rect(x + 0.3, y + 0.5, x + 0.3 + M2_WIDTH * 2, y + h))
+    cell.shapes(li_m2).insert(rect(x + w - 1.2, y, x + w - 0.8, y + h))
 
     return {
         'bbox': (x, y, x + w, y + h),
@@ -796,25 +797,29 @@ def build_sar_adc():
     # Place via2 at top and bottom of each strap to connect to M3 VDD/VSS rails
     sar_x = 27.0
     sar_y = 4.0
-    sar_strap_left_x = sar_x + M2_WIDTH  # center of left strap
-    sar_strap_right_x = sar_x + SAR_W - M2_WIDTH  # center of right strap
-    # Bottom via2s → VSS rail
-    draw_via2(top, layout, sar_strap_left_x, sar_y + 0.5)
-    draw_via2(top, layout, sar_strap_right_x, sar_y + 0.5)
+    # Left via2s at center of M2 strap (27.3-27.7) so M2 pads are fully interior
+    sar_left_via_x = sar_x + 0.5   # 27.5 — center of left M2 strap
+    sar_right_via_x = sar_x + SAR_W - 1.0  # 41.0 — center of right M2 strap
+    hw = M2_WIDTH / 2
+
+    # Bottom via2s → VSS rail (left via at y=5.0, fully inside strap starting at y=4.5)
+    draw_via2(top, layout, sar_left_via_x, 5.0)
+    draw_via2(top, layout, sar_right_via_x, sar_y + 0.5)
     # M3 vertical straps from SAR logic bottom to VSS rail
-    top.shapes(li_m3).insert(rect(sar_strap_left_x - M2_WIDTH / 2, 2.0,
-                                   sar_strap_left_x + M2_WIDTH / 2, sar_y + 0.5))
-    top.shapes(li_m3).insert(rect(sar_strap_right_x - M2_WIDTH / 2, 2.0,
-                                   sar_strap_right_x + M2_WIDTH / 2, sar_y + 0.5))
-    # Top via2s → VDD rail (SAR logic top = y + h = 22, but VDD rail at 40+)
-    # Connect via M3 vertical from SAR top to VDD rail
-    draw_via2(top, layout, sar_strap_left_x, sar_y + SAR_H - 0.5)
-    draw_via2(top, layout, sar_strap_right_x, sar_y + SAR_H - 0.5)
-    # M3 vertical straps from SAR logic top to VDD rail
-    top.shapes(li_m3).insert(rect(sar_strap_left_x - M2_WIDTH / 2, sar_y + SAR_H - 0.5,
-                                   sar_strap_left_x + M2_WIDTH / 2, MACRO_H - 2.0))
-    top.shapes(li_m3).insert(rect(sar_strap_right_x - M2_WIDTH / 2, sar_y + SAR_H - 0.5,
-                                   sar_strap_right_x + M2_WIDTH / 2, MACRO_H - 2.0))
+    top.shapes(li_m3).insert(rect(sar_left_via_x - hw, 2.0,
+                                   sar_left_via_x + hw, 5.0))
+    top.shapes(li_m3).insert(rect(sar_right_via_x - hw, 2.0,
+                                   sar_right_via_x + hw, sar_y + 0.5))
+
+    # Top via2s → VDD rail
+    draw_via2(top, layout, sar_left_via_x, sar_y + SAR_H - 0.5)
+    draw_via2(top, layout, sar_right_via_x, sar_y + SAR_H - 0.5)
+    # Left VDD M3 strap: wider (x=27.1 to 27.6) to merge with comp p1 source M3
+    # at x≈27.06-27.26 and reach via2 M3 pad at x=27.4-27.6
+    top.shapes(li_m3).insert(rect(27.1, sar_y + SAR_H - 0.5,
+                                   sar_left_via_x + hw, MACRO_H - 2.0))
+    top.shapes(li_m3).insert(rect(sar_right_via_x - hw, sar_y + SAR_H - 0.5,
+                                   sar_right_via_x + hw, MACRO_H - 2.0))
 
     # =====================================================================
     # Power rails
