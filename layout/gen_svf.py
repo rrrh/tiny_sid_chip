@@ -171,6 +171,72 @@ def draw_via2(cell, layout, x, y):
     cell.shapes(li_m3).insert(rect(x - e3, y - e3, x + e3, y + e3))
 
 
+def draw_gate_contact(cell, layout, x, y):
+    """Place contact + M1 pad on GatPoly at (x,y) for gate connection."""
+    li_gp  = layout.layer(*L_GATPOLY)
+    li_cnt = layout.layer(*L_CONT)
+    li_m1  = layout.layer(*L_METAL1)
+    hs = CONT_SIZE / 2
+    gp_enc = CONT_ENC_GATPOLY
+    cell.shapes(li_gp).insert(rect(x - hs - gp_enc, y - hs - gp_enc,
+                                     x + hs + gp_enc, y + hs + gp_enc))
+    cell.shapes(li_cnt).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e = CONT_ENC_M1
+    cell.shapes(li_m1).insert(rect(x - hs - e, y - hs - e, x + hs + e, y + hs + e))
+
+
+def draw_via3(cell, layout, x, y):
+    """Via3 with M3+M4 pads."""
+    li_v3 = layout.layer(*L_VIA3)
+    li_m3 = layout.layer(*L_METAL3)
+    li_m4 = layout.layer(*L_METAL4)
+    hs = VIA3_SIZE / 2
+    cell.shapes(li_v3).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e3 = VIA3_ENC_M3 + hs
+    cell.shapes(li_m3).insert(rect(x - e3, y - e3, x + e3, y + e3))
+    e4 = VIA3_ENC_M4 + hs
+    cell.shapes(li_m4).insert(rect(x - e4, y - e4, x + e4, y + e4))
+
+
+def draw_via4(cell, layout, x, y):
+    """Via4 with M4+M5 pads."""
+    li_v4 = layout.layer(*L_VIA4)
+    li_m4 = layout.layer(*L_METAL4)
+    li_m5 = layout.layer(*L_METAL5)
+    hs = VIA4_SIZE / 2
+    cell.shapes(li_v4).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e4 = VIA4_ENC_M4 + hs
+    cell.shapes(li_m4).insert(rect(x - e4, y - e4, x + e4, y + e4))
+    e5 = VIA4_ENC_M5 + hs
+    cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
+
+
+def draw_topvia1(cell, layout, x, y):
+    """TopVia1 with M5+TM1 pads."""
+    li_tv1 = layout.layer(*L_TOPVIA1)
+    li_m5  = layout.layer(*L_METAL5)
+    li_tm1 = layout.layer(*L_TOPMETAL1)
+    hs = TOPVIA1_SIZE / 2
+    cell.shapes(li_tv1).insert(rect(x - hs, y - hs, x + hs, y + hs))
+    e5 = TOPVIA1_ENC_M5 + hs
+    cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
+    et = TOPVIA1_ENC_TM1 + hs
+    cell.shapes(li_tm1).insert(rect(x - et, y - et, x + et, y + et))
+
+
+def draw_via_stack_m2_to_m5(cell, layout, x, y):
+    """Full via stack M2->M3->M4->M5 at a single point."""
+    draw_via2(cell, layout, x, y)
+    draw_via3(cell, layout, x, y)
+    draw_via4(cell, layout, x, y)
+
+
+def draw_via_stack_m2_to_tm1(cell, layout, x, y):
+    """Full via stack M2->M3->M4->M5->TM1 at a single point."""
+    draw_via_stack_m2_to_m5(cell, layout, x, y)
+    draw_topvia1(cell, layout, x, y)
+
+
 def draw_mim_cap(cell, layout, x, y, w, h):
     """Draw a MIM capacitor. Returns (bot_center, top_center)."""
     li_m5   = layout.layer(*L_METAL5)
@@ -272,6 +338,12 @@ def draw_ota(cell, layout, x, y):
     cell.shapes(li_m1).insert(rect(m3['drain'][0] - wire_w/2, m3['gate'][1] - wire_w/2,
                                     m3['drain'][0] + wire_w/2, m3['drain'][1] + wire_w/2))
 
+    # Gate contacts (Bug 1 fix)
+    for m in [m1, m2, m5]:      # NMOS gates (top of GatPoly ext)
+        draw_gate_contact(cell, layout, m['gate'][0], m['gate'][1])
+    for m in [m3, m4]:           # PMOS gates (bottom of GatPoly ext)
+        draw_gate_contact(cell, layout, m['gate'][0], m['gate'][1])
+
     total_w = dp_act_len * 2 + dp_gap
     total_h = (ld_y + OTA_LD_W) - y
 
@@ -316,6 +388,10 @@ def draw_bias(cell, layout, x, y):
     cell.shapes(li_m1).insert(rect(m_ref['gate'][0] - wire_w/2, m_ref['gate'][1] - wire_w/2,
                                     m_mir['gate'][0] + wire_w/2, m_ref['gate'][1] + wire_w/2))
 
+    # Gate contacts (Bug 1 fix)
+    draw_gate_contact(cell, layout, m_ref['gate'][0], m_ref['gate'][1])
+    draw_gate_contact(cell, layout, m_mir['gate'][0], m_mir['gate'][1])
+
     total_w = 2 * act_len + gap
 
     return {
@@ -345,9 +421,23 @@ def draw_analog_mux(cell, layout, x, y):
 
     switches = []
     names = ['lp', 'bp', 'hp', 'bypass']
+
+    # Gate contacts offset to left of mux to avoid M1 spacing with drain bus
+    gc_x = x - 1.5  # well left of active area
+    li_gp = layout.layer(*L_GATPOLY)
+    gp_x1 = x + sd_ext  # gate poly left edge
+
+    gate_contacts = []
     for i in range(4):
         sy = y + i * sw_pitch
         sw = draw_nmos(cell, layout, x, sy, w=MUX_W, l=MUX_L)
+        # GatPoly bridge from offset contact to gate
+        gc_y = sw['gate'][1]
+        hs_gp = CONT_SIZE / 2 + CONT_ENC_GATPOLY
+        cell.shapes(li_gp).insert(rect(gc_x - hs_gp, gc_y - hs_gp,
+                                         gp_x1 + MUX_L, gc_y + hs_gp))
+        draw_gate_contact(cell, layout, gc_x, gc_y)
+        gate_contacts.append((gc_x, gc_y))
         switches.append(sw)
 
     # Connect all drains together via vertical M1
@@ -362,10 +452,10 @@ def draw_analog_mux(cell, layout, x, y):
         'bp_in':     switches[1]['source'],
         'hp_in':     switches[2]['source'],
         'bypass_in': switches[3]['source'],
-        'lp_gate':   switches[0]['gate'],
-        'bp_gate':   switches[1]['gate'],
-        'hp_gate':   switches[2]['gate'],
-        'bypass_gate': switches[3]['gate'],
+        'lp_gate':   gate_contacts[0],
+        'bp_gate':   gate_contacts[1],
+        'hp_gate':   gate_contacts[2],
+        'bypass_gate': gate_contacts[3],
         'out':       switches[0]['drain'],
         'total_h':   total_h,
         'act_len':   act_len,
@@ -423,13 +513,15 @@ def build_svf():
             top.shapes(li_m1).insert(rect(px - wire_w/2, py - wire_w/2,
                                           px + wire_w/2, MACRO_H - 2.5))
             draw_via1(top, layout, px, MACRO_H - 2.5)
+            top.shapes(li_m2).insert(rect(px - wire_w2/2, MACRO_H - 2.5,
+                                          px + wire_w2/2, MACRO_H - 1.0))
             draw_via2(top, layout, px, MACRO_H - 1.0)
 
     # Connect OTA VSS (tail source) to VSS rail
     for ota in [ota_sum, ota_int1, ota_int2, ota_damp]:
         px, py = ota['vss']
         draw_via1(top, layout, px, py)
-        top.shapes(li_m2).insert(rect(px - wire_w2/2, 2.5,
+        top.shapes(li_m2).insert(rect(px - wire_w2/2, 1.0,
                                        px + wire_w2/2, py))
         draw_via2(top, layout, px, 1.0)
 
@@ -473,7 +565,7 @@ def build_svf():
         for src in [bias['ref_source'], bias['mir_source']]:
             sx, sy = src
             draw_via1(top, layout, sx, sy)
-            top.shapes(li_m2).insert(rect(sx - wire_w2/2, 2.5,
+            top.shapes(li_m2).insert(rect(sx - wire_w2/2, 1.0,
                                            sx + wire_w2/2, sy))
             draw_via2(top, layout, sx, 1.0)
 
@@ -500,6 +592,28 @@ def build_svf():
 
     c2_x = c1_x + C_INT_SIDE + MIM_SPACE + 2 * MIM_ENC_M5 + 1.0
     c2_bot, c2_top = draw_mim_cap(top, layout, c2_x, cap_y, C_INT_SIDE, C_INT_SIDE)
+
+    hw2 = wire_w2 / 2
+
+    # --- MIM cap via stacks (Bug 4 fix) ---
+    # C1 top plate: via stack at BP M2 route intersection (bp_x1 set later,
+    # use ota_int1 output x which equals bp_x1)
+    c1_top_via_x = ota_int1['out'][0]  # bp_x1
+    draw_via_stack_m2_to_tm1(top, layout, c1_top_via_x, c1_top[1])
+
+    # C1 bottom plate → VSS via M3
+    draw_via_stack_m2_to_m5(top, layout, c1_bot[0], c1_bot[1])
+    top.shapes(li_m3).insert(rect(c1_bot[0] - hw2, 0.0,
+                                   c1_bot[0] + hw2, c1_bot[1] + hw2))
+
+    # C2 top plate: via stack just inside c2 TM1
+    c2_top_via_x = c2_x + 1.0
+    draw_via_stack_m2_to_tm1(top, layout, c2_top_via_x, c2_top[1])
+
+    # C2 bottom plate → VSS via M3
+    draw_via_stack_m2_to_m5(top, layout, c2_bot[0], c2_bot[1])
+    top.shapes(li_m3).insert(rect(c2_bot[0] - hw2, 0.0,
+                                   c2_bot[0] + hw2, c2_bot[1] + hw2))
 
     # =====================================================================
     # SVF signal routing (M2 layer for inter-block connections)
@@ -549,6 +663,11 @@ def build_svf():
     # LP → C2
     top.shapes(li_m2).insert(rect(lp_x1 - wire_w2/2, c2_top[1] - wire_w2/2,
                                    lp_x1 + wire_w2/2, lp_route_y + wire_w2/2))
+    # M2 horizontal from lp_x1 to c2 via stack for C2 top plate connection
+    top.shapes(li_m2).insert(rect(min(lp_x1, c2_top_via_x) - wire_w2/2,
+                                   c2_top[1] - wire_w2/2,
+                                   max(lp_x1, c2_top_via_x) + wire_w2/2,
+                                   c2_top[1] + wire_w2/2))
 
     # Damping OTA4: inp=BP, inn=HP, out feeds back to summing node
     # Route BP → OTA4.inp
@@ -593,28 +712,47 @@ def build_svf():
     mux_y = 6.0
     mux = draw_analog_mux(top, layout, mux_x, mux_y)
 
-    # Route mux inputs from filter nodes (using M2)
+    # Route mux inputs from filter nodes via M3 (Bug 6 fix)
+    # Using M3 to avoid crossing sel M2 horizontal traces at y=10/16
+
     # LP → mux.lp_in
     lp_mux_x, lp_mux_y = mux['lp_in']
     draw_via1(top, layout, lp_mux_x, lp_mux_y)
-    lp_tap_y = mux['lp_in'][1]
-    top.shapes(li_m2).insert(rect(c2_x + C_INT_SIDE / 2 - wire_w2/2, lp_tap_y - wire_w2/2,
-                                   lp_mux_x + wire_w2/2, lp_tap_y + wire_w2/2))
+    # Via2 at LP signal M2 route near cap top
+    lp_sig_x = lp_x1  # OTA_int2 output x
+    lp_sig_y = c2_top[1]  # near cap top where LP M2 route passes
+    draw_via2(top, layout, lp_sig_x, lp_sig_y)
+    # M3 horizontal from LP signal to above mux
+    draw_via2(top, layout, lp_mux_x, lp_sig_y)
+    top.shapes(li_m3).insert(rect(min(lp_sig_x, lp_mux_x) - hw2, lp_sig_y - hw2,
+                                   max(lp_sig_x, lp_mux_x) + hw2, lp_sig_y + hw2))
+    # M2 vertical from via2 at mux x down to mux source
+    top.shapes(li_m2).insert(rect(lp_mux_x - wire_w2/2, lp_mux_y - wire_w2/2,
+                                   lp_mux_x + wire_w2/2, lp_sig_y + wire_w2/2))
 
     # BP → mux.bp_in
     bp_mux_x, bp_mux_y = mux['bp_in']
     draw_via1(top, layout, bp_mux_x, bp_mux_y)
-    bp_tap_y = mux['bp_in'][1]
-    top.shapes(li_m2).insert(rect(c1_x + C_INT_SIDE / 2 - wire_w2/2, bp_tap_y - wire_w2/2,
-                                   bp_mux_x + wire_w2/2, bp_tap_y + wire_w2/2))
+    bp_sig_x = bp_x1  # OTA_int1 output x
+    bp_sig_y = c1_top[1]  # near cap top where BP M2 route passes
+    # Note: via2 at (bp_sig_x, bp_sig_y) already placed by C1 top plate via stack
+    draw_via2(top, layout, bp_mux_x, bp_sig_y)
+    top.shapes(li_m3).insert(rect(min(bp_sig_x, bp_mux_x) - hw2, bp_sig_y - hw2,
+                                   max(bp_sig_x, bp_mux_x) + hw2, bp_sig_y + hw2))
+    top.shapes(li_m2).insert(rect(bp_mux_x - wire_w2/2, bp_mux_y - wire_w2/2,
+                                   bp_mux_x + wire_w2/2, bp_sig_y + wire_w2/2))
 
     # HP → mux.hp_in
     hp_mux_x, hp_mux_y = mux['hp_in']
     draw_via1(top, layout, hp_mux_x, hp_mux_y)
-    hp_tap_y = mux['hp_in'][1]
-    hp_src_x = ota_sum['out'][0]
-    top.shapes(li_m2).insert(rect(min(hp_src_x, hp_mux_x) - wire_w2/2, hp_tap_y - wire_w2/2,
-                                   max(hp_src_x, hp_mux_x) + wire_w2/2, hp_tap_y + wire_w2/2))
+    hp_sig_x = hp_x1  # OTA_sum output x
+    hp_sig_y = hp_route_y  # HP M2 route y
+    draw_via2(top, layout, hp_sig_x, hp_sig_y)
+    draw_via2(top, layout, hp_mux_x, hp_sig_y)
+    top.shapes(li_m3).insert(rect(min(hp_sig_x, hp_mux_x) - hw2, hp_sig_y - hw2,
+                                   max(hp_sig_x, hp_mux_x) + hw2, hp_sig_y + hw2))
+    top.shapes(li_m2).insert(rect(hp_mux_x - wire_w2/2, hp_mux_y - wire_w2/2,
+                                   hp_mux_x + wire_w2/2, hp_sig_y + wire_w2/2))
 
     # =====================================================================
     # Pin routing
@@ -642,7 +780,7 @@ def build_svf():
     vout_pin_y = 42.0
     mux_out_x, mux_out_y = mux['out']
     draw_via1(top, layout, mux_out_x, mux_out_y)
-    vout_jog_x = mux_out_x + 1.5
+    vout_jog_x = mux_out_x + 1.2  # reduced from 1.5 to clear C2 bot via2 M2 pad
     top.shapes(li_m2).insert(rect(mux_out_x - wire_w2/2, mux_out_y - wire_w2/2,
                                    vout_jog_x + wire_w2/2, mux_out_y + wire_w2/2))
     top.shapes(li_m2).insert(rect(vout_jog_x - wire_w2/2,
@@ -654,13 +792,23 @@ def build_svf():
 
     # --- sel[0] pin: left edge, y≈10 ---
     sel0_pin_y = 10.0
+    sel0_gc_x, sel0_gc_y = mux['lp_gate']
     top.shapes(li_m2).insert(rect(0.0, sel0_pin_y - wire_w2/2,
-                                   mux['lp_gate'][0] + wire_w2/2, sel0_pin_y + wire_w2/2))
+                                   sel0_gc_x + wire_w2/2, sel0_pin_y + wire_w2/2))
+    draw_via1(top, layout, sel0_gc_x, sel0_pin_y)
+    # M1 vertical from via1 to gate contact
+    top.shapes(li_m1).insert(rect(sel0_gc_x - wire_w/2, sel0_gc_y - wire_w/2,
+                                   sel0_gc_x + wire_w/2, sel0_pin_y + wire_w/2))
 
     # --- sel[1] pin: left edge, y≈16 ---
     sel1_pin_y = 16.0
+    sel1_gc_x, sel1_gc_y = mux['bp_gate']
     top.shapes(li_m2).insert(rect(0.0, sel1_pin_y - wire_w2/2,
-                                   mux['bp_gate'][0] + wire_w2/2, sel1_pin_y + wire_w2/2))
+                                   sel1_gc_x + wire_w2/2, sel1_pin_y + wire_w2/2))
+    draw_via1(top, layout, sel1_gc_x, sel1_pin_y)
+    # M1 vertical from via1 to gate contact
+    top.shapes(li_m1).insert(rect(sel1_gc_x - wire_w/2, sel1_gc_y - wire_w/2,
+                                   sel1_gc_x + wire_w/2, sel1_pin_y + wire_w/2))
 
     # --- ibias_fc pin: left edge, y≈60 ---
     ibias_fc_pin_y = 60.0
