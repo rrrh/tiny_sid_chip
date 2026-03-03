@@ -98,6 +98,10 @@ MACRO svf_2nd
         RECT 0.000 66.000 62.000 68.000 ;
     END
     PORT
+      LAYER Metal4 ;
+        RECT 0.000 66.000 62.000 68.000 ;
+    END
+    PORT
       LAYER Metal5 ;
         RECT 0.000 66.000 62.000 68.000 ;
     END
@@ -112,6 +116,10 @@ MACRO svf_2nd
     USE GROUND ;
     PORT
       LAYER Metal3 ;
+        RECT 0.000 0.000 62.000 2.000 ;
+    END
+    PORT
+      LAYER Metal4 ;
         RECT 0.000 0.000 62.000 2.000 ;
     END
     PORT

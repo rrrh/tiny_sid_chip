@@ -134,6 +134,10 @@ MACRO sar_adc_8bit
         RECT 0.000 40.000 42.000 42.000 ;
     END
     PORT
+      LAYER Metal4 ;
+        RECT 0.000 40.000 42.000 42.000 ;
+    END
+    PORT
       LAYER Metal5 ;
         RECT 0.000 40.000 42.000 42.000 ;
     END
@@ -148,6 +152,10 @@ MACRO sar_adc_8bit
     USE GROUND ;
     PORT
       LAYER Metal3 ;
+        RECT 0.000 0.000 42.000 2.000 ;
+    END
+    PORT
+      LAYER Metal4 ;
         RECT 0.000 0.000 42.000 2.000 ;
     END
     PORT

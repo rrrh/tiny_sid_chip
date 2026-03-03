@@ -98,6 +98,10 @@ MACRO r2r_dac_8bit
         RECT 0.000 36.500 36.000 38.000 ;
     END
     PORT
+      LAYER Metal4 ;
+        RECT 0.000 36.500 36.000 38.000 ;
+    END
+    PORT
       LAYER Metal5 ;
         RECT 0.000 36.500 36.000 38.000 ;
     END
@@ -112,6 +116,10 @@ MACRO r2r_dac_8bit
     USE GROUND ;
     PORT
       LAYER Metal3 ;
+        RECT 0.000 0.000 36.000 1.500 ;
+    END
+    PORT
+      LAYER Metal4 ;
         RECT 0.000 0.000 36.000 1.500 ;
     END
     PORT
