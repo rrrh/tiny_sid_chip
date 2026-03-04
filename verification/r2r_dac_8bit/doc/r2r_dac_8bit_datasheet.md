@@ -1,0 +1,144 @@
+# r2r_dac_8bit Datasheet
+
+**8-bit R-2R DAC with complementary CMOS switches**
+
+| Field | Value |
+|-------|-------|
+| PDK | ihp-sg13g2 |
+| Designer | shue |
+| Created | March 3, 2026 |
+| License | Apache 2.0 |
+| Characterization Date | 2026-03-04 01:03 |
+| Total Tests | 33 |
+| Passed | 33 |
+| Failed | 0 |
+| **Overall** | **PASS** |
+
+## Pin Description
+
+| Pin | Direction | Type | Description |
+|-----|-----------|------|-------------|
+| d0 | input | digital | Digital input bit 0 (LSB) |
+| d1 | input | digital | Digital input bit 1 |
+| d2 | input | digital | Digital input bit 2 |
+| d3 | input | digital | Digital input bit 3 |
+| d4 | input | digital | Digital input bit 4 |
+| d5 | input | digital | Digital input bit 5 |
+| d6 | input | digital | Digital input bit 6 |
+| d7 | input | digital | Digital input bit 7 (MSB) |
+| vout | output | signal | Analog output voltage (0..vdd V) |
+| vdd | inout | power | Positive power supply (1.08..1.32 V) |
+| vss | inout | ground | Ground |
+
+## Default Conditions
+
+| Condition | Display | Typical | Unit |
+|-----------|---------|---------|------|
+| vdd | Vdd | 1.2 | V |
+| temperature | Temp | 27 | °C |
+| corner | Corner | mos_tt |  |
+| res_corner | Res Corner | res_typ |  |
+
+## Characterization Results
+
+### Static Linearity
+
+DC transfer function — sweep all 256 codes
+
+**Specifications:**
+
+| Parameter | Display | Unit | Min | Max |
+|-----------|---------|------|-----|-----|
+| inl | INL | LSB |  | 1.0 |
+| dnl | DNL | LSB |  | 1.0 |
+
+**Results:**
+
+| vdd | temperature | corner | res_corner | inl | dnl | Status |
+|---|---|---|---|---|---|---|
+| 1.2 | 27 | mos_tt | res_typ | 0.6602 | 0.0773 | PASS |
+| 1.2 | 27 | mos_ff | res_typ | 0.4482 | 0.1885 | PASS |
+| 1.2 | 27 | mos_ss | res_typ | 0.9237 | 0.2188 | PASS |
+
+**Plots:**
+
+![r2r_dac_8bit_static_linearity_dnl_vs_corner.png](../../plots/r2r_dac_8bit/r2r_dac_8bit_static_linearity_dnl_vs_corner.png)
+
+![r2r_dac_8bit_static_linearity_inl_vs_corner.png](../../plots/r2r_dac_8bit/r2r_dac_8bit_static_linearity_inl_vs_corner.png)
+
+### Linearity vs Temperature
+
+INL/DNL across temperature
+
+**Specifications:**
+
+| Parameter | Display | Unit | Min | Max |
+|-----------|---------|------|-----|-----|
+| inl | INL | LSB |  | 1.0 |
+| dnl | DNL | LSB |  | 1.0 |
+
+**Results:**
+
+| vdd | temperature | corner | res_corner | inl | dnl | Status |
+|---|---|---|---|---|---|---|
+| 1.2 | -40 | mos_tt | res_typ | 0.6418 | 0.3320 | PASS |
+| 1.2 | 27 | mos_tt | res_typ | 0.6602 | 0.0773 | PASS |
+| 1.2 | 130 | mos_tt | res_typ | 0.9997 | 0.7366 | PASS |
+
+**Plots:**
+
+![r2r_dac_8bit_linearity_vs_temp_dnl_vs_temp.png](../../plots/r2r_dac_8bit/r2r_dac_8bit_linearity_vs_temp_dnl_vs_temp.png)
+
+![r2r_dac_8bit_linearity_vs_temp_inl_vs_temp.png](../../plots/r2r_dac_8bit/r2r_dac_8bit_linearity_vs_temp_inl_vs_temp.png)
+
+### Full Scale Range
+
+Output voltage at code 0 and code 255
+
+**Specifications:**
+
+| Parameter | Display | Unit | Min | Max |
+|-----------|---------|------|-----|-----|
+| vout_min | Vout(0) | V |  | 0.05 |
+| vout_max | Vout(255) | V | 1.1 |  |
+
+**Results:**
+
+| vdd | temperature | corner | res_corner | vout_min | vout_max | Status |
+|---|---|---|---|---|---|---|
+| 1.2 | -40 | mos_tt | res_typ | 6.8591e-09 | 1.1921 | PASS |
+| 1.2 | -40 | mos_tt | res_bcs | 6.8635e-09 | 1.1928 | PASS |
+| 1.2 | -40 | mos_tt | res_wcs | 6.8547e-09 | 1.1914 | PASS |
+| 1.2 | -40 | mos_ff | res_typ | 2.8931e-08 | 1.1922 | PASS |
+| 1.2 | -40 | mos_ff | res_bcs | 2.8950e-08 | 1.1929 | PASS |
+| 1.2 | -40 | mos_ff | res_wcs | 2.8913e-08 | 1.1914 | PASS |
+| 1.2 | -40 | mos_ss | res_typ | 1.7646e-09 | 1.1920 | PASS |
+| 1.2 | -40 | mos_ss | res_bcs | 1.7657e-09 | 1.1928 | PASS |
+| 1.2 | -40 | mos_ss | res_wcs | 1.7635e-09 | 1.1913 | PASS |
+| 1.2 | 27 | mos_tt | res_typ | 2.1927e-08 | 1.1925 | PASS |
+| 1.2 | 27 | mos_tt | res_bcs | 2.1939e-08 | 1.1930 | PASS |
+| 1.2 | 27 | mos_tt | res_wcs | 2.1915e-08 | 1.1918 | PASS |
+| 1.2 | 27 | mos_ff | res_typ | 1.4472e-07 | 1.1925 | PASS |
+| 1.2 | 27 | mos_ff | res_bcs | 1.4480e-07 | 1.1931 | PASS |
+| 1.2 | 27 | mos_ff | res_wcs | 1.4465e-07 | 1.1919 | PASS |
+| 1.2 | 27 | mos_ss | res_typ | 3.7737e-09 | 1.1924 | PASS |
+| 1.2 | 27 | mos_ss | res_bcs | 3.7757e-09 | 1.1930 | PASS |
+| 1.2 | 27 | mos_ss | res_wcs | 3.7716e-09 | 1.1918 | PASS |
+| 1.2 | 130 | mos_tt | res_typ | 1.4751e-06 | 1.1929 | PASS |
+| 1.2 | 130 | mos_tt | res_bcs | 1.4757e-06 | 1.1933 | PASS |
+| 1.2 | 130 | mos_tt | res_wcs | 1.4745e-06 | 1.1924 | PASS |
+| 1.2 | 130 | mos_ff | res_typ | 6.7604e-06 | 1.1930 | PASS |
+| 1.2 | 130 | mos_ff | res_bcs | 6.7631e-06 | 1.1934 | PASS |
+| 1.2 | 130 | mos_ff | res_wcs | 6.7576e-06 | 1.1925 | PASS |
+| 1.2 | 130 | mos_ss | res_typ | 4.1310e-07 | 1.1928 | PASS |
+| 1.2 | 130 | mos_ss | res_bcs | 4.1327e-07 | 1.1932 | PASS |
+| 1.2 | 130 | mos_ss | res_wcs | 4.1293e-07 | 1.1924 | PASS |
+
+## Composite Plots
+
+### R2R Dac Transfer Inl Dnl
+
+![r2r_dac_transfer_inl_dnl.png](../../plots/r2r_dac_8bit/r2r_dac_transfer_inl_dnl.png)
+
+---
+*Generated by run_cace_sims.py on 2026-03-04 01:03:33*
