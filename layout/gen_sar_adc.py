@@ -660,10 +660,15 @@ def build_sar_adc():
     # Gate contact at inn gate
     draw_gate_contact(top, layout, inn_gate_x, inn_gate_y)
     draw_via1(top, layout, inn_gate_x, inn_gate_y)
-    draw_via2(top, layout, inn_gate_x, inn_gate_y)
-    # M3 vertical from inn gate down to VSS rail (y=0-2)
+    # M2 from inn gate down to inn_m3_top_y, then via2 → M3 to VSS rail.
+    # Stop M3 at y=26.0 (well below wrapper M3 at y≈27.4) to avoid M3.b.
+    inn_m3_top_y = 26.0
+    top.shapes(li_m2).insert(rect(inn_gate_x - M2_WIDTH / 2, inn_m3_top_y - M2_WIDTH / 2,
+                                   inn_gate_x + M2_WIDTH / 2, inn_gate_y + M2_WIDTH / 2))
+    draw_via2(top, layout, inn_gate_x, inn_m3_top_y)
+    # M3 vertical from inn_m3_top_y down to VSS rail (y=0-2)
     top.shapes(li_m3).insert(rect(inn_gate_x - M2_WIDTH / 2, 2.0,
-                                   inn_gate_x + M2_WIDTH / 2, inn_gate_y))
+                                   inn_gate_x + M2_WIDTH / 2, inn_m3_top_y))
 
     # =====================================================================
     # Fix 2e: Route comparator outputs → SAR logic
@@ -738,13 +743,17 @@ def build_sar_adc():
     tail_gate_y = comp['clk'][1]
     m3_clk_y = 3.5   # M3 horizontal route y (below cap M3 at ~5.25)
     m3_clk_x = 30.0  # M3 vertical x (offset from tail source M3 at x≈28)
-    # via2 at clk pin (0.25, 5.0) → M3
-    draw_via2(top, layout, 0.25, clk_pin_y)
-    # M3 vertical from via2 at y=5.0 down to y=3.5
-    top.shapes(li_m3).insert(rect(0.25 - M2_WIDTH / 2, m3_clk_y,
-                                   0.25 + M2_WIDTH / 2, clk_pin_y))
-    # M3 horizontal at y=3.5 from x=0.25 to m3_clk_x
-    top.shapes(li_m3).insert(rect(0.25 - M2_WIDTH / 2, m3_clk_y - M2_WIDTH / 2,
+    # Route M2 from clk pin inward to (1.0, 3.5), then via2 → M3.
+    # Keeps via2/M3 inside OBS area, away from wrapper via2 near pin.
+    clk_via2_x = 1.0  # well inside M2 OBS boundary (0.5)
+    # M2 L-shape: horizontal from pin to clk_via2_x, then vertical down to m3_clk_y
+    top.shapes(li_m2).insert(rect(0.25 - M2_WIDTH / 2, clk_pin_y - M2_WIDTH / 2,
+                                   clk_via2_x + M2_WIDTH / 2, clk_pin_y + M2_WIDTH / 2))
+    top.shapes(li_m2).insert(rect(clk_via2_x - M2_WIDTH / 2, m3_clk_y - M2_WIDTH / 2,
+                                   clk_via2_x + M2_WIDTH / 2, clk_pin_y + M2_WIDTH / 2))
+    draw_via2(top, layout, clk_via2_x, m3_clk_y)
+    # M3 horizontal at y=3.5 from clk_via2_x to m3_clk_x
+    top.shapes(li_m3).insert(rect(clk_via2_x - M2_WIDTH / 2, m3_clk_y - M2_WIDTH / 2,
                                    m3_clk_x + M2_WIDTH / 2, m3_clk_y + M2_WIDTH / 2))
     # M3 vertical from y=3.5 up to tail_gate_y
     top.shapes(li_m3).insert(rect(m3_clk_x - M2_WIDTH / 2, m3_clk_y,
@@ -808,7 +817,7 @@ def build_sar_adc():
     # Tail NMOS source → VSS (via1→M2→via2→M3 vertical down to VSS rail)
     # Offset M3 to x=28.0 to maintain M3.b spacing from clk M3 at x=30.0
     ts_x, ts_y = comp['tail_source']
-    ts_m3_x = 28.0  # M3 vertical x, well separated from clk M3 at 30.0
+    ts_m3_x = 29.0  # M3 vertical x, clear of outp M2 at x=28.2 (right edge 28.3)
     draw_via1(top, layout, ts_x, ts_y)
     # M2 horizontal jog from ts_x to ts_m3_x
     top.shapes(li_m2).insert(rect(min(ts_x, ts_m3_x) - M2_WIDTH / 2, ts_y - M2_WIDTH / 2,
