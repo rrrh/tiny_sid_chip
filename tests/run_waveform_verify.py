@@ -30,15 +30,24 @@ VERILOG_SRCS = [
     "macros/nl/sar_adc_8bit.v",
 ]
 
-# Tone definitions: (name, label, freq_hz, waveform, group)
+# Tone definitions: (name, label, freq_hz, waveform)
 TONES = [
-    ("wv_tri_220",   "Triangle 220 Hz",       220, "Triangle", "sweep"),
-    ("wv_tri_440",   "Triangle 440 Hz",       440, "Triangle", "both"),
-    ("wv_tri_880",   "Triangle 880 Hz",       880, "Triangle", "sweep"),
-    ("wv_saw_440",   "Sawtooth 440 Hz",       440, "Sawtooth", "waveform"),
-    ("wv_pulse_440", "Pulse 440 Hz (50%)",    440, "Pulse",    "waveform"),
-    ("wv_noise_440", "Noise 440 Hz",          440, "Noise",    "waveform"),
+    ("wv_tri_220",   "Triangle 220 Hz",    220, "Triangle"),
+    ("wv_tri_440",   "Triangle 440 Hz",    440, "Triangle"),
+    ("wv_tri_880",   "Triangle 880 Hz",    880, "Triangle"),
+    ("wv_saw_220",   "Sawtooth 220 Hz",    220, "Sawtooth"),
+    ("wv_saw_440",   "Sawtooth 440 Hz",    440, "Sawtooth"),
+    ("wv_saw_880",   "Sawtooth 880 Hz",    880, "Sawtooth"),
+    ("wv_pulse_220", "Pulse 220 Hz (50%)", 220, "Pulse"),
+    ("wv_pulse_440", "Pulse 440 Hz (50%)", 440, "Pulse"),
+    ("wv_pulse_880", "Pulse 880 Hz (50%)", 880, "Pulse"),
+    ("wv_noise_220", "Noise 220 Hz",       220, "Noise"),
+    ("wv_noise_440", "Noise 440 Hz",       440, "Noise"),
+    ("wv_noise_880", "Noise 880 Hz",       880, "Noise"),
 ]
+
+WAVEFORMS = ["Triangle", "Sawtooth", "Pulse", "Noise"]
+FREQUENCIES = [220, 440, 880]
 
 
 def compile_sim():
@@ -66,7 +75,7 @@ def compile_sim():
 
 def run_sim():
     """Run simulation with vvp."""
-    print("Running simulation (~12M cycles, expect ~30s)...")
+    print("Running simulation (~24M cycles, expect ~60s)...")
     result = subprocess.run(
         ["vvp", SIM_BINARY],
         capture_output=True, text=True,
@@ -93,7 +102,7 @@ def filter_and_wav():
     dt = 200e-9
     results = {}
 
-    for name, label, _, _, _ in TONES:
+    for name, label, _, _ in TONES:
         pwl_path = os.path.join(SCRIPT_DIR, name + ".pwl")
         wav_path = os.path.join(SCRIPT_DIR, name + "_analog.wav")
 
@@ -118,7 +127,7 @@ def generate_plots(results):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    for name, label, freq, waveform, _ in TONES:
+    for name, label, freq, waveform in TONES:
         if name not in results:
             continue
 
@@ -155,8 +164,8 @@ def generate_report(results):
     report_path = os.path.join(SCRIPT_DIR, "waveform_verify_report.md")
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    sweep_tones = [t for t in TONES if t[4] in ("sweep", "both")]
-    waveform_tones = [t for t in TONES if t[4] in ("waveform", "both")]
+    freq_regs = {220: "0x0E6B", 440: "0x1CD6", 880: "0x39AC"}
+    wav_regs = {"Triangle": "0x11", "Sawtooth": "0x21", "Pulse": "0x41", "Noise": "0x81"}
 
     lines = []
     lines.append("# SID Waveform Verification Report")
@@ -165,52 +174,30 @@ def generate_report(results):
     lines.append(f"**Capture duration:** 75 ms per tone (1,800,000 cycles at 24 MHz)")
     lines.append(f"**Attack settle:** 200,000 cycles (~8.3 ms)")
     lines.append(f"**Filter:** 3rd-order RC LPF (R=3.3k x3, C=4.7nF x3) + Cac=1uF + Rload=10k")
+    lines.append(f"**Waveforms:** 4 types x 3 frequencies = 12 captures")
     lines.append("")
     lines.append("---")
     lines.append("")
 
-    # Frequency sweep section
-    lines.append("## Frequency Sweep (Triangle 220 / 440 / 880 Hz)")
-    lines.append("")
-    lines.append("Verifies that the SID tone generator produces correct frequency output")
-    lines.append("across one octave below and above A4 (440 Hz).")
-    lines.append("")
-    lines.append("| # | Frequency | Freq Reg | Waveform Reg | PWL File |")
-    lines.append("|---|-----------|----------|-------------|----------|")
-    freq_regs = {220: "0x0E6B", 440: "0x1CD6", 880: "0x39AC"}
-    for i, (name, label, freq, wf, _) in enumerate(sweep_tones, 1):
-        lines.append(f"| {i} | {freq} Hz | {freq_regs[freq]} | 0x11 | `{name}.pwl` |")
-    lines.append("")
+    # One section per waveform type
+    for wf in WAVEFORMS:
+        wf_tones = [t for t in TONES if t[3] == wf]
+        lines.append(f"## {wf} (220 / 440 / 880 Hz)")
+        lines.append("")
+        lines.append(f"| # | Frequency | Freq Reg | Waveform Reg | PWL File |")
+        lines.append(f"|---|-----------|----------|-------------|----------|")
+        for i, (name, label, freq, _) in enumerate(wf_tones, 1):
+            lines.append(f"| {i} | {freq} Hz | {freq_regs[freq]} | {wav_regs[wf]} | `{name}.pwl` |")
+        lines.append("")
 
-    for name, label, _, _, _ in sweep_tones:
-        if name in results:
-            lines.append(f"### {label}")
-            lines.append(f"![{label}]({name}.png)")
-            lines.append("")
+        for name, label, _, _ in wf_tones:
+            if name in results:
+                lines.append(f"### {label}")
+                lines.append(f"![{label}]({name}.png)")
+                lines.append("")
 
-    lines.append("---")
-    lines.append("")
-
-    # Waveform comparison section
-    lines.append("## Waveform Comparison (440 Hz)")
-    lines.append("")
-    lines.append("Demonstrates all four SID waveform types at the same frequency.")
-    lines.append("")
-    lines.append("| # | Waveform | Waveform Reg | PWL File |")
-    lines.append("|---|----------|-------------|----------|")
-    wav_regs = {"Triangle": "0x11", "Sawtooth": "0x21", "Pulse": "0x41", "Noise": "0x81"}
-    for i, (name, label, _, wf, _) in enumerate(waveform_tones, 1):
-        lines.append(f"| {i} | {wf} | {wav_regs[wf]} | `{name}.pwl` |")
-    lines.append("")
-
-    for name, label, _, _, _ in waveform_tones:
-        if name in results:
-            lines.append(f"### {label}")
-            lines.append(f"![{label}]({name}.png)")
-            lines.append("")
-
-    lines.append("---")
-    lines.append("")
+        lines.append("---")
+        lines.append("")
 
     # Summary
     lines.append("## Summary")
@@ -218,11 +205,11 @@ def generate_report(results):
     n_ok = len(results)
     n_total = len(TONES)
     lines.append(f"- **Tones captured:** {n_ok}/{n_total}")
-    lines.append(f"- **Pass criteria:** All 6 PWL files generated, WAVs audible at correct pitch")
+    lines.append(f"- **Pass criteria:** All {n_total} PWL files generated, WAVs audible at correct pitch")
     lines.append("")
     lines.append("### Output Files")
     lines.append("")
-    for name, _, _, _, _ in TONES:
+    for name, _, _, _ in TONES:
         exists_pwl = os.path.exists(os.path.join(SCRIPT_DIR, name + ".pwl"))
         exists_wav = os.path.exists(os.path.join(SCRIPT_DIR, name + "_analog.wav"))
         exists_png = os.path.exists(os.path.join(SCRIPT_DIR, name + ".png"))
@@ -250,7 +237,7 @@ def main():
 
     # Verify PWL files were generated
     missing = []
-    for name, _, _, _, _ in TONES:
+    for name, _, _, _ in TONES:
         pwl = os.path.join(SCRIPT_DIR, name + ".pwl")
         if not os.path.exists(pwl):
             missing.append(pwl)

@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 //==============================================================================
 // SID Waveform Verification Testbench (24 MHz)
-// Captures 6 PWL files: triangle freq sweep (220/440/880 Hz) + waveform
-// showcase (saw/tri/pulse/noise at 440 Hz).  tri_440 serves both groups.
+// Captures 12 PWL files: all 4 waveforms (tri/saw/pulse/noise) at 3
+// frequencies (220/440/880 Hz).
 //
 // Output: tests/wv_*.pwl — piecewise-linear voltage waveforms
 // VDD = 3.3 V, edge time = 2 ns (matches PCB I/O bank)
@@ -179,29 +179,41 @@ module waveform_verify_tb;
         // 24-bit acc @ 1 MHz: freq_reg = hz * 2^24 / 1e6
         // 220 Hz -> 3691 (0x0E6B), 440 Hz -> 7382 (0x1CD6), 880 Hz -> 14764 (0x39AC)
 
-        // --- Frequency sweep: triangle at 220 / 440 / 880 Hz ---
         $display("=== SID Waveform Verification ===");
 
-        $display("[1/6] Triangle 220 Hz");
+        // --- Triangle (0x11) ---
+        $display("[1/12] Triangle 220 Hz");
         capture_tone(8'h6B, 8'h0E, 8'h11, "tests/wv_tri_220.pwl");
-
-        $display("[2/6] Triangle 440 Hz");
+        $display("[2/12] Triangle 440 Hz");
         capture_tone(8'hD6, 8'h1C, 8'h11, "tests/wv_tri_440.pwl");
-
-        $display("[3/6] Triangle 880 Hz");
+        $display("[3/12] Triangle 880 Hz");
         capture_tone(8'hAC, 8'h39, 8'h11, "tests/wv_tri_880.pwl");
 
-        // --- Waveform showcase at 440 Hz ---
-        $display("[4/6] Sawtooth 440 Hz");
+        // --- Sawtooth (0x21) ---
+        $display("[4/12] Sawtooth 220 Hz");
+        capture_tone(8'h6B, 8'h0E, 8'h21, "tests/wv_saw_220.pwl");
+        $display("[5/12] Sawtooth 440 Hz");
         capture_tone(8'hD6, 8'h1C, 8'h21, "tests/wv_saw_440.pwl");
+        $display("[6/12] Sawtooth 880 Hz");
+        capture_tone(8'hAC, 8'h39, 8'h21, "tests/wv_saw_880.pwl");
 
-        $display("[5/6] Pulse 440 Hz (50%% duty)");
+        // --- Pulse 50% duty (0x41) ---
+        $display("[7/12] Pulse 220 Hz");
+        capture_tone(8'h6B, 8'h0E, 8'h41, "tests/wv_pulse_220.pwl");
+        $display("[8/12] Pulse 440 Hz");
         capture_tone(8'hD6, 8'h1C, 8'h41, "tests/wv_pulse_440.pwl");
+        $display("[9/12] Pulse 880 Hz");
+        capture_tone(8'hAC, 8'h39, 8'h41, "tests/wv_pulse_880.pwl");
 
-        $display("[6/6] Noise 440 Hz");
+        // --- Noise (0x81) ---
+        $display("[10/12] Noise 220 Hz");
+        capture_tone(8'h6B, 8'h0E, 8'h81, "tests/wv_noise_220.pwl");
+        $display("[11/12] Noise 440 Hz");
         capture_tone(8'hD6, 8'h1C, 8'h81, "tests/wv_noise_440.pwl");
+        $display("[12/12] Noise 880 Hz");
+        capture_tone(8'hAC, 8'h39, 8'h81, "tests/wv_noise_880.pwl");
 
-        $display("=== All 6 PWL captures complete ===");
+        $display("=== All 12 PWL captures complete ===");
         $finish;
     end
 

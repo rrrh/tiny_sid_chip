@@ -632,19 +632,6 @@ module tt_um_sid (
     wire [7:0] filtered_out = bypass ? mix_out : scaled;
 
     //==========================================================================
-    // 6 dB/octave Lowpass (fc ≈ 1244 Hz) before PWM
-    //==========================================================================
-    wire [7:0] lpf_out;
-
-    output_lpf u_lpf (
-        .clk          (clk),
-        .rst_n        (rst_n),
-        .sample_valid (sample_valid),
-        .sample_in    (filtered_out),
-        .sample_out   (lpf_out)
-    );
-
-    //==========================================================================
     // PWM Audio Output (8-bit, ~94.1 kHz at 24 MHz)
     //==========================================================================
     wire pwm_out;
@@ -652,7 +639,7 @@ module tt_um_sid (
     pwm_audio u_pwm (
         .clk    (clk),
         .rst_n  (rst_n),
-        .sample (lpf_out),
+        .sample (filtered_out),
         .pwm    (pwm_out)
     );
 
