@@ -31,8 +31,8 @@ MACROS = {
     },
     "svf_2nd": {
         "gds": "../macros/gds/svf_2nd.gds",
-        "width": 62.0, "height": 68.0,
-        "vdd": (0.0, 66.0, 62.0, 68.0),
+        "width": 62.0, "height": 80.0,
+        "vdd": (0.0, 78.0, 62.0, 80.0),
         "vss": (0.0, 0.0, 62.0, 2.0),
     },
     "sar_adc_8bit": {
@@ -135,10 +135,10 @@ def process_macro(name, info):
 
         # Ensure minimum TopMetal1 width (1.44 µm from DRC) — our rails are ≥1.3µm
         tm1_width = tm1_y2 - tm1_y1
-        if tm1_width < 1.44:
-            # Center a 1.44µm strap in the rail
-            tm1_y1 = y_center - 0.72
-            tm1_y2 = y_center + 0.72
+        if tm1_width < 1.64:
+            # Center a 1.64µm strap in the rail (TM1.a min width)
+            tm1_y1 = y_center - 0.82
+            tm1_y2 = y_center + 0.82
 
         print(f"  Adding TopMetal1 strap for {rail_name}: ({x1:.1f}, {tm1_y1:.2f}) - ({x2:.1f}, {tm1_y2:.2f})")
         top_cell.shapes(li_tm1).insert(rect(x1, tm1_y1, x2, tm1_y2))

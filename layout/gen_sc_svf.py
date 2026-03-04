@@ -218,7 +218,8 @@ def draw_topvia1(cell, layout, x, y):
     cell.shapes(li_tv1).insert(rect(x - hs, y - hs, x + hs, y + hs))
     e5 = TOPVIA1_ENC_M5 + hs
     cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
-    et = TOPVIA1_ENC_TM1 + hs
+    TM1_MIN_HALF = 1.64 / 2
+    et = max(TOPVIA1_ENC_TM1 + hs, TM1_MIN_HALF)
     cell.shapes(li_tm1).insert(rect(x - et, y - et, x + et, y + et))
 
 
