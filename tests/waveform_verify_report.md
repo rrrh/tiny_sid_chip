@@ -1,6 +1,6 @@
 # SID Waveform Verification Report
 
-**Date:** 2026-03-04 17:38
+**Date:** 2026-03-04 18:00
 **Capture duration:** 75 ms per tone (1,800,000 cycles at 24 MHz)
 **Attack settle:** 200,000 cycles (~8.3 ms)
 **Filter:** 3rd-order RC LPF (R=3.3k x3, C=4.7nF x3) + Cac=1uF + Rload=10k
@@ -54,10 +54,37 @@ Demonstrates all four SID waveform types at the same frequency.
 
 ---
 
+## output_lpf.v Dead-Zone Fix
+
+The IIR lowpass filter accumulator was widened from 10-bit (8.2 fixed-point)
+to 16-bit (8.8 fixed-point) to eliminate a quantization dead zone.
+
+| Parameter | Before | After |
+|-----------|--------|-------|
+| Accumulator width | 10-bit (8.2) | 16-bit (8.8) |
+| `x_ext` | `{sample_in, 2'b0}` | `{sample_in, 8'b0}` |
+| `diff` / `step` | `signed [10:0]` | `signed [16:0]` |
+| `sample_out` | `acc[9:2]` | `acc[15:8]` |
+
+**Problem:** With only 2 fractional bits, `step = diff >>> 7` rounded positive
+diffs of 1–127 to zero (negative diffs always produced at least −1 due to
+arithmetic right-shift). This caused triangle waveforms to plateau on the
+rising edge (trapezoidal distortion).
+
+**Fix:** With 8 fractional bits, a 1-LSB input change maps to diff=256,
+giving step=2 — always non-zero. Residual dead zone is <0.5 LSB, below the
+quantization floor. Filter response (alpha=1/128, fc≈1244 Hz) is unchanged.
+
+**Result:** Triangle waveforms now show smooth, continuous ramps with no
+flat plateaus at all three test frequencies (220, 440, 880 Hz).
+
+---
+
 ## Summary
 
 - **Tones captured:** 6/6
 - **Pass criteria:** All 6 PWL files generated, WAVs audible at correct pitch
+- **LPF dead-zone fix:** Verified — triangle ramps are smooth
 
 ### Output Files
 
