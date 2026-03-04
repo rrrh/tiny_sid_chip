@@ -624,7 +624,7 @@ def build_sc_svf():
     # =====================================================================
     # MIM Integration Caps (C_int1 and C_int2, side by side)
     # =====================================================================
-    cap_y = 25.0
+    cap_y = 25.6
     c1_x = 2.0
     c1_bot, c1_top = draw_mim_cap(top, layout, c1_x, cap_y, C_INT_SIDE, C_INT_SIDE)
 
@@ -648,7 +648,7 @@ def build_sc_svf():
                                         C_SW_SIDE, C_SW_SIDE)
 
     csw2_x = csw1_x
-    csw2_y = sw_cap_y + C_SW_SIDE + MIM_SPACE + 2 * MIM_ENC_M5 + 0.3
+    csw2_y = sw_cap_y + C_SW_SIDE + MIM_SPACE + 2 * MIM_ENC_M5 + 0.9
     csw2_bot, csw2_top = draw_mim_cap(top, layout, csw2_x, csw2_y,
                                         C_SW_SIDE, C_SW_SIDE)
 

@@ -34,6 +34,9 @@ MACROS = {
         "width": 62.0, "height": 68.0,
         "vdd": (0.0, 66.0, 62.0, 68.0),
         "vss": (0.0, 0.0, 62.0, 2.0),
+        # TM1 strap y overrides: push VSS strap down to clear cap TM1 at y=3.0
+        # (need ≥1.64 µm gap → strap top ≤ 1.36)
+        "tm1_vss": (-0.28, 1.36),
     },
     "sar_adc_8bit": {
         "gds": "../macros/gds/sar_adc_8bit.gds",
@@ -127,24 +130,30 @@ def process_macro(name, info):
         rail_height = y2 - y1
         y_center = (y1 + y2) / 2
 
-        # TopMetal1 strap: same x extent as Metal3 rail, slightly inset in y
-        # to avoid extending past the macro boundary
-        tm1_margin = 0.1  # small inset from rail edges
-        tm1_y1 = y1 + tm1_margin
-        tm1_y2 = y2 - tm1_margin
+        # Check for per-rail TM1 y override (to avoid TM1.b spacing violations)
+        tm1_override_key = f"tm1_{rail_name}"
+        if tm1_override_key in info:
+            tm1_y1, tm1_y2 = info[tm1_override_key]
+        else:
+            # TopMetal1 strap: same x extent as Metal3 rail, slightly inset in y
+            # to avoid extending past the macro boundary
+            tm1_margin = 0.1  # small inset from rail edges
+            tm1_y1 = y1 + tm1_margin
+            tm1_y2 = y2 - tm1_margin
 
-        # Ensure minimum TopMetal1 width (1.44 µm from DRC) — our rails are ≥1.3µm
-        tm1_width = tm1_y2 - tm1_y1
-        if tm1_width < 1.64:
-            # Center a 1.64µm strap in the rail (TM1.a min width)
-            tm1_y1 = y_center - 0.82
-            tm1_y2 = y_center + 0.82
+            # Ensure minimum TopMetal1 width (1.44 µm from DRC) — our rails are ≥1.3µm
+            tm1_width = tm1_y2 - tm1_y1
+            if tm1_width < 1.64:
+                # Center a 1.64µm strap in the rail (TM1.a min width)
+                tm1_y1 = y_center - 0.82
+                tm1_y2 = y_center + 0.82
 
         print(f"  Adding TopMetal1 strap for {rail_name}: ({x1:.1f}, {tm1_y1:.2f}) - ({x2:.1f}, {tm1_y2:.2f})")
         top_cell.shapes(li_tm1).insert(rect(x1, tm1_y1, x2, tm1_y2))
 
-        # Add via array along the rail
-        add_via_array(top_cell, layout, x1, x2, y_center, rail_height)
+        # Add via array along the rail — center vias within TM1 strap
+        via_y_center = (tm1_y1 + tm1_y2) / 2
+        add_via_array(top_cell, layout, x1, x2, via_y_center, rail_height)
         print(f"  Added via stack array for {rail_name}")
 
     # Write back
