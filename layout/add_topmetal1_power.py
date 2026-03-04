@@ -31,8 +31,8 @@ MACROS = {
     },
     "svf_2nd": {
         "gds": "../macros/gds/svf_2nd.gds",
-        "width": 62.0, "height": 80.0,
-        "vdd": (0.0, 78.0, 62.0, 80.0),
+        "width": 62.0, "height": 68.0,
+        "vdd": (0.0, 66.0, 62.0, 68.0),
         "vss": (0.0, 0.0, 62.0, 2.0),
     },
     "sar_adc_8bit": {
