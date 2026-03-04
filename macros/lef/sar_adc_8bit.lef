@@ -151,12 +151,6 @@ MACRO sar_adc_8bit
       RECT 0.500 0.500 41.500 41.500 ;
     LAYER Metal3 ;
       RECT 0.000 2.500 24.500 40.000 ;
-    LAYER Metal4 ;
-      RECT 0.000 2.000 24.500 40.000 ;
-    LAYER Metal5 ;
-      RECT 0.000 2.000 24.500 40.000 ;
-    LAYER TopMetal1 ;
-      RECT 0.500 0.500 41.500 41.500 ;
   END
 
 END sar_adc_8bit
