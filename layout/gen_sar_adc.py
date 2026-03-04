@@ -474,15 +474,15 @@ def build_sar_adc():
     for idx, ba in enumerate(bit_areas):
         cx = ba['center'][0]
         # Bottom plate: via stack at bottom edge of M5 plate (merges with M5)
-        bot_y = ba['y'] - MIM_ENC_M5
+        bot_y = ba['y'] + 0.5
         draw_via_stack_m2_to_m5(top, layout, cx, bot_y)
         # Top plate: via stack at top edge of cap
-        top_y = ba['y'] + ba['h'] + 0.1
+        top_y = ba['y'] + ba['h'] + MIM_ENC_M5 + TOPVIA1_ENC_M5 + TOPVIA1_SIZE / 2 + 0.30
         draw_via_stack_m2_to_tm1(top, layout, cx, top_y)
 
     # Common top-plate bus (sampling node) on M2
     if bit_areas:
-        sampling_y = bit_areas[0]['y'] + bit_areas[0]['h'] + 0.1
+        sampling_y = bit_areas[0]['y'] + bit_areas[0]['h'] + MIM_ENC_M5 + TOPVIA1_ENC_M5 + TOPVIA1_SIZE / 2 + 0.30
         first_cx = bit_areas[0]['center'][0]
         last_cx = bit_areas[-1]['center'][0]
         top.shapes(li_m2).insert(rect(first_cx - M2_WIDTH/2, sampling_y - M2_WIDTH/2,
@@ -518,15 +518,19 @@ def build_sar_adc():
         sx1 = col_x - TM1_ENC
         sx2 = col_x - TM1_ENC
         for cap in caps:
+            cap_left = cap['x'] - TM1_ENC
             cap_right = cap['x'] + cap['w'] + TM1_ENC
+            via_left = cap['x'] + cap['w'] / 2 - TV1_HALF
             via_right = cap['x'] + cap['w'] / 2 + TV1_HALF
+            sx1 = min(sx1, cap_left, via_left)
             sx2 = max(sx2, cap_right, via_right)
         # Ensure min width ≥ TM1_MIN
         if sx2 - sx1 < TM1_MIN:
             sx2 = sx1 + TM1_MIN
         # Strap spans from first cap bottom to last cap top (with TM1 enc)
         first_y = caps[0]['y'] - TM1_ENC
-        last_y = caps[-1]['y'] + caps[-1]['h'] + TM1_ENC
+        top_via_offset = MIM_ENC_M5 + TOPVIA1_ENC_M5 + TOPVIA1_SIZE / 2 + 0.30
+        last_y = caps[-1]['y'] + caps[-1]['h'] + top_via_offset + TV1_HALF
         top.shapes(li_tm1).insert(rect(sx1, first_y, sx2, last_y))
         strap_positions.append((sx1, first_y, sx2, last_y))
 
@@ -662,13 +666,18 @@ def build_sar_adc():
     draw_via1(top, layout, inn_gate_x, inn_gate_y)
     # M2 from inn gate down to inn_m3_top_y, then via2 → M3 to VSS rail.
     # Stop M3 at y=26.0 (well below wrapper M3 at y≈27.4) to avoid M3.b.
+    inn_m3_x = 35.5
     inn_m3_top_y = 26.0
+    # M2 vertical from gate down to jog y
     top.shapes(li_m2).insert(rect(inn_gate_x - M2_WIDTH / 2, inn_m3_top_y - M2_WIDTH / 2,
                                    inn_gate_x + M2_WIDTH / 2, inn_gate_y + M2_WIDTH / 2))
-    draw_via2(top, layout, inn_gate_x, inn_m3_top_y)
+    # M2 horizontal jog from inn_gate_x to inn_m3_x at inn_m3_top_y
+    top.shapes(li_m2).insert(rect(inn_gate_x - M2_WIDTH / 2, inn_m3_top_y - M2_WIDTH / 2,
+                                   inn_m3_x + M2_WIDTH / 2, inn_m3_top_y + M2_WIDTH / 2))
+    draw_via2(top, layout, inn_m3_x, inn_m3_top_y)
     # M3 vertical from inn_m3_top_y down to VSS rail (y=0-2)
-    top.shapes(li_m3).insert(rect(inn_gate_x - M2_WIDTH / 2, 2.0,
-                                   inn_gate_x + M2_WIDTH / 2, inn_m3_top_y))
+    top.shapes(li_m3).insert(rect(inn_m3_x - M2_WIDTH / 2, 2.0,
+                                   inn_m3_x + M2_WIDTH / 2, inn_m3_top_y))
 
     # =====================================================================
     # Fix 2e: Route comparator outputs → SAR logic
@@ -700,12 +709,12 @@ def build_sar_adc():
     # bottom to reach each cap's bottom-plate M2 pad.
     m3_x_positions = [5.0, 6.0, 7.0, 8.0, 9.0, 20.0, 21.5, 23.5]  # was [6,6.5,7,7.5,8,20,21,26]; widened for M3.b
     # SAR bits 5 and 7: M3 must stop above clk M3 horizontal at y=3.5
-    target_y_override = {5: 4.0, 7: 4.0}
+    target_y_override = {7: 4.0}
 
     for sar_bit in range(NBITS):
         ba = bit_areas[sar_bit + 1]  # +1: bit_areas[0] is dummy cap
         cap_cx = ba['center'][0]
-        cap_bot_y = ba['y'] - MIM_ENC_M5
+        cap_bot_y = ba['y'] + 0.5
         bus_y = 23.0 + sar_bit * 1.5
         m3_x = m3_x_positions[sar_bit]
         tgt_y = target_y_override.get(sar_bit, cap_bot_y)
