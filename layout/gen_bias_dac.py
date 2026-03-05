@@ -256,7 +256,7 @@ def build_channel(cell, layout, x_start, series_y, pin_base_y, pin_prefix, nbits
                                         gv_x + M2_WIDTH, max(pin_y, gv_y) + 0.1))
 
         # Pin label info
-        pin_rects.append((f"{pin_prefix}[{bit}]",
+        pin_rects.append((f"{pin_prefix}{bit}",
                           rect(0.0, pin_y - 0.5, 0.5, pin_y + 0.5)))
 
         x_cursor += r_total + gap
@@ -297,7 +297,7 @@ def build_bias_dac():
                                       x_start=fc_x_start,
                                       series_y=fc_series_y,
                                       pin_base_y=24.0,
-                                      pin_prefix="d_fc",
+                                      pin_prefix="dfc",
                                       nbits=NBITS)
 
     # q channel (lower) — series chain at y=12
@@ -307,7 +307,7 @@ def build_bias_dac():
                                     x_start=q_x_start,
                                     series_y=q_series_y,
                                     pin_base_y=4.0,
-                                    pin_prefix="d_q",
+                                    pin_prefix="dq",
                                     nbits=NBITS)
 
     # =====================================================================

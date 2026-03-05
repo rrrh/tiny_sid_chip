@@ -30,7 +30,7 @@ from sg13g2_layers import *
 # ===========================================================================
 # Design parameters
 # ===========================================================================
-MACRO_W = 62.0
+MACRO_W = 66.0
 MACRO_H = 68.0
 
 # OTA transistor sizes (same as gm-C version)
@@ -220,7 +220,8 @@ def draw_topvia1(cell, layout, x, y):
     cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
     TM1_MIN_HALF = 1.64 / 2
     et = max(TOPVIA1_ENC_TM1 + hs, TM1_MIN_HALF)
-    cell.shapes(li_tm1).insert(rect(x - et, y - et, x + et, y + et))
+    y_lo = max(y - et, 0)
+    cell.shapes(li_tm1).insert(rect(x - et, y_lo, x + et, y + et))
 
 
 def draw_via_stack_m2_to_m5(cell, layout, x, y):
@@ -577,13 +578,14 @@ def build_sc_svf():
             draw_via1(top, layout, px, MACRO_H - 2.5)
             draw_via2(top, layout, px, MACRO_H - 1.0)
 
-    # Connect OTA VSS (tail source) to VSS rail
+    # Connect OTA VSS (tail source) to VSS rail via M3 (not M2, to avoid
+    # crossing horizontal M2 signal routes)
     for ota in [ota1, ota2]:
         px, py = ota['vss']
         draw_via1(top, layout, px, py)
-        top.shapes(li_m2).insert(rect(px - wire_w2/2, 2.5,
-                                       px + wire_w2/2, py))
-        draw_via2(top, layout, px, 1.0)
+        draw_via2(top, layout, px, py)
+        top.shapes(li_m3).insert(rect(px - wire_w2/2, 0.0,
+                                       px + wire_w2/2, py + wire_w2/2))
 
     # OTA tails: connect to VCM (self-biased for behavioral sim)
     # In SC SVF, OTAs are voltage-mode integrators — tail is biased by
@@ -607,13 +609,14 @@ def build_sc_svf():
     nol_y = 47.0
     nol = draw_nol_clock(top, layout, nol_x, nol_y)
 
-    # NOL NMOS sources to VSS, PMOS sources to VDD
+    # NOL NMOS sources to VSS via M3 (not M2, to avoid crossing
+    # horizontal M2 signal routes)
     for i in range(4):
         sx, sy = nol['nmos'][i]['source']
         draw_via1(top, layout, sx, sy)
-        top.shapes(li_m2).insert(rect(sx - wire_w2/2, 2.5,
-                                       sx + wire_w2/2, sy))
-        draw_via2(top, layout, sx, 1.0)
+        draw_via2(top, layout, sx, sy)
+        top.shapes(li_m3).insert(rect(sx - wire_w2/2, 0.0,
+                                       sx + wire_w2/2, sy + wire_w2/2))
 
         px, py = nol['pmos'][i]['source']
         top.shapes(li_m1).insert(rect(px - wire_w/2, py - wire_w/2,
@@ -693,28 +696,40 @@ def build_sc_svf():
     # =====================================================================
 
     # BP node: OTA1 output → C_int1 top + OTA2 input + C_Q array + mux
+    # Long verticals routed on M3 to avoid crossing horizontal M2 pin routes
     bp_x1, bp_y1 = ota1['out']
     bp_x2, bp_y2 = ota2['inp']
     draw_via1(top, layout, bp_x1, bp_y1)
     draw_via1(top, layout, bp_x2, bp_y2)
     bp_route_y = ota_y - 1.0
-    top.shapes(li_m2).insert(rect(bp_x1 - wire_w2/2, bp_route_y - wire_w2/2,
+    # BP vertical at bp_x1: M3 from bp_route_y to bp_y1
+    draw_via2(top, layout, bp_x1, bp_y1)
+    draw_via2(top, layout, bp_x1, bp_route_y)
+    top.shapes(li_m3).insert(rect(bp_x1 - wire_w2/2, bp_route_y - wire_w2/2,
                                    bp_x1 + wire_w2/2, bp_y1 + wire_w2/2))
+    # BP horizontal on M2
     top.shapes(li_m2).insert(rect(bp_x1 - wire_w2/2, bp_route_y - wire_w2/2,
                                    bp_x2 + wire_w2/2, bp_route_y + wire_w2/2))
-    top.shapes(li_m2).insert(rect(bp_x2 - wire_w2/2, bp_route_y - wire_w2/2,
+    # BP vertical at bp_x2: M3 from bp_route_y to bp_y2
+    draw_via2(top, layout, bp_x2, bp_y2)
+    draw_via2(top, layout, bp_x2, bp_route_y)
+    top.shapes(li_m3).insert(rect(bp_x2 - wire_w2/2, bp_route_y - wire_w2/2,
                                    bp_x2 + wire_w2/2, bp_y2 + wire_w2/2))
-    # BP → C_int1
+    # BP → C_int1 (short vertical, stays on M2 — below q pin range)
     top.shapes(li_m2).insert(rect(bp_x1 - wire_w2/2, c1_top[1] - wire_w2/2,
                                    bp_x1 + wire_w2/2, bp_route_y + wire_w2/2))
 
     # LP node: OTA2 output → C_int2 top + feedback SC_R2
+    # Long vertical routed on M3 to avoid crossing sc_clk M2 route
     lp_x1, lp_y1 = ota2['out']
     draw_via1(top, layout, lp_x1, lp_y1)
     lp_route_y = ota_y - 2.5
-    top.shapes(li_m2).insert(rect(lp_x1 - wire_w2/2, lp_route_y - wire_w2/2,
+    # LP vertical at lp_x1: M3 from lp_route_y to lp_y1
+    draw_via2(top, layout, lp_x1, lp_y1)
+    draw_via2(top, layout, lp_x1, lp_route_y)
+    top.shapes(li_m3).insert(rect(lp_x1 - wire_w2/2, lp_route_y - wire_w2/2,
                                    lp_x1 + wire_w2/2, lp_y1 + wire_w2/2))
-    # LP → C_int2
+    # LP → C_int2 (short vertical on M2, below sc_clk range)
     top.shapes(li_m2).insert(rect(lp_x1 - wire_w2/2, c2_top[1] - wire_w2/2,
                                    lp_x1 + wire_w2/2, lp_route_y + wire_w2/2))
 
@@ -757,15 +772,22 @@ def build_sc_svf():
         bot_via_x = cap_info['x'] + 1.0
         draw_via_stack_m2_to_m5(top, layout, bot_via_x, cap_info['bot'][1])
 
-    # LP feedback: route LP to OTA1 negative input via M2
+    # LP feedback: route LP to OTA1 negative input
+    # Verticals on M3 to avoid crossing sc_clk and q pin M2 routes
     fb_x, fb_y = ota1['inn']
     draw_via1(top, layout, fb_x, fb_y)
     fb_route_y = ota_y - 4.0
+    # Horizontal M2 connecting fb_x to lp_x1 at fb_route_y
     top.shapes(li_m2).insert(rect(min(fb_x, lp_x1) - wire_w2/2, fb_route_y - wire_w2/2,
                                    max(fb_x, lp_x1) + wire_w2/2, fb_route_y + wire_w2/2))
-    top.shapes(li_m2).insert(rect(fb_x - wire_w2/2, fb_route_y - wire_w2/2,
+    # fb vertical: M3 from fb_route_y to fb_y at fb_x
+    draw_via2(top, layout, fb_x, fb_y)
+    draw_via2(top, layout, fb_x, fb_route_y)
+    top.shapes(li_m3).insert(rect(fb_x - wire_w2/2, fb_route_y - wire_w2/2,
                                    fb_x + wire_w2/2, fb_y + wire_w2/2))
-    top.shapes(li_m2).insert(rect(lp_x1 - wire_w2/2, fb_route_y - wire_w2/2,
+    # LP-side vertical: M3 from fb_route_y to lp_route_y at lp_x1
+    draw_via2(top, layout, lp_x1, fb_route_y)
+    top.shapes(li_m3).insert(rect(lp_x1 - wire_w2/2, fb_route_y - wire_w2/2,
                                    lp_x1 + wire_w2/2, lp_route_y + wire_w2/2))
 
     # =====================================================================
@@ -799,21 +821,25 @@ def build_sc_svf():
     # =====================================================================
 
     # --- vin pin: left edge, y≈36 ---
+    # Long vertical routed on M3 to avoid crossing sel1, sc_clk, q pin M2 routes
     vin_pin_y = 34.0
     vin_ota_x, vin_ota_y = ota1['inp']
     draw_via1(top, layout, vin_ota_x, vin_ota_y)
+    # M2 pin stub from left edge to via2
     top.shapes(li_m2).insert(rect(0.0, vin_pin_y - wire_w2/2,
                                    vin_ota_x + wire_w2/2, vin_pin_y + wire_w2/2))
-    top.shapes(li_m2).insert(rect(vin_ota_x - wire_w2/2, vin_pin_y - wire_w2/2,
+    # M3 vertical from bypass_mux_y to vin_ota_y (replaces two M2 verticals)
+    bypass_mux_x, bypass_mux_y = mux['bypass_in']
+    draw_via2(top, layout, vin_ota_x, vin_ota_y)
+    draw_via2(top, layout, vin_ota_x, vin_pin_y)
+    draw_via2(top, layout, vin_ota_x, bypass_mux_y)
+    top.shapes(li_m3).insert(rect(vin_ota_x - wire_w2/2, bypass_mux_y - wire_w2/2,
                                    vin_ota_x + wire_w2/2, vin_ota_y + wire_w2/2))
 
-    # Route vin to bypass mux input
-    bypass_mux_x, bypass_mux_y = mux['bypass_in']
+    # Route vin to bypass mux input (horizontal M2 from M3 via to mux)
     draw_via1(top, layout, bypass_mux_x, bypass_mux_y)
     top.shapes(li_m2).insert(rect(vin_ota_x - wire_w2/2, bypass_mux_y - wire_w2/2,
                                    bypass_mux_x + wire_w2/2, bypass_mux_y + wire_w2/2))
-    top.shapes(li_m2).insert(rect(vin_ota_x - wire_w2/2, bypass_mux_y - wire_w2/2,
-                                   vin_ota_x + wire_w2/2, vin_pin_y + wire_w2/2))
 
     # --- vout pin: right edge, y≈36 ---
     vout_pin_y = 34.0
@@ -854,12 +880,10 @@ def build_sc_svf():
                                    via_clk_x + wire_w2/2,
                                    max(sc_clk_pin_y, via_clk_y) + wire_w2/2))
 
-    # --- q0..q3 pins: left edge, y≈56,58,60,62 ---
+    # --- q0..q3 pins: left edge, y≈53,55,57,59 ---
+    # Pin stubs only — no long M2 extension (would cross OTA VSS via2 pads)
     q_pin_ys = [53.0, 55.0, 57.0, 59.0]
     q_names = ['q0', 'q1', 'q2', 'q3']
-    for i, (qpy, qname) in enumerate(zip(q_pin_ys, q_names)):
-        top.shapes(li_m2).insert(rect(0.0, qpy - wire_w2/2,
-                                       6.0, qpy + wire_w2/2))
 
     # =====================================================================
     # Pin labels
@@ -877,13 +901,13 @@ def build_sc_svf():
                   rect(0.0, sc_clk_pin_y - 1.0, 0.5, sc_clk_pin_y + 1.0),
                   "sc_clk", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, q_pin_ys[0] - 1.0, 0.5, q_pin_ys[0] + 1.0), "q0", layout)
+                  rect(0.0, q_pin_ys[0] - 0.5, 0.5, q_pin_ys[0] + 0.5), "q0", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, q_pin_ys[1] - 1.0, 0.5, q_pin_ys[1] + 1.0), "q1", layout)
+                  rect(0.0, q_pin_ys[1] - 0.5, 0.5, q_pin_ys[1] + 0.5), "q1", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, q_pin_ys[2] - 1.0, 0.5, q_pin_ys[2] + 1.0), "q2", layout)
+                  rect(0.0, q_pin_ys[2] - 0.5, 0.5, q_pin_ys[2] + 0.5), "q2", layout)
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, q_pin_ys[3] - 1.0, 0.5, q_pin_ys[3] + 1.0), "q3", layout)
+                  rect(0.0, q_pin_ys[3] - 0.5, 0.5, q_pin_ys[3] + 0.5), "q3", layout)
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
                   rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H), "vdd", layout)
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,

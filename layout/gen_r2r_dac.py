@@ -408,7 +408,7 @@ def build_r2r_dac():
         pin_y = 2.0 + bit * 1.5
         add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                       rect(0.0, pin_y - 0.5, 0.5, pin_y + 0.5),
-                      f"d[{bit}]", layout)
+                      f"d{bit}", layout)
 
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                   rect(MACRO_W - 0.5, vout_pin_y - 0.5, MACRO_W, vout_pin_y + 0.5),

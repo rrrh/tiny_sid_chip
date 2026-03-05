@@ -893,7 +893,7 @@ def build_sar_adc():
         pin_y = 8.0 + bit * 3.5
         add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                       rect(MACRO_W - 0.5, pin_y - 0.5, MACRO_W, pin_y + 0.5),
-                      f"dout[{bit}]", layout)
+                      f"dout{bit}", layout)
 
     # Power pins
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
