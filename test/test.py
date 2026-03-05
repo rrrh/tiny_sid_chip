@@ -1,18 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, RisingEdge
 
 
-# Register addresses
+# Register addresses (per-voice: voice_sel 0-2)
 REG_FREQ_LO  = 0
 REG_FREQ_HI  = 1
 REG_PW       = 2
 REG_ATTACK   = 4
 REG_SUSTAIN  = 5
 REG_WAVEFORM = 6
+
+# Filter registers (voice_sel 3)
+REG_FC_LO    = 0
+REG_FC_HI    = 1
+REG_RES_FILT = 2
+REG_MODE_VOL = 3
+VOICE_FILT   = 3
 
 # SID-compatible waveform bits ($d404 layout)
 GATE  = 0x01
@@ -68,7 +74,7 @@ async def count_pwm(dut, cycles):
 
 
 async def setup_and_reset(dut):
-    """Common setup: start 12 MHz clock and reset."""
+    """Common setup: start 12 MHz clock, reset, and configure bypass path."""
     clock = Clock(dut.clk, 84, unit="ns")
     cocotb.start_soon(clock.start())
     dut.ena.value = 1
@@ -78,6 +84,9 @@ async def setup_and_reset(dut):
     await ClockCycles(dut.clk, 100)
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 50)
+    # Explicitly set bypass path: mode=0 (bypass), vol=max
+    # This ensures analog macros (black boxes in GL sim) are not in the signal path
+    await sid_write(dut, REG_MODE_VOL, 0x0F, voice=VOICE_FILT)
 
 
 @cocotb.test()
@@ -160,7 +169,7 @@ async def test_noise(dut):
     assert pdm_count > 0
 
 
-@cocotb.test(skip=os.environ.get("GATES") == "yes")
+@cocotb.test()
 async def test_gate_release(dut):
     """Test that releasing the gate silences PWM output."""
     await setup_and_reset(dut)
