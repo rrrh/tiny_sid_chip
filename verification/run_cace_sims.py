@@ -718,7 +718,7 @@ def run_macro(macro_name):
 
 
 def main():
-    macros = ['r2r_dac_8bit', 'svf_2nd', 'sar_adc_8bit']
+    macros = ['r2r_dac_8bit', 'svf_2nd', 'sar_adc_8bit', 'bias_dac_2ch']
 
     if len(sys.argv) > 1:
         macros = sys.argv[1:]

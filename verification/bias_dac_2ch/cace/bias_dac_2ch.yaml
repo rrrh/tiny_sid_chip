@@ -1,0 +1,150 @@
+#--------------------------------------------------------------
+# CACE circuit characterization file
+# Dual 4-bit Bias DAC — IHP SG13G2 130nm
+#--------------------------------------------------------------
+
+name:           bias_dac_2ch
+description:    Dual 4-bit R-2R bias DAC for fc and Q control
+PDK:            ihp-sg13g2
+
+cace_format:    5.2
+
+authorship:
+  designer:         shue
+  creation_date:    March 5, 2026
+  license:          Apache 2.0
+
+paths:
+  root:             ..
+  schematic:        xschem
+  layout:           gds
+  netlist:          netlist
+  documentation:    doc
+
+pins:
+  dfc3:
+    description: FC channel bit 3 (MSB)
+    type: digital
+    direction: input
+  dfc2:
+    description: FC channel bit 2
+    type: digital
+    direction: input
+  dfc1:
+    description: FC channel bit 1
+    type: digital
+    direction: input
+  dfc0:
+    description: FC channel bit 0 (LSB)
+    type: digital
+    direction: input
+  dq3:
+    description: Q channel bit 3 (MSB)
+    type: digital
+    direction: input
+  dq2:
+    description: Q channel bit 2
+    type: digital
+    direction: input
+  dq1:
+    description: Q channel bit 1
+    type: digital
+    direction: input
+  dq0:
+    description: Q channel bit 0 (LSB)
+    type: digital
+    direction: input
+  vout_fc:
+    description: FC channel analog output
+    type: signal
+    direction: output
+    Vmin: 0
+    Vmax: vdd
+  vout_q:
+    description: Q channel analog output
+    type: signal
+    direction: output
+    Vmin: 0
+    Vmax: vdd
+  vdd:
+    description: Positive power supply
+    type: power
+    direction: inout
+    Vmin: 1.08
+    Vmax: 1.32
+  vss:
+    description: Ground
+    type: ground
+    direction: inout
+
+default_conditions:
+  vdd:
+    description: Power supply voltage
+    display: Vdd
+    unit: V
+    typical: 1.2
+  temperature:
+    description: Ambient temperature
+    display: Temp
+    unit: "\u00B0C"
+    typical: 27
+  corner:
+    description: Process corner (MOS)
+    display: Corner
+    typical: mos_tt
+
+parameters:
+
+  # ── DC sweep (INL / DNL per channel) ────────────────────────
+  dc_sweep:
+    description: DC transfer function — sweep all 16 codes per channel
+    display: DC Sweep Linearity
+    spec:
+      inl_fc:
+        display: INL (FC)
+        description: Max INL for FC channel
+        unit: LSB
+        maximum:
+          value: 1.0
+      dnl_fc:
+        display: DNL (FC)
+        description: Max DNL for FC channel
+        unit: LSB
+        maximum:
+          value: 1.0
+      inl_q:
+        display: INL (Q)
+        description: Max INL for Q channel
+        unit: LSB
+        maximum:
+          value: 1.0
+      dnl_q:
+        display: DNL (Q)
+        description: Max DNL for Q channel
+        unit: LSB
+        maximum:
+          value: 1.0
+    tool:
+      ngspice:
+        template: dc_sweep.spice
+        format: ascii
+        suffix: .data
+        variables: [null, vout_fc, vout_q]
+        script: inl_dnl.py
+        script_variables: [inl_fc, dnl_fc, inl_q, dnl_q]
+    conditions:
+      corner:
+        enumerate: [mos_tt, mos_ff, mos_ss]
+      temperature:
+        enumerate: [27]
+      vdd:
+        typical: 1.2
+    plot:
+      inl_vs_corner:
+        type: xyplot
+        xaxis: corner
+        yaxis: inl_fc
+      dnl_vs_corner:
+        type: xyplot
+        xaxis: corner
+        yaxis: dnl_fc

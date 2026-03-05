@@ -1,0 +1,57 @@
+* Bias DAC 2ch — DC Transfer Function Sweep
+* CACE template: sweeps all 16 digital codes via .dc
+*
+* Conditions substituted by CACE:
+*   CACE{vdd}          — supply voltage (V)
+*   CACE{temperature}  — temperature (deg C)
+*   CACE{corner}       — MOS process corner (mos_tt, mos_ff, mos_ss)
+
+* ── PDK Models ──────────────────────────────────────────────
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib CACE{corner}
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerRES.lib res_typ
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerCAP.lib cap_typ
+
+* ── DUT ─────────────────────────────────────────────────────
+.include CACE{DUT_path}
+
+* ── Parameters ──────────────────────────────────────────────
+.param vdd_val = CACE{vdd}
+
+* ── Temperature ─────────────────────────────────────────────
+.temp CACE{temperature}
+
+* ── Power supplies ──────────────────────────────────────────
+Vdd  vdd 0 {vdd_val}
+Vss  vss 0 0
+
+* ── Digital code input (swept 0–15 as a voltage) ────────────
+Vcode code 0 0
+
+* ── Bit extraction from code voltage ────────────────────────
+* FC channel: all bits driven by code; Q channel held at 0
+Bb3 dfc3 0 V = vdd_val * (floor(v(code)/8)  - 2*floor(v(code)/16))
+Bb2 dfc2 0 V = vdd_val * (floor(v(code)/4)  - 2*floor(v(code)/8))
+Bb1 dfc1 0 V = vdd_val * (floor(v(code)/2)  - 2*floor(v(code)/4))
+Bb0 dfc0 0 V = vdd_val * (floor(v(code)/1)  - 2*floor(v(code)/2))
+
+* Q channel mirrors FC code
+Bq3 dq3 0 V = vdd_val * (floor(v(code)/8)  - 2*floor(v(code)/16))
+Bq2 dq2 0 V = vdd_val * (floor(v(code)/4)  - 2*floor(v(code)/8))
+Bq1 dq1 0 V = vdd_val * (floor(v(code)/2)  - 2*floor(v(code)/4))
+Bq0 dq0 0 V = vdd_val * (floor(v(code)/1)  - 2*floor(v(code)/2))
+
+* ── Output loads ────────────────────────────────────────────
+Rload_fc vout_fc 0 1meg
+Rload_q  vout_q  0 1meg
+
+* ── DUT instantiation ──────────────────────────────────────
+Xbdac dfc3 dfc2 dfc1 dfc0 dq3 dq2 dq1 dq0 vout_fc vout_q vdd vss bias_dac_2ch
+
+* ── DC sweep: code 0 → 15 ─────────────────────────────────
+.control
+  dc Vcode 0 15 1
+  wrdata CACE{simpath}/CACE{filename}_CACE{N}.data v(vout_fc) v(vout_q)
+  quit
+.endc
+
+.end
