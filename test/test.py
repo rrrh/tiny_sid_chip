@@ -106,7 +106,7 @@ async def test_sawtooth(dut):
 
     await sid_write_freq(dut, hz_to_freq(262))
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
-    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0xF0, voice=0)
     await sid_write(dut, REG_WAVEFORM, SAW | GATE)
     await ClockCycles(dut.clk, 250000)
     pdm_count = await count_pwm(dut, 25000)
@@ -121,7 +121,7 @@ async def test_triangle(dut):
 
     await sid_write_freq(dut, hz_to_freq(262))
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
-    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0xF0, voice=0)
     await sid_write(dut, REG_WAVEFORM, TRI | GATE)
     await ClockCycles(dut.clk, 250000)
     pdm_count = await count_pwm(dut, 25000)
@@ -137,7 +137,7 @@ async def test_pulse(dut):
     await sid_write_freq(dut, hz_to_freq(262))
     await sid_write_pw(dut, 0x80, voice=0)
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
-    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0xF0, voice=0)
     await sid_write(dut, REG_WAVEFORM, PULSE | GATE)
     await ClockCycles(dut.clk, 250000)
     pdm_count = await count_pwm(dut, 25000)
@@ -152,7 +152,7 @@ async def test_noise(dut):
 
     await sid_write_freq(dut, hz_to_freq(262))
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
-    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0xF0, voice=0)
     await sid_write(dut, REG_WAVEFORM, NOISE | GATE)
     await ClockCycles(dut.clk, 250000)
     pdm_count = await count_pwm(dut, 25000)
@@ -167,7 +167,7 @@ async def test_gate_release(dut):
 
     await sid_write_freq(dut, hz_to_freq(262))
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
-    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0xF0, voice=0)
     await sid_write(dut, REG_WAVEFORM, SAW | GATE)
     await ClockCycles(dut.clk, 250000)
     await sid_write(dut, REG_WAVEFORM, SAW)  # release gate
@@ -184,7 +184,7 @@ async def test_two_voices(dut):
 
     await sid_write_freq(dut, hz_to_freq(262), voice=0)
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
-    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0xF0, voice=0)
     await sid_write(dut, REG_WAVEFORM, SAW | GATE, voice=0)
 
     await sid_write_freq(dut, hz_to_freq(330), voice=1)
@@ -207,7 +207,7 @@ async def test_three_voices(dut):
     # V0: sawtooth C4
     await sid_write_freq(dut, hz_to_freq(262), voice=0)
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
-    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0xF0, voice=0)
     await sid_write(dut, REG_WAVEFORM, SAW | GATE, voice=0)
 
     # V1: pulse E4
@@ -237,7 +237,7 @@ async def test_sync_modulation(dut):
     # V0: master oscillator (high freq sawtooth)
     await sid_write_freq(dut, hz_to_freq(524), voice=0)
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
-    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0xF0, voice=0)
     await sid_write(dut, REG_WAVEFORM, SAW | GATE, voice=0)
 
     # V1: slave with sync (lower freq, synced to V0)
@@ -260,13 +260,13 @@ async def test_per_voice_adsr(dut):
     # V0: fast attack, high sustain
     await sid_write_freq(dut, hz_to_freq(262), voice=0)
     await sid_write(dut, REG_ATTACK, 0x00, voice=0)
-    await sid_write(dut, REG_SUSTAIN, 0x0F, voice=0)
+    await sid_write(dut, REG_SUSTAIN, 0xF0, voice=0)
     await sid_write(dut, REG_WAVEFORM, SAW | GATE, voice=0)
 
     # V1: fast attack, low sustain (different ADSR)
     await sid_write_freq(dut, hz_to_freq(330), voice=1)
     await sid_write(dut, REG_ATTACK, 0x00, voice=1)
-    await sid_write(dut, REG_SUSTAIN, 0x03, voice=1)
+    await sid_write(dut, REG_SUSTAIN, 0x30, voice=1)
     await sid_write(dut, REG_WAVEFORM, SAW | GATE, voice=1)
 
     await ClockCycles(dut.clk, 250000)
