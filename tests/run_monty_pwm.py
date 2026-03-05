@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-"""Run Monty on the Run filter-bypass simulation and generate WAV output.
+"""Run Monty on the Run PWM capture simulation and generate analog WAV output.
 
 Pipeline:
-  1. Preprocess SID stimulus file → decimal format for Verilog $fscanf
+  1. Preprocess SID stimulus file -> decimal format for Verilog $fscanf
   2. Compile testbench with iverilog (BEHAVIORAL_SIM mode)
-  3. Run simulation with vvp
-  4. Convert raw 8-bit samples → 16-bit signed WAV (44.1 kHz mono)
+  3. Run simulation with vvp -> monty_pwm.pwl
+  4. Filter PWL through 3rd-order RC LPF (Python Forward Euler) -> monty_pwm.wav
 """
 
 import os
 import subprocess
 import sys
-import wave
-
-import numpy as np
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
@@ -23,12 +20,10 @@ STIMULUS_SRC = os.path.join(
     "stimuli", "Hubbard_Rob_Monty_on_the_Run_stimulus.txt"
 )
 STIMULUS_DEC = os.path.join(SCRIPT_DIR, "monty_stim_dec.txt")
-RAW_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_bypass.raw")
-WAV_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_bypass.wav")
-TB_FILE      = os.path.join(SCRIPT_DIR, "monty_bypass_tb.v")
-SIM_BINARY   = os.path.join(SCRIPT_DIR, "monty_bypass_sim")
-
-SAMPLE_RATE = 44117  # 24 MHz / 544
+PWL_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_pwm.pwl")
+WAV_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_pwm.wav")
+TB_FILE      = os.path.join(SCRIPT_DIR, "monty_pwm_tb.v")
+SIM_BINARY   = os.path.join(SCRIPT_DIR, "monty_pwm_sim")
 
 # Verilog source files needed for compilation
 VERILOG_SRCS = [
@@ -43,6 +38,10 @@ VERILOG_SRCS = [
 
 def preprocess_stimulus():
     """Convert stimulus file to decimal format (strip comments, 0x prefixes)."""
+    if os.path.exists(STIMULUS_DEC):
+        print(f"Stimulus already preprocessed: {STIMULUS_DEC}")
+        return
+
     print(f"Preprocessing stimulus: {STIMULUS_SRC}")
     count = 0
     with open(STIMULUS_SRC) as fin, open(STIMULUS_DEC, "w") as fout:
@@ -59,7 +58,6 @@ def preprocess_stimulus():
             fout.write(f"{tick} {addr} {data}\n")
             count += 1
     print(f"  {count} events written to {STIMULUS_DEC}")
-    return count
 
 
 def compile_sim():
@@ -74,7 +72,7 @@ def compile_sim():
         "-o", SIM_BINARY,
     ] + srcs
 
-    print(f"Compiling: iverilog -g2005 -DBEHAVIORAL_SIM ...")
+    print("Compiling: iverilog -g2005 -DBEHAVIORAL_SIM ...")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print("COMPILE ERROR:")
@@ -87,12 +85,12 @@ def compile_sim():
 
 def run_sim():
     """Run simulation with vvp."""
-    print(f"Running simulation (this may take several minutes)...")
+    print("Running simulation (this may take a long time)...")
     result = subprocess.run(
         ["vvp", SIM_BINARY],
         capture_output=True, text=True,
         cwd=PROJECT_DIR,  # so relative paths in testbench resolve correctly
-        timeout=3600,      # 60 min timeout (full sim ~45 min)
+        timeout=3600,      # 60 min timeout
     )
     # Print simulation output
     for line in result.stdout.strip().split("\n"):
@@ -104,49 +102,28 @@ def run_sim():
     print("  Simulation complete")
 
 
-def raw_to_wav():
-    """Convert raw 8-bit unsigned samples to normalized 16-bit signed WAV."""
-    print(f"Converting {RAW_OUTPUT} → {WAV_OUTPUT}")
+def filter_and_wav():
+    """Run PWL through analog filter simulation and generate WAV."""
+    # Import sim_analog functions
+    sys.path.insert(0, SCRIPT_DIR)
+    from sim_analog import load_pwl, simulate_filter, write_wav
 
-    samples = []
-    with open(RAW_OUTPUT) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                samples.append(int(line))
+    print(f"Loading PWL: {PWL_OUTPUT}")
+    t_pwl, v_pwl = load_pwl(PWL_OUTPUT)
+    print(f"  {len(t_pwl)} points, {t_pwl[-1]:.4f} s")
 
-    n = len(samples)
-    duration = n / SAMPLE_RATE
-    print(f"  {n} samples, {duration:.2f} seconds at {SAMPLE_RATE} Hz")
-    print(f"  Raw range: {min(samples)}-{max(samples)}")
+    print("Running analog filter simulation (Forward Euler, dt=200ns)...")
+    dt = 200e-9
+    t, v1, v2, v3, v_out = simulate_filter(t_pwl, v_pwl, dt)
+    print(f"  {len(t)} simulation steps")
 
-    # Remove DC offset and normalize to 16-bit range
-    arr = np.array(samples, dtype=np.float64)
-    dc = arr.mean()
-    ac = arr - dc
-    peak = max(abs(ac.min()), abs(ac.max()))
-
-    if peak > 0:
-        scale = 30000.0 / peak  # leave headroom
-        pcm = np.clip(ac * scale, -32768, 32767).astype(np.int16)
-    else:
-        pcm = np.zeros(n, dtype=np.int16)
-
-    print(f"  DC offset: {dc:.1f}, peak: {peak:.1f}, scale: {scale:.1f}")
-
-    with wave.open(WAV_OUTPUT, "w") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(SAMPLE_RATE)
-        wf.writeframes(pcm.tobytes())
-
-    print(f"  WAV written: {WAV_OUTPUT}")
-    return WAV_OUTPUT
+    print(f"Writing WAV: {WAV_OUTPUT}")
+    write_wav(t, v_out, WAV_OUTPUT, sample_rate=44100)
 
 
 def main():
     print("=" * 60)
-    print("Monty on the Run — Filter Bypass Simulation")
+    print("Monty on the Run — PWM Analog Output Simulation")
     print("=" * 60)
 
     preprocess_stimulus()
@@ -155,11 +132,16 @@ def main():
     print()
     run_sim()
     print()
-    wav_path = raw_to_wav()
+
+    if not os.path.exists(PWL_OUTPUT):
+        print(f"ERROR: PWL file not generated: {PWL_OUTPUT}")
+        sys.exit(1)
+
+    filter_and_wav()
 
     print()
     print("=" * 60)
-    print(f"Done! Output: {wav_path}")
+    print(f"Done! Output: {WAV_OUTPUT}")
     print("=" * 60)
 
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Run Monty on the Run filter-bypass simulation and generate WAV output.
+"""Run Monty on the Run through bypass capture → WAV.
 
 Pipeline:
-  1. Preprocess SID stimulus file → decimal format for Verilog $fscanf
-  2. Compile testbench with iverilog (BEHAVIORAL_SIM mode)
-  3. Run simulation with vvp
+  1. Preprocess stimulus: hex→decimal, 12 MHz tick prescaling, time limit
+  2. Compile monty_bypass_tb.v with iverilog
+  3. Run simulation with vvp → raw samples
   4. Convert raw 8-bit samples → 16-bit signed WAV (44.1 kHz mono)
 """
 
@@ -15,7 +15,7 @@ import wave
 
 import numpy as np
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 
 STIMULUS_SRC = os.path.join(
@@ -24,13 +24,14 @@ STIMULUS_SRC = os.path.join(
 )
 STIMULUS_DEC = os.path.join(SCRIPT_DIR, "monty_stim_dec.txt")
 RAW_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_bypass.raw")
-WAV_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_bypass.wav")
+WAV_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_10s.wav")
 TB_FILE      = os.path.join(SCRIPT_DIR, "monty_bypass_tb.v")
-SIM_BINARY   = os.path.join(SCRIPT_DIR, "monty_bypass_sim")
+SIM_BINARY   = os.path.join(SCRIPT_DIR, "monty_10s_sim")
 
 SAMPLE_RATE = 44117  # 24 MHz / 544
 
-# Verilog source files needed for compilation
+MAX_TICK_12MHZ = 120_000_000  # 10 seconds at 12 MHz
+
 VERILOG_SRCS = [
     "src/tt_um_sid.v",
     "src/output_lpf.v",
@@ -42,9 +43,34 @@ VERILOG_SRCS = [
 
 
 def preprocess_stimulus():
-    """Convert stimulus file to decimal format (strip comments, 0x prefixes)."""
-    print(f"Preprocessing stimulus: {STIMULUS_SRC}")
+    """Convert stimulus: hex→decimal, prescale ticks, halve freq regs, limit to 10s.
+
+    The stimulus was generated for a design at 12 MHz (0.5 MHz voice update),
+    but this design runs at 24 MHz (1 MHz voice update). Frequency register
+    values must be halved to produce correct pitch.
+
+    Frequency register addresses (flat SID layout):
+      V0: 0x00 (freq_lo), 0x01 (freq_hi)
+      V1: 0x07 (freq_lo), 0x08 (freq_hi)
+      V2: 0x0E (freq_lo), 0x0F (freq_hi)
+    """
+    print(f"Preprocessing stimulus (first 10s): {STIMULUS_SRC}")
+
+    # SID frequency register addresses (flat layout)
+    FREQ_LO_ADDRS = {0x00, 0x07, 0x0E}
+    FREQ_HI_ADDRS = {0x01, 0x08, 0x0F}
+
+    # Track current 16-bit freq per voice to halve correctly
+    freq_lo = {0x00: 0, 0x07: 0, 0x0E: 0}
+    freq_hi = {0x01: 0, 0x08: 0, 0x0F: 0}
+    # Map hi addr → lo addr
+    hi_to_lo = {0x01: 0x00, 0x08: 0x07, 0x0F: 0x0E}
+    lo_to_hi = {0x00: 0x01, 0x07: 0x08, 0x0E: 0x0F}
+
     count = 0
+    skipped = 0
+    freq_adjusted = 0
+
     with open(STIMULUS_SRC) as fin, open(STIMULUS_DEC, "w") as fout:
         for line in fin:
             line = line.strip()
@@ -54,27 +80,50 @@ def preprocess_stimulus():
             if len(parts) != 3:
                 continue
             tick = int(parts[0])
+            if tick > MAX_TICK_12MHZ:
+                skipped += 1
+                continue
             addr = int(parts[1], 16)
             data = int(parts[2], 16)
-            fout.write(f"{tick} {addr} {data}\n")
+
+            # Halve frequency registers for 1 MHz voice update rate
+            # When freq_hi is written, also re-emit corrected freq_lo
+            if addr in FREQ_LO_ADDRS:
+                freq_lo[addr] = data
+                hi_addr = lo_to_hi[addr]
+                full = (freq_hi[hi_addr] << 8) | data
+                halved = full >> 1
+                data = halved & 0xFF
+                freq_adjusted += 1
+            elif addr in FREQ_HI_ADDRS:
+                freq_hi[addr] = data
+                lo_addr = hi_to_lo[addr]
+                full = (data << 8) | freq_lo[lo_addr]
+                halved = full >> 1
+                # Emit corrected freq_lo first (now that we know both bytes)
+                tick_prescaled = round(tick * 83.333 / 20.0)
+                fout.write(f"{tick_prescaled} {lo_addr} {halved & 0xFF}\n")
+                count += 1
+                data = (halved >> 8) & 0xFF
+                freq_adjusted += 1
+
+            # Prescale: 12 MHz ticks → TB timing (tick * 83.333ns / 20ns)
+            tick_prescaled = round(tick * 83.333 / 20.0)
+            fout.write(f"{tick_prescaled} {addr} {data}\n")
             count += 1
-    print(f"  {count} events written to {STIMULUS_DEC}")
+
+    print(f"  {count} events (skipped {skipped} beyond 10s)")
+    print(f"  {freq_adjusted} frequency register writes halved (12 MHz → 24 MHz)")
+    print(f"  Written to {STIMULUS_DEC}")
     return count
 
 
 def compile_sim():
-    """Compile testbench with iverilog."""
     srcs = [os.path.join(PROJECT_DIR, s) for s in VERILOG_SRCS]
     srcs.append(TB_FILE)
+    cmd = ["iverilog", "-g2005", "-DBEHAVIORAL_SIM", "-o", SIM_BINARY] + srcs
 
-    cmd = [
-        "iverilog",
-        "-g2005",
-        "-DBEHAVIORAL_SIM",
-        "-o", SIM_BINARY,
-    ] + srcs
-
-    print(f"Compiling: iverilog -g2005 -DBEHAVIORAL_SIM ...")
+    print("Compiling: iverilog -g2005 -DBEHAVIORAL_SIM ...")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print("COMPILE ERROR:")
@@ -86,15 +135,13 @@ def compile_sim():
 
 
 def run_sim():
-    """Run simulation with vvp."""
-    print(f"Running simulation (this may take several minutes)...")
+    print("Running Monty bypass simulation (10s + 0.5s tail)...")
     result = subprocess.run(
         ["vvp", SIM_BINARY],
         capture_output=True, text=True,
-        cwd=PROJECT_DIR,  # so relative paths in testbench resolve correctly
-        timeout=3600,      # 60 min timeout (full sim ~45 min)
+        cwd=PROJECT_DIR,
+        timeout=3600,
     )
-    # Print simulation output
     for line in result.stdout.strip().split("\n"):
         print(f"  {line}")
     if result.returncode != 0:
@@ -105,7 +152,6 @@ def run_sim():
 
 
 def raw_to_wav():
-    """Convert raw 8-bit unsigned samples to normalized 16-bit signed WAV."""
     print(f"Converting {RAW_OUTPUT} → {WAV_OUTPUT}")
 
     samples = []
@@ -120,17 +166,17 @@ def raw_to_wav():
     print(f"  {n} samples, {duration:.2f} seconds at {SAMPLE_RATE} Hz")
     print(f"  Raw range: {min(samples)}-{max(samples)}")
 
-    # Remove DC offset and normalize to 16-bit range
     arr = np.array(samples, dtype=np.float64)
     dc = arr.mean()
     ac = arr - dc
     peak = max(abs(ac.min()), abs(ac.max()))
 
     if peak > 0:
-        scale = 30000.0 / peak  # leave headroom
+        scale = 30000.0 / peak
         pcm = np.clip(ac * scale, -32768, 32767).astype(np.int16)
     else:
         pcm = np.zeros(n, dtype=np.int16)
+        scale = 0
 
     print(f"  DC offset: {dc:.1f}, peak: {peak:.1f}, scale: {scale:.1f}")
 
@@ -146,8 +192,9 @@ def raw_to_wav():
 
 def main():
     print("=" * 60)
-    print("Monty on the Run — Filter Bypass Simulation")
+    print("Monty on the Run — 10-Second Bypass Capture")
     print("=" * 60)
+    print()
 
     preprocess_stimulus()
     print()

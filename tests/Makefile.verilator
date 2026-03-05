@@ -1,0 +1,78 @@
+# Makefile for Verilator-based Monty on the Run simulation
+#
+# Usage:
+#   make -f tests/Makefile.verilator sim    # build + run simulation
+#   make -f tests/Makefile.verilator wav    # build + run + convert to WAV
+#   make -f tests/Makefile.verilator clean
+
+TOP       = tt_um_sid
+SRCDIR    = src
+MACRODIR  = macros/nl
+TESTDIR   = tests
+
+# Verilog sources (exclude other testbenches and SVF top-level)
+VSRC = $(SRCDIR)/tt_um_sid.v \
+       $(SRCDIR)/filter.v \
+       $(SRCDIR)/filter_top.v \
+       $(SRCDIR)/output_lpf.v \
+       $(SRCDIR)/pwm_audio.v \
+       $(SRCDIR)/SVF_8bit.v \
+       $(wildcard $(MACRODIR)/*.v)
+
+CPP_TB    = $(TESTDIR)/monty_full_verilator.cpp
+OBJ_DIR   = $(TESTDIR)/obj_dir
+SIM_BIN   = $(OBJ_DIR)/V$(TOP)
+
+RAW_OUT   = $(TESTDIR)/monty_full_pwm_vl.raw
+WAV_OUT   = $(TESTDIR)/monty_full.wav
+STIM_FILE = $(TESTDIR)/monty_full_stim.txt
+
+# Verilator flags
+VFLAGS  = --cc --exe -O3 --x-assign fast --x-initial fast
+VFLAGS += -Wno-fatal -Wno-lint
+VFLAGS += -I$(SRCDIR)
+VFLAGS += --Mdir $(OBJ_DIR)
+VFLAGS += --top-module $(TOP)
+VFLAGS += -CFLAGS "-O2"
+
+# Preprocessed sources dir (strip inline verilator pragmas unsupported by v4.x)
+PPDIR = $(TESTDIR)/obj_dir/pp
+
+.PHONY: build sim wav clean
+
+build: $(SIM_BIN)
+
+$(PPDIR): $(VSRC)
+	@mkdir -p $(PPDIR)
+	@for f in $(VSRC); do \
+		sed 's|/\*\s*verilator\s*lint_off\s*[A-Z_]*\s*\*/||g' "$$f" > "$(PPDIR)/$$(basename $$f)"; \
+	done
+
+$(SIM_BIN): $(PPDIR) $(CPP_TB)
+	verilator $(VFLAGS) $(wildcard $(PPDIR)/*.v) $(abspath $(CPP_TB))
+	$(MAKE) -C $(OBJ_DIR) -f V$(TOP).mk
+
+sim: $(SIM_BIN) $(STIM_FILE)
+	$(SIM_BIN) $(STIM_FILE) $(RAW_OUT)
+
+wav: sim
+	python3 -c "\
+import os, wave; \
+import numpy as np; \
+SR=44117; \
+samples=[int(l) for l in open('$(RAW_OUT)') if l.strip()]; \
+n=len(samples); \
+print(f'{n} samples, {n/SR:.2f}s'); \
+arr=np.array(samples,dtype=np.float64); \
+dc=arr.mean(); ac=arr-dc; \
+peak=max(abs(ac.min()),abs(ac.max())); \
+scale=30000.0/peak if peak>0 else 0; \
+pcm=np.clip(ac*scale,-32768,32767).astype(np.int16) if peak>0 else np.zeros(n,dtype=np.int16); \
+print(f'DC={dc:.1f} peak={peak:.1f} scale={scale:.1f}'); \
+wf=wave.open('$(WAV_OUT)','w'); \
+wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(SR); \
+wf.writeframes(pcm.tobytes()); wf.close(); \
+print(f'WAV: $(WAV_OUT) ({os.path.getsize(\"$(WAV_OUT)\")/1024/1024:.1f} MB)')"
+
+clean:
+	rm -rf $(OBJ_DIR) $(RAW_OUT)

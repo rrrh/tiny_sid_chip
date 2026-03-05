@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Run Monty on the Run filter-bypass simulation and generate WAV output.
+"""Extract Voice 0 from Monty on the Run stimulus, simulate, and generate WAV.
 
 Pipeline:
-  1. Preprocess SID stimulus file → decimal format for Verilog $fscanf
-  2. Compile testbench with iverilog (BEHAVIORAL_SIM mode)
-  3. Run simulation with vvp
-  4. Convert raw 8-bit samples → 16-bit signed WAV (44.1 kHz mono)
+  1. Filter stimulus for V0 registers (SID addr 0x00–0x06) only
+  2. Prescale 12 MHz ticks → 50 MHz-equivalent for testbench
+  3. Compile testbench with iverilog
+  4. Run simulation with vvp
+  5. Convert raw 8-bit samples → 16-bit signed WAV (44.1 kHz mono)
 """
 
 import os
@@ -22,15 +23,14 @@ STIMULUS_SRC = os.path.join(
     PROJECT_DIR, "..", "chip", "rhesutron_sid_asic_tiny",
     "stimuli", "Hubbard_Rob_Monty_on_the_Run_stimulus.txt"
 )
-STIMULUS_DEC = os.path.join(SCRIPT_DIR, "monty_stim_dec.txt")
-RAW_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_bypass.raw")
-WAV_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_bypass.wav")
-TB_FILE      = os.path.join(SCRIPT_DIR, "monty_bypass_tb.v")
-SIM_BINARY   = os.path.join(SCRIPT_DIR, "monty_bypass_sim")
+STIMULUS_DEC = os.path.join(SCRIPT_DIR, "monty_v0_stim_dec.txt")
+RAW_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_v0_bypass.raw")
+WAV_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_v0_bypass.wav")
+TB_FILE      = os.path.join(SCRIPT_DIR, "monty_v0_bypass_tb.v")
+SIM_BINARY   = os.path.join(SCRIPT_DIR, "monty_v0_bypass_sim")
 
 SAMPLE_RATE = 44117  # 24 MHz / 544
 
-# Verilog source files needed for compilation
 VERILOG_SRCS = [
     "src/tt_um_sid.v",
     "src/output_lpf.v",
@@ -41,10 +41,11 @@ VERILOG_SRCS = [
 ]
 
 
-def preprocess_stimulus():
-    """Convert stimulus file to decimal format (strip comments, 0x prefixes)."""
-    print(f"Preprocessing stimulus: {STIMULUS_SRC}")
-    count = 0
+def extract_v0_stimulus():
+    """Extract V0 events (SID addr 0x00-0x06) and prescale ticks."""
+    print(f"Extracting V0 from: {STIMULUS_SRC}")
+    total = 0
+    v0_count = 0
     with open(STIMULUS_SRC) as fin, open(STIMULUS_DEC, "w") as fout:
         for line in fin:
             line = line.strip()
@@ -53,13 +54,23 @@ def preprocess_stimulus():
             parts = line.split()
             if len(parts) != 3:
                 continue
+            total += 1
             tick = int(parts[0])
             addr = int(parts[1], 16)
             data = int(parts[2], 16)
-            fout.write(f"{tick} {addr} {data}\n")
-            count += 1
-    print(f"  {count} events written to {STIMULUS_DEC}")
-    return count
+
+            # V0 registers: SID addr 0x00–0x06
+            if addr > 6:
+                continue
+
+            # Prescale: 12 MHz ticks → 50 MHz-equivalent (tick * 83.333 / 20)
+            tick_prescaled = round(tick * 83.333 / 20.0)
+            fout.write(f"{tick_prescaled} {addr} {data}\n")
+            v0_count += 1
+
+    print(f"  {v0_count}/{total} events are V0 (addr 0x00–0x06)")
+    print(f"  Written to {STIMULUS_DEC}")
+    return v0_count
 
 
 def compile_sim():
@@ -74,7 +85,7 @@ def compile_sim():
         "-o", SIM_BINARY,
     ] + srcs
 
-    print(f"Compiling: iverilog -g2005 -DBEHAVIORAL_SIM ...")
+    print("Compiling: iverilog -g2005 -DBEHAVIORAL_SIM ...")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print("COMPILE ERROR:")
@@ -87,14 +98,13 @@ def compile_sim():
 
 def run_sim():
     """Run simulation with vvp."""
-    print(f"Running simulation (this may take several minutes)...")
+    print("Running V0-only simulation...")
     result = subprocess.run(
         ["vvp", SIM_BINARY],
         capture_output=True, text=True,
-        cwd=PROJECT_DIR,  # so relative paths in testbench resolve correctly
-        timeout=3600,      # 60 min timeout (full sim ~45 min)
+        cwd=PROJECT_DIR,
+        timeout=3600,
     )
-    # Print simulation output
     for line in result.stdout.strip().split("\n"):
         print(f"  {line}")
     if result.returncode != 0:
@@ -120,17 +130,17 @@ def raw_to_wav():
     print(f"  {n} samples, {duration:.2f} seconds at {SAMPLE_RATE} Hz")
     print(f"  Raw range: {min(samples)}-{max(samples)}")
 
-    # Remove DC offset and normalize to 16-bit range
     arr = np.array(samples, dtype=np.float64)
     dc = arr.mean()
     ac = arr - dc
     peak = max(abs(ac.min()), abs(ac.max()))
 
     if peak > 0:
-        scale = 30000.0 / peak  # leave headroom
+        scale = 30000.0 / peak
         pcm = np.clip(ac * scale, -32768, 32767).astype(np.int16)
     else:
         pcm = np.zeros(n, dtype=np.int16)
+        scale = 0
 
     print(f"  DC offset: {dc:.1f}, peak: {peak:.1f}, scale: {scale:.1f}")
 
@@ -146,10 +156,10 @@ def raw_to_wav():
 
 def main():
     print("=" * 60)
-    print("Monty on the Run — Filter Bypass Simulation")
+    print("Monty on the Run — Voice 0 Only Simulation")
     print("=" * 60)
 
-    preprocess_stimulus()
+    extract_v0_stimulus()
     print()
     compile_sim()
     print()

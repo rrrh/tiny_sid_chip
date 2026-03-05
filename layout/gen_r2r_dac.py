@@ -13,19 +13,21 @@ Architecture:
 
 Resistors: rhigh (high-ohmic poly, ~1300 Ω/sq) for compact layout.
   R = 2 kΩ → 1.54 squares at W=2µm → L=3.08µm
-  2R = 4 kΩ → L=6.15µm
-  Series chain of 8 R: ~8 × 4.3µm (with pads) = ~34µm total → fits in 45µm
+  2R = 4 kΩ → folded as 2× R in series (two horizontal segments)
 
 Switches: sg13_lv_nmos, L=0.13µm, W=2µm
 
-Layout:
-  Top row:    series R chain (horizontal, y≈48)
-  Middle row: 2R shunt resistors (vertical, dropping from junctions)
-  Bottom row: NMOS switches
-  Metal2:     d[7:0] input pins (left edge), vout pin (right edge)
-  Metal3:     VDD (top), VSS (bottom) power rails
+Layout (all resistors horizontal):
+  Top:        VDD rail (Metal3)
+  Row 1:      Series R chain (horizontal)
+  Row 2:      2R upper fold (horizontal R segments)
+  Row 3:      2R lower fold (horizontal R segments, hairpin-connected)
+  Row 4:      NMOS switches
+  Bottom:     VSS rail (Metal3)
+  Left edge:  d[7:0] input pins (Metal2, 1.5µm pitch)
+  Right edge: vout pin (Metal2)
 
-Macro size: 36 × 38 µm
+Macro size: 36 × 18 µm
 """
 
 import sys, os
@@ -39,20 +41,17 @@ RHIGH_SHEET_R = 1300.0  # Ω/sq
 R_TARGET  = 2000.0      # Ω per unit R
 R_WIDTH   = 2.0         # µm (wide for matching)
 R_LENGTH  = R_TARGET / RHIGH_SHEET_R * R_WIDTH  # ~3.08 µm
-R2_LENGTH = R_LENGTH * 2  # ~6.15 µm for 2R
 
 NMOS_W    = 2.0         # switch width
 NMOS_L    = 0.13        # gate length (min for 1.2V)
 
 NBITS     = 8
 MACRO_W   = 36.0
-MACRO_H   = 38.0
+MACRO_H   = 18.0
 
 # Derived: resistor total length (body + contact pads + SalBlock clearance)
-PAD_W     = CONT_SIZE + 2 * CONT_ENC_GATPOLY  # ~0.30 µm
+PAD_W     = CONT_SIZE + 2 * CONT_ENC_GATPOLY  # ~0.32 µm
 R_TOTAL   = PAD_W + SAL_SPACE_CONT + R_LENGTH + SAL_SPACE_CONT + PAD_W
-R2_TOTAL  = PAD_W + SAL_SPACE_CONT + R2_LENGTH + SAL_SPACE_CONT + PAD_W
-PITCH_X   = R_TOTAL + 0.5  # pitch per bit (series R + gap)
 
 # ===========================================================================
 # Layout helpers
@@ -103,54 +102,6 @@ def draw_resistor_h(cell, layout, x, y, length, width=R_WIDTH):
     lc = (x + pad / 2, y + width / 2)
     rc = (x + total_l - pad / 2, y + width / 2)
     return lc, rc, total_l
-
-
-def draw_resistor_v(cell, layout, x, y, length, width=R_WIDTH):
-    """
-    Draw a vertical rhigh resistor at (x,y) — body runs in Y direction.
-    Bottom contact at (x, y), top contact at (x, y + total_height).
-    Returns (bottom_contact_center, top_contact_center, total_height).
-    """
-    li_gp  = layout.layer(*L_GATPOLY)
-    li_psd = layout.layer(*L_PSD)
-    li_sal = layout.layer(*L_SALBLOCK)
-    li_cnt = layout.layer(*L_CONT)
-    li_m1  = layout.layer(*L_METAL1)
-
-    pad = PAD_W
-    total_h = pad + SAL_SPACE_CONT + length + SAL_SPACE_CONT + pad
-
-    # GatPoly body (vertical: width in X, length in Y)
-    cell.shapes(li_gp).insert(rect(x, y, x + width, y + total_h))
-
-    # pSD implant
-    enc = 0.1
-    cell.shapes(li_psd).insert(rect(x - enc, y - enc, x + width + enc, y + total_h + enc))
-
-    # SalBlock
-    sal_y1 = y + pad + SAL_SPACE_CONT - SAL_ENC_GATPOLY
-    sal_y2 = y + pad + SAL_SPACE_CONT + length + SAL_ENC_GATPOLY
-    cell.shapes(li_sal).insert(rect(x - SAL_ENC_GATPOLY, sal_y1,
-                                     x + width + SAL_ENC_GATPOLY, sal_y2))
-
-    # Bottom contact + Metal1
-    cx = x + width / 2 - CONT_SIZE / 2
-    cy_b = y + pad / 2 - CONT_SIZE / 2
-    cell.shapes(li_cnt).insert(rect(cx, cy_b, cx + CONT_SIZE, cy_b + CONT_SIZE))
-    cell.shapes(li_m1).insert(rect(cx - CONT_ENC_M1, cy_b - CONT_ENC_M1,
-                                    cx + CONT_SIZE + CONT_ENC_M1,
-                                    cy_b + CONT_SIZE + CONT_ENC_M1))
-
-    # Top contact + Metal1
-    cy_t = y + total_h - pad / 2 - CONT_SIZE / 2
-    cell.shapes(li_cnt).insert(rect(cx, cy_t, cx + CONT_SIZE, cy_t + CONT_SIZE))
-    cell.shapes(li_m1).insert(rect(cx - CONT_ENC_M1, cy_t - CONT_ENC_M1,
-                                    cx + CONT_SIZE + CONT_ENC_M1,
-                                    cy_t + CONT_SIZE + CONT_ENC_M1))
-
-    bc = (x + width / 2, y + pad / 2)
-    tc = (x + width / 2, y + total_h - pad / 2)
-    return bc, tc, total_h
 
 
 def draw_nmos(cell, layout, x, y, w=NMOS_W, l=NMOS_L):
@@ -205,9 +156,6 @@ def draw_via1(cell, layout, x, y):
     cell.shapes(li_m2).insert(rect(x - e2, y - e2, x + e2, y + e2))
 
 
-# ===========================================================================
-# Main: build the R-2R DAC
-# ===========================================================================
 def draw_via2(cell, layout, x, y):
     """Via2 with M2+M3 pads."""
     li_v2 = layout.layer(*L_VIA2)
@@ -247,27 +195,15 @@ def draw_via4(cell, layout, x, y):
     cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
 
 
-def draw_topvia1(cell, layout, x, y):
-    """TopVia1 with M5+TM1 pads. TM1 pad enforces min width 1.64µm."""
-    li_tv1 = layout.layer(*L_TOPVIA1)
-    li_m5  = layout.layer(*L_METAL5)
-    li_tm1 = layout.layer(*L_TOPMETAL1)
-    hs = TOPVIA1_SIZE / 2
-    cell.shapes(li_tv1).insert(rect(x - hs, y - hs, x + hs, y + hs))
-    e5 = TOPVIA1_ENC_M5 + hs
-    cell.shapes(li_m5).insert(rect(x - e5, y - e5, x + e5, y + e5))
-    TM1_MIN_HALF = 1.64 / 2
-    et = max(TOPVIA1_ENC_TM1 + hs, TM1_MIN_HALF)
-    cell.shapes(li_tm1).insert(rect(x - et, y - et, x + et, y + et))
-
-
 def draw_power_via_stack(cell, layout, x, y):
-    """Via stack from M3 to M5 for power rail connection.
-    No TM1: R2R DAC draws µA current, M5 is sufficient."""
+    """Via stack from M3 to M5 for power rail connection."""
     draw_via3(cell, layout, x, y)
     draw_via4(cell, layout, x, y)
 
 
+# ===========================================================================
+# Main: build the R-2R DAC (compact horizontal layout)
+# ===========================================================================
 def build_r2r_dac():
     layout = new_layout()
     top = layout.create_cell("r2r_dac_8bit")
@@ -277,137 +213,149 @@ def build_r2r_dac():
     li_m1  = layout.layer(*L_METAL1)
     li_m2  = layout.layer(*L_METAL2)
     li_m3  = layout.layer(*L_METAL3)
-    wire_w = M1_WIDTH  # min width — keeps clearance to NMOS source pad
+    wire_w = M1_WIDTH
 
-    # --- Pass 1: compute series chain positions ---
-    r_total = PAD_W + SAL_SPACE_CONT + R_LENGTH + SAL_SPACE_CONT + PAD_W
-    r2_total_h = PAD_W + SAL_SPACE_CONT + R2_LENGTH + SAL_SPACE_CONT + PAD_W
-    gap = 0.18  # gap between consecutive series R
+    # --- Y coordinates for each row ---
+    #   VDD rail:      16.5 – 18.0
+    #   Series R:      14.0 – 16.0  (R_WIDTH = 2.0)
+    #   2R upper fold: 11.0 – 13.0
+    #   2R lower fold:  8.5 – 10.5
+    #   NMOS switches:  5.5 –  7.5  (NMOS_W = 2.0)
+    #   Gate contacts:  ~4.5
+    #   Pin routing:    2.0 – 4.0
+    #   VSS rail:       0.0 –  1.5
+    series_y  = 14.0
+    r2_upper_y = 11.0
+    r2_lower_y =  8.5
+    sw_y       =  5.5
 
-    chain_width = NBITS * r_total + (NBITS - 1) * gap
-    x_start = (MACRO_W - chain_width) / 2  # center the chain
+    # --- X layout: series chain centered ---
+    gap = 0.18
+    chain_width = NBITS * R_TOTAL + (NBITS - 1) * gap
+    x_start = (MACRO_W - chain_width) / 2
 
-    series_y = 33.5  # Y for series chain
-
-    # --- Pass 2: draw everything ---
+    # --- Draw everything ---
     x_cursor = x_start
     vref_contact = None
     vout_contact = None
-    prev_rc = None          # track right contact of previous series R (fix 1b)
-    switch_sources = []     # collect switch source positions (fix 1d)
+    prev_rc = None
+    switch_sources = []
+
+    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV  # 0.32 µm
 
     for i, bit in enumerate(range(NBITS - 1, -1, -1)):
-        # Series R
+        # ---- Series R (horizontal, top row) ----
         r_lc, r_rc, _ = draw_resistor_h(top, layout, x=x_cursor, y=series_y,
                                           length=R_LENGTH)
         if i == 0:
-            vref_contact = r_lc  # leftmost = Vref
-        vout_contact = r_rc  # rightmost = Vout (updated each iteration)
+            vref_contact = r_lc
+        vout_contact = r_rc
 
-        # --- Fix 1b: bridge gap between consecutive series resistors ---
+        # Bridge gap between consecutive series resistors
         if prev_rc is not None:
             bridge_y = series_y + R_WIDTH / 2
             top.shapes(li_m1).insert(rect(prev_rc[0] - wire_w / 2, bridge_y - wire_w / 2,
                                             r_lc[0] + wire_w / 2, bridge_y + wire_w / 2))
         prev_rc = r_rc
 
-        jx, jy = r_rc
+        jx, jy = r_rc  # junction point
 
-        # 2R shunt (vertical, top aligned just below junction)
-        r2_y = jy - r2_total_h - 0.3
-        r2_x = jx - R_WIDTH / 2
-        r2_bc, r2_tc, _ = draw_resistor_v(top, layout, x=r2_x, y=r2_y,
-                                           length=R2_LENGTH)
+        # ---- Folded 2R: two horizontal R segments in series ----
+        # Upper fold: right contact connects to junction above
+        # Lower fold: right contact connects to NMOS drain below
+        # Left contacts of both folds connected by M1 hairpin
 
-        # M1 wire: junction → 2R top contact
-        top.shapes(li_m1).insert(rect(jx - wire_w / 2, r2_tc[1],
+        r2u_lc, r2u_rc, _ = draw_resistor_h(top, layout, x=x_cursor, y=r2_upper_y,
+                                               length=R_LENGTH)
+        r2l_lc, r2l_rc, _ = draw_resistor_h(top, layout, x=x_cursor, y=r2_lower_y,
+                                               length=R_LENGTH)
+
+        # M1 wire: junction → 2R upper fold right contact
+        top.shapes(li_m1).insert(rect(jx - wire_w / 2, r2u_rc[1],
                                         jx + wire_w / 2, jy))
 
-        # NMOS switch below 2R — align drain center with junction x
-        sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV  # 0.32 µm
-        sw_x = jx - (sd_ext + NMOS_L + sd_ext / 2)  # drain at jx
-        sw_y_pos = r2_y - 3.0
-        sw = draw_nmos(top, layout, x=sw_x, y=sw_y_pos)
+        # M1 hairpin: upper fold left contact → lower fold left contact
+        hp_x = r2u_lc[0]
+        top.shapes(li_m1).insert(rect(hp_x - wire_w / 2, r2l_lc[1],
+                                        hp_x + wire_w / 2, r2u_lc[1]))
+
+        # ---- NMOS switch ----
+        # Align drain center X with junction X (= right contact X of fold)
+        drain_target_x = r2l_rc[0]
+        sw_x = drain_target_x - (sd_ext + NMOS_L + sd_ext / 2)
+        sw = draw_nmos(top, layout, x=sw_x, y=sw_y)
         switch_sources.append(sw['source'])
 
-        # M1 wire: 2R bottom contact → switch drain
-        top.shapes(li_m1).insert(rect(r2_bc[0] - wire_w / 2, sw['drain'][1],
-                                        r2_bc[0] + wire_w / 2, r2_bc[1]))
+        # M1 wire: 2R lower fold right contact → switch drain
+        top.shapes(li_m1).insert(rect(drain_target_x - wire_w / 2, sw['drain'][1],
+                                        drain_target_x + wire_w / 2, r2l_rc[1]))
 
-        # Gate contact + Via1 → Metal2 for d[bit] input
+        # ---- Gate contact + Via1 → M2 for d[bit] input ----
         gate_x, gate_y = sw['gate']
-        gc_y = gate_y - 0.5  # contact below VSS bus — clears drain/source M1
+        gc_y = gate_y - 0.5
 
-        # Extend GatPoly from existing gate bottom down to contact pad
-        gc_half_gp = CONT_SIZE / 2 + CONT_ENC_GATPOLY  # 0.16
+        # Extend GatPoly down to contact pad
+        gc_half_gp = CONT_SIZE / 2 + CONT_ENC_GATPOLY
         top.shapes(li_gp).insert(rect(gate_x - gc_half_gp, gc_y - gc_half_gp,
                                         gate_x + gc_half_gp, gate_y))
 
-        # Gate contact (Cont + M1 pad) on extended GatPoly
-        gc_hs = CONT_SIZE / 2  # 0.08
+        # Gate contact (Cont + M1 pad)
+        gc_hs = CONT_SIZE / 2
         top.shapes(li_cnt).insert(rect(gate_x - gc_hs, gc_y - gc_hs,
                                         gate_x + gc_hs, gc_y + gc_hs))
-        gc_half_m1 = CONT_SIZE / 2 + CONT_ENC_M1  # 0.12
+        gc_half_m1 = CONT_SIZE / 2 + CONT_ENC_M1
         top.shapes(li_m1).insert(rect(gate_x - gc_half_m1, gc_y - gc_half_m1,
                                         gate_x + gc_half_m1, gc_y + gc_half_m1))
 
-        # Via1 at gate contact (M1 pads merge)
+        # Via1 at gate contact
         draw_via1(top, layout, gate_x, gc_y)
 
-        # Metal2/3 route: left edge pin → gate via (M3 horizontal, M2 vertical)
-        pin_y = 2.5 + bit * 3.5
-        hw = M2_WIDTH / 2  # half-width for centering
+        # Metal2/3 route: left edge pin → gate via
+        pin_y = 2.0 + bit * 1.5
+        hw = M2_WIDTH / 2
 
-        # 1) M2 pin extension from x=0 to x=1.5 at pin_y
+        # M2 pin stub on left edge
         top.shapes(li_m2).insert(rect(0.0, pin_y - hw, 1.5, pin_y + hw))
 
-        # 2) Via2 at (1.5, pin_y) — M2 up to M3
+        # Via2 at (1.5, pin_y) — M2 to M3
         draw_via2(top, layout, 1.5, pin_y)
 
-        # 3) M3 horizontal from x=1.5 to gate_x at pin_y
+        # M3 horizontal from left to gate_x
         top.shapes(li_m3).insert(rect(1.5, pin_y - hw, gate_x, pin_y + hw))
 
-        # 4) Via2 at (gate_x, pin_y) — M3 back to M2
+        # Via2 at (gate_x, pin_y) — M3 back to M2
         draw_via2(top, layout, gate_x, pin_y)
 
-        # 5) M2 vertical jog from pin_y to gc_y at gate_x
+        # M2 vertical jog from pin_y to gc_y
         top.shapes(li_m2).insert(rect(gate_x - hw, min(pin_y, gc_y) - 0.1,
                                         gate_x + hw, max(pin_y, gc_y) + 0.1))
 
-        x_cursor += r_total + gap
+        x_cursor += R_TOTAL + gap
 
     # --- Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS) ---
-    # Taps distributed along the switch row (y ≈ 24-28)
     for xt in [3.0, 9.0, 15.0, 21.0, 27.0, 33.0]:
-        draw_ptap(top, layout, xt, 22.0)
+        draw_ptap(top, layout, xt, sw_y - 1.5)
 
-    # --- Vout pin (right edge, Metal2 → Metal3 route to avoid d[0] short) ---
+    # --- Vout pin (right edge) ---
     vout_via_x = vout_contact[0]
     vout_via_y = vout_contact[1]
-    vout_pin_y = 18.0
+    vout_pin_y = 9.0
     hw = M2_WIDTH / 2
 
-    # Via1 at vout_contact (M1→M2, existing)
     draw_via1(top, layout, vout_via_x, vout_via_y)
-
-    # Via2 at vout_contact (M2→M3)
     draw_via2(top, layout, vout_via_x, vout_via_y)
 
-    # M3 vertical from vout_via_y down to vout_pin_y at vout_via_x
-    # Extend below vout_pin_y by hw to fully overlap with horizontal at junction
+    # M3 vertical from junction down to vout_pin_y
     top.shapes(li_m3).insert(rect(vout_via_x - hw, vout_pin_y - hw,
                                     vout_via_x + hw, vout_via_y))
 
-    # M3 horizontal from vout_via_x to near-right-edge at vout_pin_y
-    # Start at vout_via_x - hw to fully overlap with vertical at junction
+    # M3 horizontal to right edge
     vout_via2_x = MACRO_W - 0.3
     top.shapes(li_m3).insert(rect(vout_via_x - hw, vout_pin_y - hw,
                                     vout_via2_x, vout_pin_y + hw))
 
-    # Via2 near right edge to drop back to M2
+    # Via2 near right edge → M2 pin
     draw_via2(top, layout, vout_via2_x, vout_pin_y)
-
-    # M2 short run from via2 to MACRO_W at vout_pin_y (pin stays M2)
     top.shapes(li_m2).insert(rect(vout_via2_x - hw, vout_pin_y - 0.5,
                                     MACRO_W, vout_pin_y + 0.5))
 
@@ -417,56 +365,39 @@ def build_r2r_dac():
     # --- VSS rail (bottom, Metal3) ---
     top.shapes(li_m3).insert(rect(0.0, 0.0, MACRO_W, 1.5))
 
-    # --- Fix 1c: Vref → VDD rail ---
-    # vref_contact is on M1 at the left end of the series chain.
-    # Route: M1 vertical up → via1 → M2 → via2 → M3 (VDD rail at y=43-45)
+    # --- Vref → VDD rail ---
     vref_x = vref_contact[0]
     vref_y = vref_contact[1]
-    vdd_tap_y = MACRO_H - 0.75  # center of VDD rail
-    # M1 vertical from vref contact up to via point
+    vdd_tap_y = MACRO_H - 0.75
     top.shapes(li_m1).insert(rect(vref_x - wire_w / 2, vref_y,
                                     vref_x + wire_w / 2, vdd_tap_y))
-    # via1 at top of M1 wire
     draw_via1(top, layout, vref_x, vdd_tap_y)
-    # via2 to reach M3 VDD rail
     draw_via2(top, layout, vref_x, vdd_tap_y)
 
-    # --- Fix 1d: Switch sources → VSS rail ---
-    # Route each source left by 0.15µm to clear gate via1 M1 pads (M1.b ≥ 0.18).
-    # L-shaped M1: horizontal from source pad left, then vertical down to bus.
+    # --- Switch sources → VSS rail ---
     if switch_sources:
-        bus_y = switch_sources[0][1] - 0.8  # y below switches, above gate vias
-        stub_offset = 0.15  # offset left of source to clear gate via M1 pad
-        # M1 vertical stubs offset left, with short bridge to source pad
+        bus_y = switch_sources[0][1] - 0.8
+        stub_offset = 0.15
         for sx, sy in switch_sources:
             stub_x = sx - stub_offset
-            # Horizontal bridge at source y from stub to source pad
             top.shapes(li_m1).insert(rect(stub_x - wire_w / 2, sy - wire_w / 2,
                                             sx + wire_w / 2, sy + wire_w / 2))
-            # Vertical stub from bridge down to bus
             top.shapes(li_m1).insert(rect(stub_x - wire_w / 2, bus_y - wire_w / 2,
                                             stub_x + wire_w / 2, sy))
-        # M1 horizontal bus connecting all stubs
-        left_x = switch_sources[0][0] - stub_offset
         right_x = switch_sources[-1][0] - stub_offset
-        # Extend bus left to via point at x=1.0 (clear of all gate vias)
         vss_via_x = 1.0
         top.shapes(li_m1).insert(rect(vss_via_x - wire_w / 2, bus_y - wire_w / 2,
                                         right_x + wire_w / 2, bus_y + wire_w / 2))
-        # Via stack at x=1.0: via1 → M2, via2 → M3 VSS rail
-        vss_tap_y = 0.75  # center of VSS rail
+        vss_tap_y = 0.75
         draw_via1(top, layout, vss_via_x, bus_y)
         draw_via2(top, layout, vss_via_x, bus_y)
-        # M3 vertical from bus down to VSS rail
         top.shapes(li_m3).insert(rect(vss_via_x - M2_WIDTH / 2, vss_tap_y,
                                         vss_via_x + M2_WIDTH / 2, bus_y))
-        # Ensure M3 overlaps with via2 pad at bus_y and with VSS rail at bottom
         draw_via2(top, layout, vss_via_x, vss_tap_y)
 
-    # --- Power via stacks (M3→M4→M5→TM1) along VDD/VSS rails ---
-    # Place at 2µm pitch for low-resistance power delivery
-    vdd_rail_y = MACRO_H - 0.75  # center of VDD M3 rail
-    vss_rail_y = 0.75            # center of VSS M3 rail
+    # --- Power via stacks along VDD/VSS rails ---
+    vdd_rail_y = MACRO_H - 0.75
+    vss_rail_y = 0.75
     for px in [x * 2.0 + 1.0 for x in range(int(MACRO_W / 2))]:
         if px < MACRO_W - 0.5:
             draw_power_via_stack(top, layout, px, vdd_rail_y)
@@ -474,7 +405,7 @@ def build_r2r_dac():
 
     # --- Pin labels ---
     for bit in range(NBITS):
-        pin_y = 2.5 + bit * 3.5
+        pin_y = 2.0 + bit * 1.5
         add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                       rect(0.0, pin_y - 0.5, 0.5, pin_y + 0.5),
                       f"d[{bit}]", layout)
@@ -489,7 +420,7 @@ def build_r2r_dac():
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
                   rect(0.0, 0.0, MACRO_W, 1.5), "vss", layout)
 
-    # --- PR Boundary (IHP SG13G2: layer 189/0) ---
+    # --- PR Boundary ---
     li_bnd = layout.layer(189, 0)
     top.shapes(li_bnd).insert(rect(0, 0, MACRO_W, MACRO_H))
 
@@ -504,10 +435,9 @@ if __name__ == "__main__":
     layout, top = build_r2r_dac()
     layout.write(outpath)
 
-    r_total = PAD_W + SAL_SPACE_CONT + R_LENGTH + SAL_SPACE_CONT + PAD_W
-    chain_w = NBITS * r_total + (NBITS - 1) * 0.18
+    chain_w = NBITS * R_TOTAL + (NBITS - 1) * 0.18
     print(f"Wrote {outpath}")
     print(f"  R = {R_TARGET:.0f} Ω  (rhigh: W={R_WIDTH} µm, L={R_LENGTH:.2f} µm)")
-    print(f"  2R = {R_TARGET*2:.0f} Ω  (L={R2_LENGTH:.2f} µm)")
-    print(f"  Series R unit length: {r_total:.2f} µm, chain: {chain_w:.1f} µm")
+    print(f"  2R = {R_TARGET*2:.0f} Ω  (folded: 2× R={R_LENGTH:.2f} µm in series)")
+    print(f"  Series R unit length: {R_TOTAL:.2f} µm, chain: {chain_w:.1f} µm")
     print(f"  Macro: {MACRO_W} × {MACRO_H} µm = {MACRO_W*MACRO_H:.0f} µm²")
