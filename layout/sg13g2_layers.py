@@ -47,7 +47,7 @@ CONT_SIZE       = 0.16
 CONT_SPACE      = 0.18
 CONT_ENC_ACTIV  = 0.08   # DRC min 0.07, +0.01 margin
 CONT_ENC_GATPOLY = 0.08  # DRC min 0.07, +0.01 margin
-CONT_ENC_M1     = 0.04   # DRC min 0.01, +0.03 margin (ensures M1 pad ≥ 0.24 µm > M1_WIDTH)
+CONT_ENC_M1     = 0.07   # M1 pad = (0.16+0.14)² = 0.09µm² ≥ M1.d min area
 
 # Metal1
 M1_WIDTH        = 0.16
@@ -61,25 +61,25 @@ M2_SPACE        = 0.21
 VIA1_SIZE       = 0.19
 VIA1_SPACE      = 0.22
 VIA1_ENC_M1     = 0.01
-VIA1_ENC_M2     = 0.005
+VIA1_ENC_M2     = 0.10   # pad = 0.39µm → area ≥ 0.144µm² (M2.d)
 
 # Via2
 VIA2_SIZE       = 0.19
 VIA2_SPACE      = 0.22
-VIA2_ENC_M2     = 0.005
-VIA2_ENC_M3     = 0.005
+VIA2_ENC_M2     = 0.10
+VIA2_ENC_M3     = 0.10
 
 # Via3
 VIA3_SIZE       = 0.19
 VIA3_SPACE      = 0.22
-VIA3_ENC_M3     = 0.005
-VIA3_ENC_M4     = 0.005
+VIA3_ENC_M3     = 0.10
+VIA3_ENC_M4     = 0.10
 
 # Via4
 VIA4_SIZE       = 0.19
 VIA4_SPACE      = 0.22
-VIA4_ENC_M4     = 0.005
-VIA4_ENC_M5     = 0.005
+VIA4_ENC_M4     = 0.10
+VIA4_ENC_M5     = 0.10
 
 # TopVia1
 TOPVIA1_SIZE    = 0.42
@@ -121,6 +121,10 @@ MIM_CAP_DENSITY = 1.5     # fF/µm²
 # ===========================================================================
 import klayout.db as pya
 
+def snap5(val):
+    """Snap value to 5nm manufacturing grid."""
+    return round(val / 0.005) * 0.005
+
 def new_layout(dbu=0.001):
     """Create a layout with dbu in µm (0.001 = 1nm grid)."""
     layout = pya.Layout()
@@ -128,11 +132,11 @@ def new_layout(dbu=0.001):
     return layout
 
 def um(val):
-    """Convert µm to database units (1nm grid)."""
-    return int(round(val / 0.001))
+    """Convert µm to database units (1nm grid), snapped to 5nm."""
+    return int(round(val / 0.005) * 5)
 
 def rect(x1, y1, x2, y2):
-    """Create a pya.Box from µm coordinates."""
+    """Create a pya.Box from µm coordinates, snapped to 5nm grid."""
     return pya.Box(um(x1), um(y1), um(x2), um(y2))
 
 def add_pin_label(cell, layer_pin, layer_lbl, box, name, layout):
@@ -157,8 +161,32 @@ def draw_ptap(cell, layout, x, y, w=0.36, h=0.36):
     li_m1   = layout.layer(*L_METAL1)
     # Activ
     cell.shapes(li_act).insert(rect(x, y, x + w, y + h))
-    # pSD implant (with enclosure)
-    cell.shapes(li_psd).insert(rect(x - 0.1, y - 0.1, x + w + 0.1, y + h + 0.1))
+    # pSD implant (with enclosure — pSD.c ≥ 0.18µm)
+    psd_enc = 0.18
+    cell.shapes(li_psd).insert(rect(x - psd_enc, y - psd_enc, x + w + psd_enc, y + h + psd_enc))
+    # Contact (centered)
+    cx = x + (w - CONT_SIZE) / 2
+    cy = y + (h - CONT_SIZE) / 2
+    cell.shapes(li_cnt).insert(rect(cx, cy, cx + CONT_SIZE, cy + CONT_SIZE))
+    # Metal1 pad
+    cell.shapes(li_m1).insert(rect(cx - CONT_ENC_M1, cy - CONT_ENC_M1,
+                                    cx + CONT_SIZE + CONT_ENC_M1,
+                                    cy + CONT_SIZE + CONT_ENC_M1))
+
+
+def draw_ntap(cell, layout, x, y, w=0.36, h=0.36):
+    """Draw an N+ NWell tie for latch-up protection (LU.a).
+    Places Activ+Contact+Metal1 inside NWell at (x,y).
+    IHP SG13G2: ntap = nactiv inside NWell (no nSD needed)."""
+    li_act  = layout.layer(*L_ACTIV)
+    li_cnt  = layout.layer(*L_CONT)
+    li_m1   = layout.layer(*L_METAL1)
+    li_nw   = layout.layer(*L_NWELL)
+    # NWell (local, merges with existing NWell)
+    nw_enc = NWELL_ENC_ACTIV
+    cell.shapes(li_nw).insert(rect(x - nw_enc, y - nw_enc, x + w + nw_enc, y + h + nw_enc))
+    # Activ (no pSD, no nSD — nactiv by default)
+    cell.shapes(li_act).insert(rect(x, y, x + w, y + h))
     # Contact (centered)
     cx = x + (w - CONT_SIZE) / 2
     cy = y + (h - CONT_SIZE) / 2

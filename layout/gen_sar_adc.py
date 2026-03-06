@@ -101,18 +101,19 @@ def draw_cap_array(cell, layout, x0, y0, num_units, side, cols=16):
 
 
 def draw_nmos_transistor(cell, layout, x, y, w, l):
-    """Draw NMOS transistor, return pin centers dict."""
+    """Draw NMOS transistor, return pin centers dict.
+    IHP SG13G2: NMOS = Activ + GatPoly (no NWell, no pSD, no nSD).
+    nSD layer (7,0) is an LVS exclusion marker — do NOT draw it on NMOS."""
     li_act = layout.layer(*L_ACTIV)
     li_gp  = layout.layer(*L_GATPOLY)
-    li_nsd = layout.layer(*L_NSD)
     li_cnt = layout.layer(*L_CONT)
     li_m1  = layout.layer(*L_METAL1)
 
-    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    # sd_ext: ensure Cnt.f (contact-to-gate ≥ 0.11µm)
+    sd_ext = max(CONT_SIZE + 2 * CONT_ENC_ACTIV, CONT_SIZE + 2 * 0.11)  # = 0.38µm
     act_len = sd_ext + l + sd_ext
 
     cell.shapes(li_act).insert(rect(x, y, x + act_len, y + w))
-    cell.shapes(li_nsd).insert(rect(x - 0.1, y - 0.1, x + act_len + 0.1, y + w + 0.1))
 
     gp_x1 = x + sd_ext
     cell.shapes(li_gp).insert(rect(gp_x1, y - GATPOLY_EXT,
@@ -151,7 +152,8 @@ def draw_pmos_transistor(cell, layout, x, y, w, l, draw_nwell=True):
     li_cnt  = layout.layer(*L_CONT)
     li_m1   = layout.layer(*L_METAL1)
 
-    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    # sd_ext: ensure Cnt.f (contact-to-gate ≥ 0.11µm)
+    sd_ext = max(CONT_SIZE + 2 * CONT_ENC_ACTIV, CONT_SIZE + 2 * 0.11)  # = 0.38µm
     act_len = sd_ext + l + sd_ext
 
     # NWell (enclose Activ) — can be skipped when a shared NWell is drawn
@@ -161,7 +163,11 @@ def draw_pmos_transistor(cell, layout, x, y, w, l, draw_nwell=True):
                                         x + act_len + nw_enc, y + w + nw_enc))
 
     cell.shapes(li_act).insert(rect(x, y, x + act_len, y + w))
-    cell.shapes(li_psd).insert(rect(x - 0.1, y - 0.1, x + act_len + 0.1, y + w + 0.1))
+    # pSD enclosure ≥ 0.18µm (pSD.c), gate direction ≥ 0.30µm (pSD.i)
+    psd_enc_activ = 0.18
+    psd_enc_gate = 0.30
+    cell.shapes(li_psd).insert(rect(x - psd_enc_activ, y - psd_enc_gate,
+                                     x + act_len + psd_enc_activ, y + w + psd_enc_gate))
 
     gp_x1 = x + sd_ext
     cell.shapes(li_gp).insert(rect(gp_x1, y - GATPOLY_EXT,
@@ -360,8 +366,10 @@ def draw_sar_logic_block(cell, layout, x, y, w, h):
         # Shared NWell for entire PMOS row (instead of per-transistor NWell)
         if r % 2 == 1:
             nw_enc = NWELL_ENC_ACTIV
+            # act_len = sd_ext + l + sd_ext = 0.38 + 0.13 + 0.38 = 0.89
+            act_len_sar = 0.89
             cell.shapes(li_nw).insert(rect(x - nw_enc, ry + 0.2 - nw_enc,
-                                            x + (ncols - 1) * 1.5 + 0.77 + nw_enc,
+                                            x + (ncols - 1) * 1.5 + act_len_sar + nw_enc,
                                             ry + 0.2 + 0.8 + nw_enc))
 
         # Power rails per row
@@ -473,16 +481,25 @@ def build_sar_adc():
 
     for idx, ba in enumerate(bit_areas):
         cx = ba['center'][0]
-        # Bottom plate: via stack at bottom edge of M5 plate (merges with M5)
-        bot_y = ba['y'] + 0.5
-        draw_via_stack_m2_to_m5(top, layout, cx, bot_y)
-        # Top plate: via stack at top edge of cap
-        top_y = ba['y'] + ba['h'] + MIM_ENC_M5 + TOPVIA1_ENC_M5 + TOPVIA1_SIZE / 2 + 0.30
-        draw_via_stack_m2_to_tm1(top, layout, cx, top_y)
+        # Top plate via must be inside MIM (MIM.d: MIM enc of TopVia1 ≥ 0.36µm)
+        top_y = ba['y'] + ba['h'] - TOPVIA1_SIZE / 2 - 0.36
+        # Bottom plate via: M2 pads need center-to-center > pad_size + M2_SPACE
+        # (0.39 + 0.21 = 0.60µm) to avoid M2.b violations; if not enough room,
+        # use a single combined via stack.
+        pad_size = VIA2_SIZE + 2 * VIA2_ENC_M2  # 0.39µm
+        min_c2c_for_spacing = pad_size + M2_SPACE  # 0.60µm
+        if (top_y - ba['y'] - 0.10) < min_c2c_for_spacing:
+            # Small cap: single combined via stack at top_y for both plates
+            draw_via_stack_m2_to_tm1(top, layout, cx, top_y)
+        else:
+            # Large cap: separate bottom and top via stacks
+            bot_y = ba['y'] + 0.15
+            draw_via_stack_m2_to_m5(top, layout, cx, bot_y)
+            draw_via_stack_m2_to_tm1(top, layout, cx, top_y)
 
     # Common top-plate bus (sampling node) on M2
     if bit_areas:
-        sampling_y = bit_areas[0]['y'] + bit_areas[0]['h'] + MIM_ENC_M5 + TOPVIA1_ENC_M5 + TOPVIA1_SIZE / 2 + 0.30
+        sampling_y = bit_areas[0]['y'] + bit_areas[0]['h'] - TOPVIA1_SIZE / 2 - 0.36
         first_cx = bit_areas[0]['center'][0]
         last_cx = bit_areas[-1]['center'][0]
         top.shapes(li_m2).insert(rect(first_cx - M2_WIDTH/2, sampling_y - M2_WIDTH/2,
@@ -529,8 +546,9 @@ def build_sar_adc():
             sx2 = sx1 + TM1_MIN
         # Strap spans from first cap bottom to last cap top (with TM1 enc)
         first_y = caps[0]['y'] - TM1_ENC
-        top_via_offset = MIM_ENC_M5 + TOPVIA1_ENC_M5 + TOPVIA1_SIZE / 2 + 0.30
-        last_y = caps[-1]['y'] + caps[-1]['h'] + top_via_offset + TV1_HALF
+        # TopVia1 is now inside MIM region; TM1 strap extends to cover it
+        top_via_y = caps[-1]['y'] + caps[-1]['h'] - TOPVIA1_SIZE / 2 - 0.36
+        last_y = top_via_y + TV1_HALF
         top.shapes(li_tm1).insert(rect(sx1, first_y, sx2, last_y))
         strap_positions.append((sx1, first_y, sx2, last_y))
 
@@ -577,8 +595,8 @@ def build_sar_adc():
     draw_ptap(top, layout, 6.0, 17.0)
     # Along comparator NMOS region (x=27-37, y=19-35)
     # y=22.0 clears SAR logic M1 rail at y=21.34 (M1.b ≥ 0.18µm)
-    for xt in [26.0, 30.0, 34.0, 38.0]:
-        draw_ptap(top, layout, xt, 22.0)
+    for xt in [26.0, 30.5, 34.0, 38.0]:
+        draw_ptap(top, layout, xt, 23.5)
         draw_ptap(top, layout, xt, 31.0)
     # SAR logic perimeter taps (block at x=27-42, y=4-22)
     # Place outside the dense transistor grid to avoid Activ spacing issues
@@ -592,6 +610,28 @@ def build_sar_adc():
     # Near cap region
     for xt in [2.0, 10.0, 18.0]:
         draw_ptap(top, layout, xt, 2.5)
+
+    # =====================================================================
+    # NWell ties (ntap) near PMOS regions for latch-up (LU.a)
+    # =====================================================================
+    # Comparator PMOS (p1 at x=27, y=30; p2 at x=32, y=30; pr1 at x=28, y=38; pr2 at x=33, y=38)
+    # Place ntaps inside their NWell regions
+    for ntx, nty in [(27.0, 32.5), (32.0, 32.5), (28.5, 39.5), (33.5, 39.5)]:
+        draw_ntap(top, layout, ntx, nty)
+
+    # SAR logic PMOS rows — place ntap at right end of each PMOS row
+    sar_x = 27.0
+    sar_y_base = 4.0
+    sar_row_h = 2.5
+    sar_nrows = int(SAR_H / sar_row_h)
+    for r in range(sar_nrows):
+        if r % 2 == 1:  # PMOS rows
+            ry = sar_y_base + r * sar_row_h
+            # Place ntap inside PMOS row NWell (NWell merges, avoids NW.b1)
+            # Last PMOS Activ ends at x + (ncols-1)*1.5 + 0.89 = 38.39
+            # Ntap at x=38.65 → gap = 38.65 - 38.39 = 0.26µm > Act.b(0.21)
+            # Ntap NWell left = 38.65 - 0.31 = 38.34 < 38.7 → overlaps PMOS NWell
+            draw_ntap(top, layout, 38.65, ry + 0.4)
 
     # =====================================================================
     # Metal routing (simplified — key signal paths)
@@ -686,8 +726,8 @@ def build_sar_adc():
     outn_x, outn_y = comp['outn']
     sar_top_y = 22.0  # SAR logic top edge
     # Offset M2 verticals right to clear SAR logic M2 straps (left strap at x=27-27.4)
-    outp_m2_x = 28.2  # well right of SAR left M2 strap (27.4)
-    outn_m2_x = 33.2  # well right of outp
+    outp_m2_x = 29.0  # clear of outp via1 M2 pad and SAR bit bus (M2.b ≥ 0.21)
+    outn_m2_x = 34.0  # clear of outn via1 M2 pad
     # outp: via1 at drain → M1 jog to outp_m2_x → via1 → M2 vertical
     draw_via1(top, layout, outp_x, outp_y)
     top.shapes(li_m2).insert(rect(outp_x - M2_WIDTH / 2, outp_y - M2_WIDTH / 2,
@@ -714,7 +754,14 @@ def build_sar_adc():
     for sar_bit in range(NBITS):
         ba = bit_areas[sar_bit + 1]  # +1: bit_areas[0] is dummy cap
         cap_cx = ba['center'][0]
-        cap_bot_y = ba['y'] + 0.5
+        # Match bottom plate via y position (same logic as via placement)
+        _top_y = ba['y'] + ba['h'] - TOPVIA1_SIZE / 2 - 0.36
+        _pad_size = VIA2_SIZE + 2 * VIA2_ENC_M2  # 0.39µm
+        _min_c2c = _pad_size + M2_SPACE  # 0.60µm
+        if (_top_y - ba['y'] - 0.10) < _min_c2c:
+            cap_bot_y = _top_y  # single combined stack
+        else:
+            cap_bot_y = ba['y'] + 0.15
         bus_y = 23.0 + sar_bit * 1.5
         m3_x = m3_x_positions[sar_bit]
         tgt_y = target_y_override.get(sar_bit, cap_bot_y)
@@ -750,7 +797,7 @@ def build_sar_adc():
     clk_pin_y = 5.0
     tail_gate_x = comp['clk'][0]
     tail_gate_y = comp['clk'][1]
-    m3_clk_y = 3.5   # M3 horizontal route y (below cap M3 at ~5.25)
+    m3_clk_y = 3.0   # M3 horizontal route y (below bit 7 M3 via pads at y=4.0)
     m3_clk_x = 30.0  # M3 vertical x (offset from tail source M3 at x≈28)
     # Route M2 from clk pin inward to (1.0, 3.5), then via2 → M3.
     # Keeps via2/M3 inside OBS area, away from wrapper via2 near pin.
