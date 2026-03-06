@@ -18,7 +18,7 @@
           "orientation": "N"
         },
         "u_ramp_dac": {
-          "location": [159.6, 4],
+          "location": [165.6, 4],
           "orientation": "N"
         }
       },
@@ -46,7 +46,7 @@
     "pwm_comp": {
       "instances": {
         "u_comp": {
-          "location": [159.6, 24],
+          "location": [189.6, 23],
           "orientation": "N"
         }
       },
