@@ -97,7 +97,7 @@ def draw_nmos(cell, layout, x, y, w, l):
     li_cnt = layout.layer(*L_CONT)
     li_m1  = layout.layer(*L_METAL1)
 
-    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    sd_ext = SD_EXT
     act_len = sd_ext + l + sd_ext
 
     cell.shapes(li_act).insert(rect(x, y, x + act_len, y + w))
@@ -137,7 +137,7 @@ def draw_pmos(cell, layout, x, y, w, l, draw_nwell=True):
     li_cnt  = layout.layer(*L_CONT)
     li_m1   = layout.layer(*L_METAL1)
 
-    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    sd_ext = SD_EXT
     act_len = sd_ext + l + sd_ext
 
     if draw_nwell:
@@ -146,7 +146,8 @@ def draw_pmos(cell, layout, x, y, w, l, draw_nwell=True):
                                         x + act_len + nw_enc, y + w + nw_enc))
 
     cell.shapes(li_act).insert(rect(x, y, x + act_len, y + w))
-    cell.shapes(li_psd).insert(rect(x - 0.1, y - 0.1, x + act_len + 0.1, y + w + 0.1))
+    cell.shapes(li_psd).insert(rect(x - PSD_ENC_ACTIV, y - PSD_ENC_GATE,
+                                     x + act_len + PSD_ENC_ACTIV, y + w + PSD_ENC_GATE))
 
     gp_x1 = x + sd_ext
     cell.shapes(li_gp).insert(rect(gp_x1, y - GATPOLY_EXT,
@@ -285,7 +286,7 @@ def draw_ota(cell, layout, x, y):
     """
     dp_gap = 1.3
 
-    sd_ext_n = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    sd_ext_n = SD_EXT
     dp_act_len = sd_ext_n + OTA_DP_L + sd_ext_n
     ld_act_len = sd_ext_n + OTA_LD_L + sd_ext_n
     tail_act_len = sd_ext_n + OTA_TAIL_L + sd_ext_n
@@ -364,7 +365,7 @@ def draw_cmos_switch(cell, layout, x, y):
     li_m1 = layout.layer(*L_METAL1)
     wire_w = M1_WIDTH
 
-    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    sd_ext = SD_EXT
 
     # NMOS switch
     mn = draw_nmos(cell, layout, x, y, w=SW_N_W, l=SW_N_L)
@@ -443,7 +444,7 @@ def draw_nol_clock(cell, layout, x, y):
     """
     li_m1 = layout.layer(*L_METAL1)
     wire_w = M1_WIDTH
-    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    sd_ext = SD_EXT
 
     nmos_pitch = (sd_ext + NOL_N_L + sd_ext) + 1.0
     nmos = []
@@ -496,7 +497,7 @@ def draw_cmos_mux(cell, layout, x, y):
     li_m1 = layout.layer(*L_METAL1)
     wire_w = M1_WIDTH
 
-    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    sd_ext = SD_EXT
     act_len = sd_ext + MUX_N_L + sd_ext
 
     sw_pitch = MUX_N_W + MUX_P_W + 3.0  # NMOS + gap + PMOS + gap between mux channels
@@ -578,7 +579,7 @@ def draw_bias_gen(cell, layout, x, y):
     cell.shapes(li_m1).insert(rect(min(gx, dx) - wire_w/2, dy - wire_w/2,
                                     max(gx, dx) + wire_w/2, dy + wire_w/2))
 
-    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    sd_ext = SD_EXT
     act_len = sd_ext + BIAS_N_L + sd_ext
 
     return {
@@ -652,8 +653,10 @@ def build_sc_svf():
     # =====================================================================
     # Bias generator (between NOL clock and OTAs)
     # =====================================================================
-    bias_x = 2.0
-    bias_y = 38.5
+    # NW.b1: bias PMOS NWell must be >= 1.8µm from macro left edge
+    # Act.b: bias PMOS must be >= 0.21µm from OTA tail in all directions
+    bias_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.02  # 2.13µm
+    bias_y = 37.0  # lowered so PMOS ends at ~42.5, well below OTA at y=44
     bias = draw_bias_gen(top, layout, bias_x, bias_y)
 
     # Bias VSS to VSS rail via M3
@@ -735,14 +738,19 @@ def build_sc_svf():
     # =====================================================================
     # C_Q Binary-Weighted Cap Array (bottom-left region)
     # =====================================================================
-    cq_x = 2.0
-    cq_y = 3.0
+    # Raise caps above VSS rail to keep via stack M3/M4 pads away from rail
+    # Via pad half-extent = 0.195µm, need M3.b gap >= 0.21µm from rail at y=2.0
+    # So cap bottom = cap_y - MIM_ENC_M5 = cap_y - 0.60; via center at cap_bottom
+    # Via M3 pad bottom = cap_y - 0.60 - 0.195 = cap_y - 0.795
+    # Need cap_y - 0.795 >= 2.0 + 0.21 → cap_y >= 3.005
+    cq_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.02  # keep NWell clear
+    cq_y = 3.5
     cq = draw_cap_array(top, layout, cq_x, cq_y)
 
     # =====================================================================
     # SC Switching Caps (C_sw × 3: input, LP feedback, BP damping)
     # =====================================================================
-    sw_cap_y = 3.0
+    sw_cap_y = 3.5
     csw_gap = MIM_SPACE + 2 * MIM_ENC_M5 + 0.5
 
     csw1_x = cq_x + cq['total_w'] + csw_gap
@@ -766,9 +774,11 @@ def build_sc_svf():
     # =====================================================================
     sw_y = 10.0
     sw_gap = 2.5
-    sw_start_x = 2.0
+    # NW.b1: switch PMOS NWell must be >= 1.8µm from macro left edge
+    # NWell left = sw_start_x - NWELL_ENC_ACTIV, need >= NWELL_SPACE_DN
+    sw_start_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.02  # 2.13µm
 
-    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    sd_ext = SD_EXT
     sw_w = sd_ext + SW_N_L + sd_ext
     sw_pitch = sw_w + sw_gap
 
@@ -788,7 +798,7 @@ def build_sc_svf():
     # CMOS Analog Mux (4:1, right side)
     # =====================================================================
     mux_x = 42.0
-    mux_y = 3.0
+    mux_y = 3.5
     mux = draw_cmos_mux(top, layout, mux_x, mux_y)
 
     # =====================================================================
@@ -800,11 +810,11 @@ def build_sc_svf():
     # Near NOL clock NMOS
     for xt in [14.0, 18.0, 22.0]:
         draw_ptap(top, layout, xt, 37.5)
-    # Near switches
-    for xt in [2.0, 8.0, 14.0, 20.0, 26.0]:
+    # Near switches (moved with sw_start_x)
+    for xt in [2.5, 8.5, 14.5, 20.5, 26.5]:
         draw_ptap(top, layout, xt, 9.0)
     # Near mux
-    draw_ptap(top, layout, 41.0, 2.5)
+    draw_ptap(top, layout, 41.0, 3.0)
     draw_ptap(top, layout, 41.0, 10.0)
 
     # =====================================================================

@@ -56,6 +56,12 @@ M1_SPACE        = 0.18
 # Metal2+
 M2_WIDTH        = 0.20
 M2_SPACE        = 0.21
+M3_SPACE        = 0.21
+M4_SPACE        = 0.21
+
+# pSD implant
+PSD_ENC_ACTIV   = 0.18   # pSD.c: min pSD enclosure of Activ
+PSD_ENC_GATE    = 0.30   # pSD.i: min pSD enclosure in gate direction
 
 # Via1
 VIA1_SIZE       = 0.19
@@ -98,8 +104,15 @@ ACTIV_SPACE     = 0.21
 
 # NWell
 NWELL_WIDTH     = 0.62
-NWELL_SPACE     = 0.62
+NWELL_SPACE     = 0.62       # same-net NWell space (NW.b)
+NWELL_SPACE_DN  = 1.80       # different-net NWell-to-NWell (NW.b1)
 NWELL_ENC_ACTIV = 0.31
+
+# Source/drain extension: must satisfy Activ enclosure, Cnt.f gate spacing, AND M1.b pad spacing
+# sd_ext >= max(CONT_SIZE + 2*CONT_ENC_ACTIV,     — Activ enclosure of contact
+#               CONT_SIZE + 2*0.11,                 — Cnt.f: contact to gate >= 0.11µm
+#               M1_SPACE + CONT_SIZE + 2*CONT_ENC_M1 - GATPOLY_WIDTH)  — M1.b for L_min
+SD_EXT          = 0.38       # = max(0.32, 0.38, 0.35)
 
 # SalBlock (for resistors)
 SAL_ENC_GATPOLY = 0.20

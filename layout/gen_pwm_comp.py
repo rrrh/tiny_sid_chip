@@ -53,7 +53,7 @@ def draw_nmos(cell, layout, x, y, w, l):
     li_cnt = layout.layer(*L_CONT)
     li_m1  = layout.layer(*L_METAL1)
 
-    sd_ext = max(CONT_SIZE + 2 * CONT_ENC_ACTIV, CONT_SIZE + 2 * 0.11)
+    sd_ext = SD_EXT
     act_len = sd_ext + l + sd_ext
 
     cell.shapes(li_act).insert(rect(x, y, x + act_len, y + w))
@@ -92,7 +92,7 @@ def draw_pmos(cell, layout, x, y, w, l, draw_nwell=True):
     li_cnt  = layout.layer(*L_CONT)
     li_m1   = layout.layer(*L_METAL1)
 
-    sd_ext = max(CONT_SIZE + 2 * CONT_ENC_ACTIV, CONT_SIZE + 2 * 0.11)
+    sd_ext = SD_EXT
     act_len = sd_ext + l + sd_ext
 
     if draw_nwell:
@@ -101,10 +101,8 @@ def draw_pmos(cell, layout, x, y, w, l, draw_nwell=True):
                                         x + act_len + nw_enc, y + w + nw_enc))
 
     cell.shapes(li_act).insert(rect(x, y, x + act_len, y + w))
-    psd_enc_activ = 0.18
-    psd_enc_gate = 0.30
-    cell.shapes(li_psd).insert(rect(x - psd_enc_activ, y - psd_enc_gate,
-                                     x + act_len + psd_enc_activ, y + w + psd_enc_gate))
+    cell.shapes(li_psd).insert(rect(x - PSD_ENC_ACTIV, y - PSD_ENC_GATE,
+                                     x + act_len + PSD_ENC_ACTIV, y + w + PSD_ENC_GATE))
 
     gp_x1 = x + sd_ext
     cell.shapes(li_gp).insert(rect(gp_x1, y - GATPOLY_EXT,
@@ -166,7 +164,7 @@ def draw_ota(cell, layout, x, y):
     Returns dict with pin centers.
     """
     dp_gap = 1.3
-    sd_ext = max(CONT_SIZE + 2 * CONT_ENC_ACTIV, CONT_SIZE + 2 * 0.11)
+    sd_ext = SD_EXT
     dp_act_len = sd_ext + OTA_DP_L + sd_ext
     ld_act_len = sd_ext + OTA_LD_L + sd_ext
     tail_act_len = sd_ext + OTA_TAIL_L + sd_ext
@@ -246,43 +244,47 @@ def build_pwm_comp():
     li_m1  = layout.layer(*L_METAL1)
     li_m2  = layout.layer(*L_METAL2)
     li_m3  = layout.layer(*L_METAL3)
+    li_gp  = layout.layer(*L_GATPOLY)
+    li_cnt = layout.layer(*L_CONT)
 
     wire_w  = M1_WIDTH
     wire_w2 = M2_WIDTH
 
     # =====================================================================
     # Layout plan (bottom to top):
-    #   y=0..1.5   : VSS rail (Metal3)
-    #   y=2..12    : OTA (5 transistors)
-    #   y=12..14   : CMOS inverter (2 transistors)
-    #   y=13.5..15 : VDD rail (Metal3)
+    #   y=0..2     : VSS rail (Metal3)
+    #   y=2..13    : OTA (5 transistors)
+    #   y=2..5     : CMOS inverter (2 transistors, right side)
+    #   y=13..15   : VDD rail (Metal3)
     # =====================================================================
 
     # --- VDD rail (top, Metal3) ---
-    top.shapes(li_m3).insert(rect(0.0, MACRO_H - 1.5, MACRO_W, MACRO_H))
+    top.shapes(li_m3).insert(rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H))
 
     # --- VSS rail (bottom, Metal3) ---
-    top.shapes(li_m3).insert(rect(0.0, 0.0, MACRO_W, 1.5))
+    top.shapes(li_m3).insert(rect(0.0, 0.0, MACRO_W, 2.0))
 
     # =====================================================================
     # OTA (5 transistors)
+    # NW.b1: OTA PMOS NWell must be >= 1.8µm from macro left edge
     # =====================================================================
-    ota_x = 0.5
-    ota_y = 2.0
+    ota_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.02  # 2.13µm
+    ota_y = 2.5
     ota = draw_ota(top, layout, x=ota_x, y=ota_y)
 
     # Connect OTA PMOS sources to VDD rail via M1 vertical + via1+via2 to M3
     for vdd_pin in ['vdd_l', 'vdd_r']:
         px, py = ota[vdd_pin]
         top.shapes(li_m1).insert(rect(px - wire_w/2, py - wire_w/2,
-                                       px + wire_w/2, MACRO_H - 2.0))
-        draw_via1(top, layout, px, MACRO_H - 2.0)
-        draw_via2(top, layout, px, MACRO_H - 0.75)
+                                       px + wire_w/2, MACRO_H - 2.5))
+        draw_via1(top, layout, px, MACRO_H - 2.5)
+        draw_via2(top, layout, px, MACRO_H - 1.0)
 
     # Connect OTA VSS (tail source) to VSS rail via M3
     px, py = ota['vss']
     draw_via1(top, layout, px, py)
     draw_via2(top, layout, px, py)
+    # Extend M3 to merge with VSS rail (avoid gap)
     top.shapes(li_m3).insert(rect(px - wire_w2/2, 0.0,
                                    px + wire_w2/2, py + wire_w2/2))
 
@@ -293,26 +295,54 @@ def build_pwm_comp():
 
     # =====================================================================
     # CMOS Inverter (2 transistors) — sharpens OTA output to rail-to-rail
-    # Place to the right of OTA output
+    # NW.b1: inverter PMOS NWell must be >= 1.8µm from macro right edge
+    # NWell right = inv_x + inv_act_len + NWELL_ENC_ACTIV
+    # Need: MACRO_W - NWell_right >= NWELL_SPACE_DN
+    # inv_x <= MACRO_W - NWELL_SPACE_DN - NWELL_ENC_ACTIV - inv_act_len
     # =====================================================================
-    sd_ext = max(CONT_SIZE + 2 * CONT_ENC_ACTIV, CONT_SIZE + 2 * 0.11)
-    inv_act_len = sd_ext + INV_N_L + sd_ext
+    sd_ext = SD_EXT
+    inv_act_len = sd_ext + INV_N_L + sd_ext  # 0.89µm
 
-    inv_x = 9.0
+    inv_x = MACRO_W - NWELL_SPACE_DN - NWELL_ENC_ACTIV - inv_act_len - 0.02  # ~8.81
     inv_n_y = 2.5  # NMOS
-    inv_p_y = inv_n_y + INV_N_W + 2.0  # PMOS above
+
+    # Place PMOS close: GatPoly bridges the gap (no M1 needed for gate connect)
+    # Activ gap >= 0.21µm (Act.b) but poly extensions overlap/bridge
+    inv_p_y = inv_n_y + INV_N_W + 0.25  # gap = 0.25µm > 0.21
 
     inv_n = draw_nmos(top, layout, inv_x, inv_n_y, w=INV_N_W, l=INV_N_L)
     inv_p = draw_pmos(top, layout, inv_x, inv_p_y, w=INV_P_W, l=INV_P_L)
 
-    # Connect NMOS drain to PMOS drain (inverter output)
+    # Connect NMOS drain to PMOS drain (inverter output) via M1 vertical
     top.shapes(li_m1).insert(rect(inv_n['drain'][0] - wire_w/2, inv_n['drain'][1] - wire_w/2,
                                    inv_n['drain'][0] + wire_w/2, inv_p['drain'][1] + wire_w/2))
 
-    # Connect NMOS gate to PMOS gate (inverter input)
-    # Route via M1 horizontal
-    top.shapes(li_m1).insert(rect(inv_n['gate'][0] - wire_w/2, inv_n['gate'][1] - wire_w/2,
-                                   inv_n['gate'][0] + wire_w/2, inv_p['gate'][1] + wire_w/2))
+    # Connect NMOS gate to PMOS gate via GatPoly bridge
+    gp_x1 = inv_x + sd_ext  # gate poly left edge
+    gp_bridge_bot = inv_n_y + INV_N_W + GATPOLY_EXT
+    gp_bridge_top = inv_p_y - GATPOLY_EXT
+    if gp_bridge_top > gp_bridge_bot:
+        top.shapes(li_gp).insert(rect(gp_x1, gp_bridge_bot,
+                                       gp_x1 + INV_N_L, gp_bridge_top))
+
+    # Extend GatPoly below NMOS for gate contact
+    # Need: CONT_ENC_GATPOLY + CONT_SIZE + CONT_ENC_GATPOLY = 0.32µm extension
+    gp_ext_below = CONT_ENC_GATPOLY + CONT_SIZE + CONT_ENC_GATPOLY  # 0.32
+    gp_bottom = inv_n_y - gp_ext_below
+    top.shapes(li_gp).insert(rect(gp_x1, gp_bottom,
+                                   gp_x1 + INV_N_L, inv_n_y - GATPOLY_EXT))
+
+    # Gate contact on the extended poly below NMOS
+    gate_cnt_x = gp_x1 + INV_N_L / 2 - CONT_SIZE / 2
+    gate_cnt_y = inv_n_y - GATPOLY_EXT - CONT_ENC_GATPOLY - CONT_SIZE
+    top.shapes(li_cnt).insert(rect(gate_cnt_x, gate_cnt_y,
+                                    gate_cnt_x + CONT_SIZE, gate_cnt_y + CONT_SIZE))
+    # M1 pad for gate contact
+    top.shapes(li_m1).insert(rect(gate_cnt_x - CONT_ENC_M1, gate_cnt_y - CONT_ENC_M1,
+                                   gate_cnt_x + CONT_SIZE + CONT_ENC_M1,
+                                   gate_cnt_y + CONT_SIZE + CONT_ENC_M1))
+    gate_m1_cx = gate_cnt_x + CONT_SIZE / 2
+    gate_m1_cy = gate_cnt_y + CONT_SIZE / 2
 
     # NMOS source → VSS via M3
     ns_x, ns_y = inv_n['source']
@@ -324,42 +354,48 @@ def build_pwm_comp():
     # PMOS source → VDD via M1 vertical + via1+via2 to M3
     ps_x, ps_y = inv_p['source']
     top.shapes(li_m1).insert(rect(ps_x - wire_w/2, ps_y - wire_w/2,
-                                   ps_x + wire_w/2, MACRO_H - 2.0))
-    draw_via1(top, layout, ps_x, MACRO_H - 2.0)
-    draw_via2(top, layout, ps_x, MACRO_H - 0.75)
+                                   ps_x + wire_w/2, MACRO_H - 2.5))
+    draw_via1(top, layout, ps_x, MACRO_H - 2.5)
+    draw_via2(top, layout, ps_x, MACRO_H - 1.0)
 
     # =====================================================================
-    # Signal routing: OTA output → inverter input
+    # Signal routing: OTA output → inverter gate (via M2, no M1 in gate column)
     # =====================================================================
     ota_out_x, ota_out_y = ota['out']
-    inv_in_x = inv_n['gate'][0]
-    inv_in_y = (inv_n['gate'][1] + inv_p['gate'][1]) / 2
 
-    # Route on M2: via1 at OTA output, horizontal M2, via1 at inverter gate
+    # Via1 at OTA output
     draw_via1(top, layout, ota_out_x, ota_out_y)
+
+    # Via1 at gate contact (below inverter NMOS)
+    draw_via1(top, layout, gate_m1_cx, gate_m1_cy)
+
+    # M2 route: horizontal at OTA output y, then vertical down to gate contact
     route_y = ota_out_y
     top.shapes(li_m2).insert(rect(ota_out_x - wire_w2/2, route_y - wire_w2/2,
-                                   inv_in_x + wire_w2/2, route_y + wire_w2/2))
-    draw_via1(top, layout, inv_in_x, route_y)
-    # M1 vertical from via1 to inverter gate
-    top.shapes(li_m1).insert(rect(inv_in_x - wire_w/2, min(route_y, inv_n['gate'][1]) - wire_w/2,
-                                   inv_in_x + wire_w/2, max(route_y, inv_p['gate'][1]) + wire_w/2))
+                                   gate_m1_cx + wire_w2/2, route_y + wire_w2/2))
+    # M2 vertical from route_y down to gate contact
+    top.shapes(li_m2).insert(rect(gate_m1_cx - wire_w2/2,
+                                   min(gate_m1_cy, route_y) - wire_w2/2,
+                                   gate_m1_cx + wire_w2/2,
+                                   max(gate_m1_cy, route_y) + wire_w2/2))
 
     # =====================================================================
     # Substrate taps
     # =====================================================================
-    # ptap near OTA NMOS (y≈2)
-    draw_ptap(top, layout, 0.5, 1.5)
-    draw_ptap(top, layout, 4.0, 1.5)
+    # ptap near OTA NMOS
+    draw_ptap(top, layout, 2.2, 2.0)
+    draw_ptap(top, layout, 5.0, 2.0)
     # ptap near inverter NMOS
-    draw_ptap(top, layout, 9.0, 1.5)
+    draw_ptap(top, layout, inv_x - 0.5, 2.0)
 
-    # ntap near OTA PMOS (inside NWell)
-    # OTA PMOS NWell region: x≈0.2..4.5, y≈9.2..11.8
-    draw_ntap(top, layout, 2.0, 10.5)
+    # ntap inside OTA PMOS NWell (same NWell region → no NW.b1)
+    ota_ld_y = ota_y + OTA_TAIL_W + 1.5 + OTA_DP_W + 2.0
+    # Place ntap inside the shared PMOS NWell
+    draw_ntap(top, layout, ota_x + 1.5, ota_ld_y + 0.2)
 
-    # ntap near inverter PMOS
-    draw_ntap(top, layout, 10.0, inv_p_y + 0.2)
+    # ntap inside inverter PMOS NWell
+    # Place within the PMOS NWell bounds
+    draw_ntap(top, layout, inv_x + 0.2, inv_p_y + 0.2)
 
     # =====================================================================
     # Pin routing and labels
@@ -371,7 +407,6 @@ def build_pwm_comp():
     draw_via1(top, layout, vinp_gate_x, vinp_gate_y)
     top.shapes(li_m2).insert(rect(0.0, vinp_pin_y - wire_w2/2,
                                    vinp_gate_x + wire_w2/2, vinp_pin_y + wire_w2/2))
-    # M2 vertical from pin_y to gate_y
     top.shapes(li_m2).insert(rect(vinp_gate_x - wire_w2/2,
                                    min(vinp_pin_y, vinp_gate_y) - wire_w2/2,
                                    vinp_gate_x + wire_w2/2,
@@ -392,10 +427,8 @@ def build_pwm_comp():
     out_pin_y = 7.0
     inv_out_x, inv_out_y = inv_n['drain']
     draw_via1(top, layout, inv_out_x, inv_out_y)
-    # M2 horizontal to right edge
     top.shapes(li_m2).insert(rect(inv_out_x - wire_w2/2, out_pin_y - wire_w2/2,
                                    MACRO_W, out_pin_y + wire_w2/2))
-    # M2 vertical jog if needed
     if abs(inv_out_y - out_pin_y) > 0.1:
         top.shapes(li_m2).insert(rect(inv_out_x - wire_w2/2,
                                        min(inv_out_y, out_pin_y) - wire_w2/2,
@@ -413,9 +446,9 @@ def build_pwm_comp():
                   rect(MACRO_W - 0.5, out_pin_y - 0.5, MACRO_W, out_pin_y + 0.5),
                   "out", layout)
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
-                  rect(0.0, MACRO_H - 1.5, MACRO_W, MACRO_H), "vdd", layout)
+                  rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H), "vdd", layout)
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
-                  rect(0.0, 0.0, MACRO_W, 1.5), "vss", layout)
+                  rect(0.0, 0.0, MACRO_W, 2.0), "vss", layout)
 
     # --- PR Boundary (IHP SG13G2: layer 189/0) ---
     li_bnd = layout.layer(189, 0)

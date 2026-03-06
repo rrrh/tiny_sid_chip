@@ -41,7 +41,7 @@ MACRO pwm_comp
     USE POWER ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 13.500 12.000 15.000 ;
+        RECT 0.000 13.000 12.000 15.000 ;
     END
   END vdd
 
@@ -50,7 +50,7 @@ MACRO pwm_comp
     USE GROUND ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 0.000 12.000 1.500 ;
+        RECT 0.000 0.000 12.000 2.000 ;
     END
   END vss
 
