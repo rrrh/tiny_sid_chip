@@ -37,7 +37,7 @@ VERILOG_SRCS = [
     "src/pwm_audio.v",
     "macros/nl/r2r_dac_8bit.v",
     "macros/nl/svf_2nd.v",
-    "macros/nl/sar_adc_8bit.v",
+    "macros/nl/pwm_comp.v",
 ]
 
 

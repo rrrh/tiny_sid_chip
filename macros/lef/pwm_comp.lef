@@ -1,0 +1,68 @@
+VERSION 5.7 ;
+BUSBITCHARS "[]" ;
+DIVIDERCHAR "/" ;
+
+MACRO pwm_comp
+  CLASS BLOCK ;
+  ORIGIN 0 0 ;
+  FOREIGN pwm_comp 0 0 ;
+  SIZE 12.000 BY 15.000 ;
+  SYMMETRY X Y ;
+
+  PIN vinp
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 4.500 0.500 5.500 ;
+    END
+  END vinp
+
+  PIN vinn
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 8.500 0.500 9.500 ;
+    END
+  END vinn
+
+  PIN out
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 11.500 6.500 12.000 7.500 ;
+    END
+  END out
+
+  PIN vdd
+    DIRECTION INOUT ;
+    USE POWER ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 13.500 12.000 15.000 ;
+    END
+  END vdd
+
+  PIN vss
+    DIRECTION INOUT ;
+    USE GROUND ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 0.000 12.000 1.500 ;
+    END
+  END vss
+
+  OBS
+    LAYER Metal1 ;
+      RECT 0.500 0.500 11.500 14.500 ;
+    LAYER Metal2 ;
+      RECT 0.500 0.500 11.500 14.500 ;
+    LAYER Metal3 ;
+      RECT 0.500 0.500 11.500 14.500 ;
+  END
+
+END pwm_comp
+
+END LIBRARY

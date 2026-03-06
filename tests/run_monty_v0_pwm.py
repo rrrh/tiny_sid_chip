@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Run Monty on the Run PWM capture simulation and generate analog WAV output.
+"""Run Monty on the Run V0-only PWM capture and generate analog-filtered WAV.
 
 Pipeline:
-  1. Preprocess SID stimulus file -> decimal format for Verilog $fscanf
-  2. Compile testbench with iverilog (BEHAVIORAL_SIM mode)
-  3. Run simulation with vvp -> monty_pwm.pwl
-  4. Filter PWL through 3rd-order RC LPF (Python Forward Euler) -> monty_pwm.wav
+  1. Ensure V0 stimulus exists (from run_monty_v0.py)
+  2. Compile V0 PWM testbench with iverilog
+  3. Run simulation with vvp → monty_v0_pwm.pwl
+  4. Filter PWL through 3rd-order RC LPF → monty_v0_pwm.wav
 """
 
 import os
@@ -15,17 +15,12 @@ import sys
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 
-STIMULUS_SRC = os.path.join(
-    PROJECT_DIR, "..", "chip", "rhesutron_sid_asic_tiny",
-    "stimuli", "Hubbard_Rob_Monty_on_the_Run_stimulus.txt"
-)
-STIMULUS_DEC = os.path.join(SCRIPT_DIR, "monty_stim_dec.txt")
-PWL_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_pwm.pwl")
-WAV_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_pwm.wav")
-TB_FILE      = os.path.join(SCRIPT_DIR, "monty_pwm_tb.v")
-SIM_BINARY   = os.path.join(SCRIPT_DIR, "monty_pwm_sim")
+STIMULUS_DEC = os.path.join(SCRIPT_DIR, "monty_v0_stim_dec.txt")
+PWL_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_v0_pwm.pwl")
+WAV_OUTPUT   = os.path.join(SCRIPT_DIR, "monty_v0_pwm.wav")
+TB_FILE      = os.path.join(SCRIPT_DIR, "monty_v0_pwm_tb.v")
+SIM_BINARY   = os.path.join(SCRIPT_DIR, "monty_v0_pwm_sim")
 
-# Verilog source files needed for compilation
 VERILOG_SRCS = [
     "src/tt_um_sid.v",
     "src/output_lpf.v",
@@ -34,30 +29,6 @@ VERILOG_SRCS = [
     "macros/nl/svf_2nd.v",
     "macros/nl/pwm_comp.v",
 ]
-
-
-def preprocess_stimulus():
-    """Convert stimulus file to decimal format (strip comments, 0x prefixes)."""
-    if os.path.exists(STIMULUS_DEC):
-        print(f"Stimulus already preprocessed: {STIMULUS_DEC}")
-        return
-
-    print(f"Preprocessing stimulus: {STIMULUS_SRC}")
-    count = 0
-    with open(STIMULUS_SRC) as fin, open(STIMULUS_DEC, "w") as fout:
-        for line in fin:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split()
-            if len(parts) != 3:
-                continue
-            tick = int(parts[0])
-            addr = int(parts[1], 16)
-            data = int(parts[2], 16)
-            fout.write(f"{tick} {addr} {data}\n")
-            count += 1
-    print(f"  {count} events written to {STIMULUS_DEC}")
 
 
 def compile_sim():
@@ -85,14 +56,13 @@ def compile_sim():
 
 def run_sim():
     """Run simulation with vvp."""
-    print("Running simulation (this may take a long time)...")
+    print("Running V0-only PWM capture simulation...")
     result = subprocess.run(
         ["vvp", SIM_BINARY],
         capture_output=True, text=True,
-        cwd=PROJECT_DIR,  # so relative paths in testbench resolve correctly
-        timeout=3600,      # 60 min timeout
+        cwd=PROJECT_DIR,
+        timeout=3600,
     )
-    # Print simulation output
     for line in result.stdout.strip().split("\n"):
         print(f"  {line}")
     if result.returncode != 0:
@@ -104,7 +74,6 @@ def run_sim():
 
 def filter_and_wav():
     """Run PWL through analog filter simulation and generate WAV."""
-    # Import sim_analog functions
     sys.path.insert(0, SCRIPT_DIR)
     from sim_analog import load_pwl, simulate_filter, write_wav
 
@@ -123,11 +92,14 @@ def filter_and_wav():
 
 def main():
     print("=" * 60)
-    print("Monty on the Run — PWM Analog Output Simulation")
+    print("Monty on the Run — Voice 0 Only, PWM Analog Output")
     print("=" * 60)
 
-    preprocess_stimulus()
-    print()
+    if not os.path.exists(STIMULUS_DEC):
+        print(f"ERROR: V0 stimulus not found: {STIMULUS_DEC}")
+        print("  Run run_monty_v0.py first to generate it.")
+        sys.exit(1)
+
     compile_sim()
     print()
     run_sim()

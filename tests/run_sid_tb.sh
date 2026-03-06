@@ -16,7 +16,7 @@ echo "--- Compile (Icarus Verilog, -DBEHAVIORAL_SIM) ---"
 iverilog -o tests/tt_um_sid_tb.vvp -g2005 -DBEHAVIORAL_SIM \
     src/tt_um_sid.v src/SVF_8bit.v src/filter.v src/filter_top.v \
     src/output_lpf.v src/pwm_audio.v \
-    macros/nl/r2r_dac_8bit.v macros/nl/svf_2nd.v macros/nl/sar_adc_8bit.v \
+    macros/nl/r2r_dac_8bit.v macros/nl/svf_2nd.v macros/nl/pwm_comp.v \
     tests/tt_um_sid_tb.v
 
 echo ""

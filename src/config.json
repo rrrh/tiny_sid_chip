@@ -16,6 +16,10 @@
         "u_dac": {
           "location": [165.6, 49],
           "orientation": "N"
+        },
+        "u_ramp_dac": {
+          "location": [159.6, 4],
+          "orientation": "N"
         }
       },
       "gds": ["dir::../macros/gds/r2r_dac_8bit.gds"],
@@ -39,18 +43,18 @@
         "*": ["dir::../macros/lib/svf_2nd.lib"]
       }
     },
-    "sar_adc_8bit": {
+    "pwm_comp": {
       "instances": {
-        "u_adc": {
-          "location": [159.6, 4],
+        "u_comp": {
+          "location": [188.0, 4],
           "orientation": "N"
         }
       },
-      "gds": ["dir::../macros/gds/sar_adc_8bit.gds"],
-      "lef": ["dir::../macros/lef/sar_adc_8bit.lef"],
-      "nl": ["dir::../macros/nl/sar_adc_8bit.v"],
+      "gds": ["dir::../macros/gds/pwm_comp.gds"],
+      "lef": ["dir::../macros/lef/pwm_comp.lef"],
+      "nl": ["dir::../macros/nl/pwm_comp.v"],
       "lib": {
-        "*": ["dir::../macros/lib/sar_adc_8bit.lib"]
+        "*": ["dir::../macros/lib/pwm_comp.lib"]
       }
     }
   },
