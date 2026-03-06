@@ -17,7 +17,7 @@
 //   bp += alpha * hp
 //   lp += alpha * bp          (uses updated bp — standard SVF)
 //
-// alpha = C_sw / C_int = 73.5fF / 1.1pF ≈ 0.0668
+// alpha = C_sw / C_int = 33.8fF / 502fF ≈ 0.0673
 // damping = 1/Q = 1/(0.5 + q_val)   [q_val = {q3,q2,q1,q0}]
 // sel = {sel1,sel0}: 00=LP, 01=BP, 10=HP, 11=bypass
 //----------------------------------------------------------------------
@@ -43,7 +43,7 @@ module svf_2nd (
         sim_data_out = 8'd128;
     end
 
-    localparam real ALPHA = 0.0668;   // C_sw / C_int
+    localparam real ALPHA = 0.0673;   // C_sw / C_int ≈ 33.8fF / 502fF
 
     always @(posedge sc_clk) begin : svf_update
         integer q_val, out_i;

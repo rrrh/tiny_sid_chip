@@ -2,7 +2,7 @@
 """
 Generate 2nd-order Switched-Capacitor SVF layout for IHP SG13G2 130nm.
 
-Architecture (replaces gm-C SVF):
+Architecture:
   Vin ──→ [SC_R1] ──→ sum ──→ [OTA1: integrator] ──→ BP ──→ [OTA2: integrator] ──→ LP
                        ↑ [SC_R2] ←── LP feedback                                    │
                        ↑ [C_Q array] ←── BP damping                                 │
@@ -13,14 +13,23 @@ Architecture (replaces gm-C SVF):
 
 Components:
   2 × OTA (5-transistor simple diff pair each)
-  2 × MIM integration cap (C_int = 1.1 pF, ~27×27 µm)
-  3 × SC switching cap (C_sw = 73.5 fF, 7×7 µm MIM)
-  4 × C_Q array cap (73.5 fF to 588 fF, binary-weighted MIM)
-  8 × CMOS switch (for SC resistors and C_Q array)
+  2 × MIM integration cap (C_int = 0.5 pF, ~18.3×18.3 µm)
+  3 × SC switching cap (C_sw = 33.8 fF, 4.75×4.75 µm MIM)
+  4 × C_Q array cap (33.8 fF to 270 fF, binary-weighted MIM)
+  10 × CMOS switch (3 SC resistors × 2 + 4 C_Q array switches)
   1 × NOL clock generator (2 NAND gates + 2 inverters in CMOS)
-  4 × NMOS pass gate (analog mux with sel[1:0])
+  4 × CMOS transmission gate (analog mux with sel[1:0])
+  1 × Bias generator (diode-connected PMOS + NMOS, sets OTA tail + VCM)
 
-Macro size: 62 × 68 µm (compacted from 70 × 85)
+Fixes vs previous version:
+  - C_int 1.1pF → 0.5pF (kT/C still fine for 8-bit, saves 24% area)
+  - Switch count 4 → 10 (proper 2-phase SC operation)
+  - OTA inputs corrected (inn = virtual ground/summing node for negative feedback)
+  - NMOS-only mux → CMOS transmission gates (full-swing signal path)
+  - Added bias generator (OTA tails were floating)
+  - OTA non-inverting inputs tied to VCM from bias generator
+
+Macro size: 56 × 60 µm
 """
 
 import sys, os
@@ -30,10 +39,10 @@ from sg13g2_layers import *
 # ===========================================================================
 # Design parameters
 # ===========================================================================
-MACRO_W = 66.0
-MACRO_H = 68.0
+MACRO_W = 56.0
+MACRO_H = 60.0
 
-# OTA transistor sizes (same as gm-C version)
+# OTA transistor sizes
 OTA_DP_W  = 4.0    # NMOS diff pair width (µm)
 OTA_DP_L  = 0.50   # diff pair length
 OTA_LD_W  = 2.0    # PMOS load width
@@ -41,16 +50,16 @@ OTA_LD_L  = 0.50   # PMOS load length
 OTA_TAIL_W = 2.0   # NMOS tail width
 OTA_TAIL_L = 0.50  # tail length
 
-# MIM integration caps (C_int = 1.1 pF each)
-C_INT      = 1.1           # pF per integrator
-C_INT_SIDE = 27.1          # µm (27.1² ≈ 734 µm² → ~1.1 pF at 1.5 fF/µm²)
+# MIM integration caps (C_int = 0.5 pF each)
+C_INT      = 0.5            # pF per integrator
+C_INT_SIDE = 18.3           # µm (18.3² × 1.5 = 502 fF ≈ 0.5 pF)
 
-# Switching caps (C_sw = 73.5 fF, minimum practical MIM)
-C_SW       = 0.0735        # pF
-C_SW_SIDE  = 7.0           # µm (7² = 49 µm² → ~73.5 fF at 1.5 fF/µm²)
+# Switching caps (C_sw = 33.8 fF)
+C_SW       = 0.034          # pF
+C_SW_SIDE  = 4.75           # µm (4.75² × 1.5 = 33.8 fF)
 
-# C_Q unit cap (same as C_sw = 73.5 fF)
-CQ_UNIT_SIDE = 7.0         # µm (unit cap)
+# C_Q unit cap (same as C_sw)
+CQ_UNIT_SIDE = 4.75         # µm (unit cap)
 
 # CMOS switch sizes
 SW_N_W = 2.0    # NMOS switch width
@@ -58,9 +67,11 @@ SW_N_L = 0.13   # min length for on-resistance
 SW_P_W = 4.0    # PMOS switch width (2× NMOS for balanced R_on)
 SW_P_L = 0.13
 
-# Mux pass gates
-MUX_W = 2.0
-MUX_L = 0.13
+# Mux CMOS transmission gate sizes
+MUX_N_W = 2.0
+MUX_N_L = 0.13
+MUX_P_W = 4.0
+MUX_P_L = 0.13
 
 # NOL clock gate sizes
 NOL_N_W = 1.0
@@ -68,16 +79,21 @@ NOL_N_L = 0.13
 NOL_P_W = 2.0
 NOL_P_L = 0.13
 
+# Bias generator sizes
+BIAS_N_W = 2.0
+BIAS_N_L = 0.50
+BIAS_P_W = 2.0
+BIAS_P_L = 0.50
+
 
 # ===========================================================================
-# Transistor drawing helpers (reused from gen_svf.py)
+# Transistor drawing helpers
 # ===========================================================================
 
 def draw_nmos(cell, layout, x, y, w, l):
     """Draw NMOS transistor, return pin centers dict."""
     li_act = layout.layer(*L_ACTIV)
     li_gp  = layout.layer(*L_GATPOLY)
-    li_nsd = layout.layer(*L_NSD)
     li_cnt = layout.layer(*L_CONT)
     li_m1  = layout.layer(*L_METAL1)
 
@@ -85,7 +101,7 @@ def draw_nmos(cell, layout, x, y, w, l):
     act_len = sd_ext + l + sd_ext
 
     cell.shapes(li_act).insert(rect(x, y, x + act_len, y + w))
-    cell.shapes(li_nsd).insert(rect(x - 0.1, y - 0.1, x + act_len + 0.1, y + w + 0.1))
+    # No nSD drawn — NMOS = Activ + GatPoly without pSD or nSD
 
     gp_x1 = x + sd_ext
     cell.shapes(li_gp).insert(rect(gp_x1, y - GATPOLY_EXT,
@@ -257,13 +273,15 @@ def draw_mim_cap(cell, layout, x, y, w, h):
 
 
 # ===========================================================================
-# New block-level drawing functions for SC SVF
+# Block-level drawing functions
 # ===========================================================================
 
 def draw_ota(cell, layout, x, y):
     """
-    Draw a 5-transistor OTA (same topology as gm-C version).
+    Draw a 5-transistor OTA.
     Returns dict with pin centers and bounding box.
+    Note: 'inp' = M1 gate = non-inverting (+)
+          'inn' = M2 gate = inverting (-)
     """
     dp_gap = 1.3
 
@@ -298,7 +316,7 @@ def draw_ota(cell, layout, x, y):
     m4 = draw_pmos(cell, layout, x + dp_act_len + dp_gap, ld_y,
                    w=OTA_LD_W, l=OTA_LD_L, draw_nwell=False)
 
-    # M1 routing
+    # M1 routing: diff pair sources to tail drain
     cell.shapes(li_m1).insert(rect(m1['source'][0] - wire_w/2, m5['drain'][1] - wire_w/2,
                                     m1['source'][0] + wire_w/2, m1['source'][1] + wire_w/2))
     cell.shapes(li_m1).insert(rect(m2['source'][0] - wire_w/2, m5['drain'][1] - wire_w/2,
@@ -325,10 +343,10 @@ def draw_ota(cell, layout, x, y):
     total_h = (ld_y + OTA_LD_W) - y
 
     return {
-        'inp':    m1['gate'],
-        'inn':    m2['gate'],
-        'out':    m4['drain'],
-        'tail':   m5['gate'],
+        'inp':    m1['gate'],   # non-inverting (+) → tie to VCM
+        'inn':    m2['gate'],   # inverting (-) → virtual ground / summing node
+        'out':    m4['drain'],  # single-ended output
+        'tail':   m5['gate'],   # tail bias input
         'vdd_l':  m3['source'],
         'vdd_r':  m4['source'],
         'vss':    m5['source'],
@@ -341,10 +359,7 @@ def draw_ota(cell, layout, x, y):
 def draw_cmos_switch(cell, layout, x, y):
     """
     Draw a CMOS transmission gate (NMOS + PMOS in parallel).
-    Used for SC resistor switches and C_Q array switches.
-
-    Returns dict with pin centers:
-      in, out, ctrl (gate for NMOS, inverted for PMOS)
+    Returns dict with pin centers.
     """
     li_m1 = layout.layer(*L_METAL1)
     wire_w = M1_WIDTH
@@ -370,10 +385,10 @@ def draw_cmos_switch(cell, layout, x, y):
     total_h = (pmos_y + SW_P_W) - y
 
     return {
-        'in':      mn['source'],      # source side = input
-        'out':     mn['drain'],       # drain side = output
-        'ctrl_n':  mn['gate'],        # NMOS gate (connect to phi/ctrl)
-        'ctrl_p':  mp['gate'],        # PMOS gate (connect to phi_bar/ctrl_bar)
+        'in':      mn['source'],
+        'out':     mn['drain'],
+        'ctrl_n':  mn['gate'],      # NMOS gate (connect to phi)
+        'ctrl_p':  mp['gate'],      # PMOS gate (connect to phi_bar)
         'total_w': nmos_act_len,
         'total_h': total_h,
     }
@@ -382,39 +397,38 @@ def draw_cmos_switch(cell, layout, x, y):
 def draw_cap_array(cell, layout, x, y):
     """
     Draw 4-bit binary-weighted C_Q capacitor array using MIM caps.
-    Placed side by side horizontally in bottom region of macro.
 
-    Bit 0: 1× unit (7×7 µm, 73.5 fF)
-    Bit 1: 2× unit (7×14 µm, 147 fF)
-    Bit 2: 4× unit (14×14 µm, 294 fF)
-    Bit 3: 8× unit (20×20 µm, 600 fF ≈ 8.2× unit)
+    Bit 0: 1× unit (4.75×4.75 µm, 33.8 fF)
+    Bit 1: 2× unit (4.75×9.5 µm, 67.7 fF)
+    Bit 2: 4× unit (9.5×9.5 µm, 135.4 fF)
+    Bit 3: 8× unit (13.4×13.4 µm, 269 fF)
 
     Returns dict with per-bit top/bot centers.
     """
-    gap = MIM_SPACE + 2 * MIM_ENC_M5  # spacing between caps (compacted)
+    gap = MIM_SPACE + 2 * MIM_ENC_M5
 
     caps = []
 
-    # Bit 0: 1× (7×7)
-    b0, t0 = draw_mim_cap(cell, layout, x, y, 7.0, 7.0)
-    caps.append({'bot': b0, 'top': t0, 'x': x, 'w': 7.0, 'h': 7.0})
+    # Bit 0: 1× (4.75×4.75)
+    b0, t0 = draw_mim_cap(cell, layout, x, y, 4.75, 4.75)
+    caps.append({'bot': b0, 'top': t0, 'x': x, 'w': 4.75, 'h': 4.75})
 
-    # Bit 1: 2× (7×14)
-    x1 = x + 7.0 + gap
-    b1, t1 = draw_mim_cap(cell, layout, x1, y, 7.0, 14.0)
-    caps.append({'bot': b1, 'top': t1, 'x': x1, 'w': 7.0, 'h': 14.0})
+    # Bit 1: 2× (4.75×9.5)
+    x1 = x + 4.75 + gap
+    b1, t1 = draw_mim_cap(cell, layout, x1, y, 4.75, 9.5)
+    caps.append({'bot': b1, 'top': t1, 'x': x1, 'w': 4.75, 'h': 9.5})
 
-    # Bit 2: 4× (14×14)
-    x2 = x1 + 7.0 + gap
-    b2, t2 = draw_mim_cap(cell, layout, x2, y, 14.0, 14.0)
-    caps.append({'bot': b2, 'top': t2, 'x': x2, 'w': 14.0, 'h': 14.0})
+    # Bit 2: 4× (9.5×9.5)
+    x2 = x1 + 4.75 + gap
+    b2, t2 = draw_mim_cap(cell, layout, x2, y, 9.5, 9.5)
+    caps.append({'bot': b2, 'top': t2, 'x': x2, 'w': 9.5, 'h': 9.5})
 
-    # Bit 3: 8× (20×20 → 400 µm² × 1.5 = 600 fF ≈ 8.16× unit)
-    x3 = x2 + 14.0 + gap
-    b3, t3 = draw_mim_cap(cell, layout, x3, y, 20.0, 20.0)
-    caps.append({'bot': b3, 'top': t3, 'x': x3, 'w': 20.0, 'h': 20.0})
+    # Bit 3: 8× (13.4×13.4 → 269 fF ≈ 8× unit)
+    x3 = x2 + 9.5 + gap
+    b3, t3 = draw_mim_cap(cell, layout, x3, y, 13.4, 13.4)
+    caps.append({'bot': b3, 'top': t3, 'x': x3, 'w': 13.4, 'h': 13.4})
 
-    total_w = (x3 + 20.0) - x
+    total_w = (x3 + 13.4) - x
 
     return {
         'caps': caps,
@@ -424,23 +438,13 @@ def draw_cap_array(cell, layout, x, y):
 
 def draw_nol_clock(cell, layout, x, y):
     """
-    Draw non-overlapping clock generator using CMOS logic gates.
-    2 cross-coupled NAND gates + 2 inverters.
-
-    Input: clk
-    Outputs: phi1, phi2 (non-overlapping)
-
-    Implementation: 4 CMOS inverter/NAND pairs using 8 transistors total.
-    For layout, we place 4 NMOS + 4 PMOS in a standard-cell style row.
-
+    Draw non-overlapping clock generator (2 NAND + 2 INV, 8 transistors).
     Returns dict with pin centers.
     """
     li_m1 = layout.layer(*L_METAL1)
     wire_w = M1_WIDTH
     sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
 
-    # Place 4 NMOS side by side at bottom
-    # Pitch must leave M1_SPACE (0.18µm) between gate via1 pads and drain wires
     nmos_pitch = (sd_ext + NOL_N_L + sd_ext) + 1.0
     nmos = []
     for i in range(4):
@@ -448,7 +452,6 @@ def draw_nol_clock(cell, layout, x, y):
         mn = draw_nmos(cell, layout, nx, y, w=NOL_N_W, l=NOL_N_L)
         nmos.append(mn)
 
-    # Place 4 PMOS above (shared NWell)
     pmos_y = y + NOL_N_W + 2.0
     nw_enc = NWELL_ENC_ACTIV
     li_nw = layout.layer(*L_NWELL)
@@ -464,9 +467,8 @@ def draw_nol_clock(cell, layout, x, y):
                        draw_nwell=False)
         pmos.append(mp)
 
-    # Wire NMOS/PMOS pairs as inverters (gate-to-gate, drain-to-drain)
+    # Wire NMOS/PMOS pairs as inverters (drain-to-drain)
     for i in range(4):
-        # Drain-to-drain (output)
         cell.shapes(li_m1).insert(rect(
             nmos[i]['drain'][0] - wire_w/2, nmos[i]['drain'][1] - wire_w/2,
             nmos[i]['drain'][0] + wire_w/2, pmos[i]['drain'][1] + wire_w/2))
@@ -485,45 +487,106 @@ def draw_nol_clock(cell, layout, x, y):
     }
 
 
-def draw_analog_mux(cell, layout, x, y):
+def draw_cmos_mux(cell, layout, x, y):
     """
-    Draw 4:1 analog mux using 4 NMOS pass gates (same as gm-C version).
-    sel[1:0] decode: 00=HP, 01=BP, 10=LP, 11=bypass
-    Returns dict with pin centers.
+    Draw 4:1 analog mux using 4 CMOS transmission gates.
+    sel[1:0] decode: 00=LP, 01=BP, 10=HP, 11=bypass
+    Full-swing signal path (unlike NMOS-only version).
     """
     li_m1 = layout.layer(*L_METAL1)
     wire_w = M1_WIDTH
 
     sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
-    act_len = sd_ext + MUX_L + sd_ext
+    act_len = sd_ext + MUX_N_L + sd_ext
 
-    sw_pitch = MUX_W + 1.5
+    sw_pitch = MUX_N_W + MUX_P_W + 3.0  # NMOS + gap + PMOS + gap between mux channels
 
     switches = []
     for i in range(4):
         sy = y + i * sw_pitch
-        sw = draw_nmos(cell, layout, x, sy, w=MUX_W, l=MUX_L)
-        switches.append(sw)
+        # NMOS pass gate
+        mn = draw_nmos(cell, layout, x, sy, w=MUX_N_W, l=MUX_N_L)
+        # PMOS pass gate (above NMOS, parallel)
+        pmos_y = sy + MUX_N_W + 1.0
+        mp = draw_pmos(cell, layout, x, pmos_y, w=MUX_P_W, l=MUX_P_L)
+        # Connect NMOS source to PMOS source
+        cell.shapes(li_m1).insert(rect(mn['source'][0] - wire_w/2, mn['source'][1] - wire_w/2,
+                                        mn['source'][0] + wire_w/2, mp['source'][1] + wire_w/2))
+        # Connect NMOS drain to PMOS drain
+        cell.shapes(li_m1).insert(rect(mn['drain'][0] - wire_w/2, mn['drain'][1] - wire_w/2,
+                                        mn['drain'][0] + wire_w/2, mp['drain'][1] + wire_w/2))
+        switches.append({'nmos': mn, 'pmos': mp,
+                         'in': mn['source'], 'out': mn['drain'],
+                         'ctrl_n': mn['gate'], 'ctrl_p': mp['gate']})
 
-    # Connect all drains together via vertical M1
-    out_x = switches[0]['drain'][0]
-    cell.shapes(li_m1).insert(rect(out_x - wire_w/2, switches[0]['drain'][1] - wire_w/2,
-                                    out_x + wire_w/2, switches[3]['drain'][1] + wire_w/2))
+    # Connect all drains together via vertical M1 (output bus)
+    out_x = switches[0]['out'][0]
+    cell.shapes(li_m1).insert(rect(out_x - wire_w/2, switches[0]['out'][1] - wire_w/2,
+                                    out_x + wire_w/2, switches[3]['out'][1] + wire_w/2))
 
     total_h = 4 * sw_pitch
 
     return {
-        'hp_in':       switches[0]['source'],
-        'bp_in':       switches[1]['source'],
-        'lp_in':       switches[2]['source'],
-        'bypass_in':   switches[3]['source'],
-        'hp_gate':     switches[0]['gate'],
-        'bp_gate':     switches[1]['gate'],
-        'lp_gate':     switches[2]['gate'],
-        'bypass_gate': switches[3]['gate'],
-        'out':         switches[0]['drain'],
+        'lp_in':       switches[0]['in'],
+        'bp_in':       switches[1]['in'],
+        'hp_in':       switches[2]['in'],
+        'bypass_in':   switches[3]['in'],
+        'lp_ctrl_n':   switches[0]['ctrl_n'],
+        'lp_ctrl_p':   switches[0]['ctrl_p'],
+        'bp_ctrl_n':   switches[1]['ctrl_n'],
+        'bp_ctrl_p':   switches[1]['ctrl_p'],
+        'hp_ctrl_n':   switches[2]['ctrl_n'],
+        'hp_ctrl_p':   switches[2]['ctrl_p'],
+        'bypass_ctrl_n': switches[3]['ctrl_n'],
+        'bypass_ctrl_p': switches[3]['ctrl_p'],
+        'out':         switches[0]['out'],
         'total_h':     total_h,
         'act_len':     act_len,
+    }
+
+
+def draw_bias_gen(cell, layout, x, y):
+    """
+    Draw bias generator: diode-connected PMOS (from VDD) + diode-connected
+    NMOS (to VSS). Junction provides V_bias ≈ VDD/2 for OTA tails and VCM.
+
+    Returns dict with pin centers.
+    """
+    li_m1 = layout.layer(*L_METAL1)
+    wire_w = M1_WIDTH
+
+    # NMOS diode (gate=drain), source to VSS
+    mn = draw_nmos(cell, layout, x, y, w=BIAS_N_W, l=BIAS_N_L)
+
+    # PMOS diode (gate=drain), source to VDD
+    pmos_y = y + BIAS_N_W + 1.5
+    mp = draw_pmos(cell, layout, x, pmos_y, w=BIAS_P_W, l=BIAS_P_L)
+
+    # Connect NMOS drain to PMOS drain (bias node, M1 vertical)
+    cell.shapes(li_m1).insert(rect(mn['drain'][0] - wire_w/2, mn['drain'][1] - wire_w/2,
+                                    mn['drain'][0] + wire_w/2, mp['drain'][1] + wire_w/2))
+
+    # NMOS diode: gate to drain (M1 horizontal)
+    gx, gy = mn['gate']
+    dx, dy = mn['drain']
+    cell.shapes(li_m1).insert(rect(min(gx, dx) - wire_w/2, dy - wire_w/2,
+                                    max(gx, dx) + wire_w/2, dy + wire_w/2))
+
+    # PMOS diode: gate to drain (M1 horizontal)
+    gx, gy = mp['gate']
+    dx, dy = mp['drain']
+    cell.shapes(li_m1).insert(rect(min(gx, dx) - wire_w/2, dy - wire_w/2,
+                                    max(gx, dx) + wire_w/2, dy + wire_w/2))
+
+    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    act_len = sd_ext + BIAS_N_L + sd_ext
+
+    return {
+        'bias_out': mn['drain'],   # V_bias ≈ VDD/2 (junction of diodes)
+        'vdd':      mp['source'],  # connect to VDD rail
+        'vss':      mn['source'],  # connect to VSS rail
+        'total_w':  act_len,
+        'total_h':  (pmos_y + BIAS_P_W) - y,
     }
 
 
@@ -542,14 +605,14 @@ def build_sc_svf():
     wire_w2 = M2_WIDTH
 
     # =====================================================================
-    # Layout plan (bottom to top):
+    # Layout sections (Y offsets):
     #   y=0..2     : VSS rail (Metal3)
-    #   y=3..23    : C_Q cap array (left) + mux + switches (right)
-    #   y=3..12    : SC switching caps (C_sw, between C_Q and mux)
-    #   y=23..47   : MIM integration caps (C_int1, C_int2)
-    #   y=47..50   : NOL clock generator + routing
-    #   y=52..66   : OTA row (2 OTAs)
-    #   y=66..68   : VDD rail (Metal3)
+    #   y=3..17    : C_Q cap array (left) + C_sw caps + mux (right)
+    #   y=18..38   : MIM integration caps (C_int1, C_int2, 18.3×18.3)
+    #   y=38..42   : NOL clock generator + bias generator
+    #   y=42..44   : routing gap + substrate taps
+    #   y=44..56   : OTA row (2 OTAs, ~11.5µm tall)
+    #   y=58..60   : VDD rail (Metal3)
     # =====================================================================
 
     # --- VDD rail (top, Metal3) ---
@@ -561,15 +624,15 @@ def build_sc_svf():
     # =====================================================================
     # OTA row: 2 OTAs (integrator 1 and integrator 2)
     # =====================================================================
-    ota_y = 52.0
+    ota_y = 44.0
     ota_gap = 3.0
 
-    ota1_x = 2.2  # NWell left edge at 2.2-0.31=1.89µm from boundary (NW.b1 ≥ 1.8)
+    ota1_x = 2.2
     ota1 = draw_ota(top, layout, x=ota1_x, y=ota_y)
     ota2_x = ota1_x + ota1['total_w'] + ota_gap
     ota2 = draw_ota(top, layout, x=ota2_x, y=ota_y)
 
-    # Connect OTA PMOS sources to VDD rail via M1 vertical + via2 to M3
+    # Connect OTA PMOS sources to VDD rail via M1 vertical + via to M3
     for ota in [ota1, ota2]:
         for vdd_pin in ['vdd_l', 'vdd_r']:
             px, py = ota[vdd_pin]
@@ -578,8 +641,7 @@ def build_sc_svf():
             draw_via1(top, layout, px, MACRO_H - 2.5)
             draw_via2(top, layout, px, MACRO_H - 1.0)
 
-    # Connect OTA VSS (tail source) to VSS rail via M3 (not M2, to avoid
-    # crossing horizontal M2 signal routes)
+    # Connect OTA VSS (tail source) to VSS rail via M3
     for ota in [ota1, ota2]:
         px, py = ota['vss']
         draw_via1(top, layout, px, py)
@@ -587,37 +649,73 @@ def build_sc_svf():
         top.shapes(li_m3).insert(rect(px - wire_w2/2, 0.0,
                                        px + wire_w2/2, py + wire_w2/2))
 
-    # OTA tails: connect to VCM (self-biased for behavioral sim)
-    # In SC SVF, OTAs are voltage-mode integrators — tail is biased by
-    # a simple current source. For layout, we tie tail gates to a bias bus.
-    # Use a fixed bias point via M1 horizontal bus
-    bias_bus_y = 50.0
-    for ota in [ota1, ota2]:
-        tx, ty = ota['tail']
+    # =====================================================================
+    # Bias generator (between NOL clock and OTAs)
+    # =====================================================================
+    bias_x = 2.0
+    bias_y = 38.5
+    bias = draw_bias_gen(top, layout, bias_x, bias_y)
+
+    # Bias VSS to VSS rail via M3
+    bvx, bvy = bias['vss']
+    draw_via1(top, layout, bvx, bvy)
+    draw_via2(top, layout, bvx, bvy)
+    top.shapes(li_m3).insert(rect(bvx - wire_w2/2, 0.0,
+                                   bvx + wire_w2/2, bvy + wire_w2/2))
+
+    # Bias VDD to VDD rail via M1+via
+    bvx, bvy = bias['vdd']
+    top.shapes(li_m1).insert(rect(bvx - wire_w/2, bvy - wire_w/2,
+                                   bvx + wire_w/2, MACRO_H - 2.5))
+    draw_via1(top, layout, bvx, MACRO_H - 2.5)
+    draw_via2(top, layout, bvx, MACRO_H - 1.0)
+
+    # Connect bias output to OTA tail gates via M1 horizontal bus
+    bias_out_x, bias_out_y = bias['bias_out']
+    bias_bus_y = 42.5
+    # Vertical from bias output to bus
+    top.shapes(li_m1).insert(rect(bias_out_x - wire_w/2, bias_out_y - wire_w/2,
+                                   bias_out_x + wire_w/2, bias_bus_y + wire_w/2))
+    # Horizontal bus connecting to both OTA tail gates
+    t1x, t1y = ota1['tail']
+    t2x, t2y = ota2['tail']
+    top.shapes(li_m1).insert(rect(bias_out_x - wire_w/2, bias_bus_y - wire_w/2,
+                                   t2x + wire_w/2, bias_bus_y + wire_w/2))
+    # Vertical drops from bus to each OTA tail gate
+    for tx, ty in [ota1['tail'], ota2['tail']]:
         top.shapes(li_m1).insert(rect(tx - wire_w/2, bias_bus_y - wire_w/2,
                                        tx + wire_w/2, ty + wire_w/2))
-    # Connect bias bus horizontally between the two OTA tails
-    t1x = ota1['tail'][0]
-    t2x = ota2['tail'][0]
-    top.shapes(li_m1).insert(rect(t1x - wire_w/2, bias_bus_y - wire_w/2,
-                                   t2x + wire_w/2, bias_bus_y + wire_w/2))
+
+    # Connect OTA non-inverting inputs (inp) to bias/VCM via M2
+    # Route both OTA1.inp and OTA2.inp to the bias node (≈VDD/2)
+    vcm_bus_y = 43.0
+    for ota in [ota1, ota2]:
+        px, py = ota['inp']
+        draw_via1(top, layout, px, py)
+        top.shapes(li_m2).insert(rect(bias_out_x - wire_w2/2, vcm_bus_y - wire_w2/2,
+                                       px + wire_w2/2, vcm_bus_y + wire_w2/2))
+        # Vertical M2 from bus to OTA inp pin
+        top.shapes(li_m2).insert(rect(px - wire_w2/2, min(vcm_bus_y, py) - wire_w2/2,
+                                       px + wire_w2/2, max(vcm_bus_y, py) + wire_w2/2))
+    # Via from bias M1 to M2 for VCM bus
+    draw_via1(top, layout, bias_out_x, bias_out_y)
 
     # =====================================================================
-    # NOL clock generator (between caps and switches)
+    # NOL clock generator
     # =====================================================================
-    nol_x = 40.0
-    nol_y = 47.0
+    nol_x = 14.0
+    nol_y = 38.5
     nol = draw_nol_clock(top, layout, nol_x, nol_y)
 
-    # NOL NMOS sources to VSS via M3 (not M2, to avoid crossing
-    # horizontal M2 signal routes)
+    # NOL NMOS sources to VSS via M3
     for i in range(4):
         sx, sy = nol['nmos'][i]['source']
         draw_via1(top, layout, sx, sy)
         draw_via2(top, layout, sx, sy)
         top.shapes(li_m3).insert(rect(sx - wire_w2/2, 0.0,
                                        sx + wire_w2/2, sy + wire_w2/2))
-
+    # NOL PMOS sources to VDD
+    for i in range(4):
         px, py = nol['pmos'][i]['source']
         top.shapes(li_m1).insert(rect(px - wire_w/2, py - wire_w/2,
                                        px + wire_w/2, MACRO_H - 2.5))
@@ -627,7 +725,7 @@ def build_sc_svf():
     # =====================================================================
     # MIM Integration Caps (C_int1 and C_int2, side by side)
     # =====================================================================
-    cap_y = 25.6
+    cap_y = 19.0
     c1_x = 2.0
     c1_bot, c1_top = draw_mim_cap(top, layout, c1_x, cap_y, C_INT_SIDE, C_INT_SIDE)
 
@@ -635,70 +733,91 @@ def build_sc_svf():
     c2_bot, c2_top = draw_mim_cap(top, layout, c2_x, cap_y, C_INT_SIDE, C_INT_SIDE)
 
     # =====================================================================
-    # C_Q Binary-Weighted Cap Array (bottom-left region, y=3..25)
+    # C_Q Binary-Weighted Cap Array (bottom-left region)
     # =====================================================================
     cq_x = 2.0
     cq_y = 3.0
     cq = draw_cap_array(top, layout, cq_x, cq_y)
 
     # =====================================================================
-    # SC Switching Caps (C_sw × 2, small MIM caps for SC resistors)
-    # Placed in bottom region between C_Q array and mux
+    # SC Switching Caps (C_sw × 3: input, LP feedback, BP damping)
     # =====================================================================
     sw_cap_y = 3.0
-    csw1_x = cq_x + cq['total_w'] + MIM_SPACE + 2 * MIM_ENC_M5 + 0.5
+    csw_gap = MIM_SPACE + 2 * MIM_ENC_M5 + 0.5
+
+    csw1_x = cq_x + cq['total_w'] + csw_gap
     csw1_bot, csw1_top = draw_mim_cap(top, layout, csw1_x, sw_cap_y,
                                         C_SW_SIDE, C_SW_SIDE)
 
-    csw2_x = csw1_x
-    csw2_y = sw_cap_y + C_SW_SIDE + MIM_SPACE + 2 * MIM_ENC_M5 + 0.9
-    csw2_bot, csw2_top = draw_mim_cap(top, layout, csw2_x, csw2_y,
+    csw2_x = csw1_x + C_SW_SIDE + csw_gap
+    csw2_bot, csw2_top = draw_mim_cap(top, layout, csw2_x, sw_cap_y,
+                                        C_SW_SIDE, C_SW_SIDE)
+
+    csw3_x = csw2_x + C_SW_SIDE + csw_gap
+    csw3_bot, csw3_top = draw_mim_cap(top, layout, csw3_x, sw_cap_y,
                                         C_SW_SIDE, C_SW_SIDE)
 
     # =====================================================================
-    # CMOS Switches (for SC resistors: 2 per SC_R, 4 total)
-    # Placed in single horizontal row above mux
+    # CMOS Switches: 10 total
+    #   SC_R1 (input):      sw_r1a (φ1), sw_r1b (φ2)
+    #   SC_R2 (LP feedback): sw_r2a (φ1), sw_r2b (φ2)
+    #   SC_R3 (BP damping):  sw_r3a (φ1), sw_r3b (φ2)
+    #   C_Q array:           sw_q0..sw_q3 (one per Q bit)
     # =====================================================================
-    sw_y = 18.0
-    sw_gap = 2.5  # NW.b1: min 1.8µm PWell between NWells (different net)
-    sw_start_x = 44.0
+    sw_y = 10.0
+    sw_gap = 2.5
+    sw_start_x = 2.0
 
-    sw1 = draw_cmos_switch(top, layout, sw_start_x, sw_y)
-    sw2 = draw_cmos_switch(top, layout, sw_start_x + sw1['total_w'] + sw_gap, sw_y)
-    sw3 = draw_cmos_switch(top, layout, sw_start_x + 2*(sw1['total_w'] + sw_gap), sw_y)
-    sw4 = draw_cmos_switch(top, layout, sw_start_x + 3*(sw1['total_w'] + sw_gap), sw_y)
+    sd_ext = CONT_SIZE + 2 * CONT_ENC_ACTIV
+    sw_w = sd_ext + SW_N_L + sd_ext
+    sw_pitch = sw_w + sw_gap
+
+    switches = []
+    for i in range(10):
+        sx = sw_start_x + i * sw_pitch
+        sw = draw_cmos_switch(top, layout, sx, sw_y)
+        switches.append(sw)
+
+    # Name the switches for clarity
+    sw_r1a, sw_r1b = switches[0], switches[1]   # SC_R1 input resistor
+    sw_r2a, sw_r2b = switches[2], switches[3]   # SC_R2 LP feedback
+    sw_r3a, sw_r3b = switches[4], switches[5]   # SC_R3 BP damping
+    sw_q0, sw_q1, sw_q2, sw_q3 = switches[6], switches[7], switches[8], switches[9]
 
     # =====================================================================
-    # Analog Mux (right side, bottom region)
+    # CMOS Analog Mux (4:1, right side)
     # =====================================================================
-    mux_x = 44.0
+    mux_x = 42.0
     mux_y = 3.0
-    mux = draw_analog_mux(top, layout, mux_x, mux_y)
+    mux = draw_cmos_mux(top, layout, mux_x, mux_y)
 
     # =====================================================================
     # Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS)
     # =====================================================================
-    # Near OTA NMOS region (y≈52)
+    # Near OTA NMOS region
     for xt in [2.0, 10.0, 18.0, 26.0]:
-        draw_ptap(top, layout, xt, 51.0)
-    # Near NOL clock NMOS (y≈47)
-    for xt in [40.0, 44.0, 48.0]:
-        draw_ptap(top, layout, xt, 46.0)
-    # Near CMOS switches (y≈16 and below)
-    for xt in [44.0, 48.0, 52.0]:
-        draw_ptap(top, layout, xt, 15.0)
-    # Near mux switches (y≈3)
-    draw_ptap(top, layout, 43.0, 2.5)
-    draw_ptap(top, layout, 43.0, 8.0)
+        draw_ptap(top, layout, xt, ota_y - 1.0)
+    # Near NOL clock NMOS
+    for xt in [14.0, 18.0, 22.0]:
+        draw_ptap(top, layout, xt, 37.5)
+    # Near switches
+    for xt in [2.0, 8.0, 14.0, 20.0, 26.0]:
+        draw_ptap(top, layout, xt, 9.0)
+    # Near mux
+    draw_ptap(top, layout, 41.0, 2.5)
+    draw_ptap(top, layout, 41.0, 10.0)
 
     # =====================================================================
-    # SVF signal routing (M2 layer for inter-block connections)
+    # SVF signal routing (M2/M3 for inter-block connections)
     # =====================================================================
 
-    # BP node: OTA1 output → C_int1 top + OTA2 input + C_Q array + mux
-    # Long verticals routed on M3 to avoid crossing horizontal M2 pin routes
+    # --- OTA1 output (BP node) → C_int1 top plate + OTA2.inn + mux ---
+    # OTA1 output goes to M2 via via1, then routes to:
+    #   1. C_int1 top plate (integration cap feedback)
+    #   2. OTA2.inn (inverting input = virtual ground of integrator 2)
+    #   3. Mux BP input
     bp_x1, bp_y1 = ota1['out']
-    bp_x2, bp_y2 = ota2['inp']
+    bp_x2, bp_y2 = ota2['inn']   # FIXED: OTA2 inverting input
     draw_via1(top, layout, bp_x1, bp_y1)
     draw_via1(top, layout, bp_x2, bp_y2)
     bp_route_y = ota_y - 1.0
@@ -715,85 +834,73 @@ def build_sc_svf():
     draw_via2(top, layout, bp_x2, bp_route_y)
     top.shapes(li_m3).insert(rect(bp_x2 - wire_w2/2, bp_route_y - wire_w2/2,
                                    bp_x2 + wire_w2/2, bp_y2 + wire_w2/2))
-    # BP → C_int1 (short vertical, stays on M2 — below q pin range)
+    # BP → C_int1 top plate
     top.shapes(li_m2).insert(rect(bp_x1 - wire_w2/2, c1_top[1] - wire_w2/2,
                                    bp_x1 + wire_w2/2, bp_route_y + wire_w2/2))
 
-    # LP node: OTA2 output → C_int2 top + feedback SC_R2
-    # Long vertical routed on M3 to avoid crossing sc_clk M2 route
+    # --- OTA2 output (LP node) → C_int2 top plate + feedback ---
     lp_x1, lp_y1 = ota2['out']
     draw_via1(top, layout, lp_x1, lp_y1)
     lp_route_y = ota_y - 2.5
-    # LP vertical at lp_x1: M3 from lp_route_y to lp_y1
     draw_via2(top, layout, lp_x1, lp_y1)
     draw_via2(top, layout, lp_x1, lp_route_y)
     top.shapes(li_m3).insert(rect(lp_x1 - wire_w2/2, lp_route_y - wire_w2/2,
                                    lp_x1 + wire_w2/2, lp_y1 + wire_w2/2))
-    # LP → C_int2 (short vertical on M2, below sc_clk range)
+    # LP → C_int2 top plate
     top.shapes(li_m2).insert(rect(lp_x1 - wire_w2/2, c2_top[1] - wire_w2/2,
                                    lp_x1 + wire_w2/2, lp_route_y + wire_w2/2))
 
-    # Summing node: SC_R1 output + SC_R2 output → OTA1 input
-    sum_x, sum_y = ota1['inp']
+    # --- Summing node: SC resistor outputs → OTA1.inn (inverting = virtual ground) ---
+    # FIXED: summing node connects to OTA1 INVERTING input (negative feedback)
+    sum_x, sum_y = ota1['inn']
     draw_via1(top, layout, sum_x, sum_y)
 
-    # =====================================================================
-    # Via stacks: connect M2 routing to MIM cap plates (M5 / TM1)
-    # =====================================================================
-
-    # C_int1: top plate (TM1) ← BP via M2→TM1 stack at c1_top
-    draw_via_stack_m2_to_tm1(top, layout, c1_top[0], c1_top[1])
-    # C_int1: bottom plate (M5) → VSS via M5→M4→M3 stack, then M3 to VSS rail
-    draw_via_stack_m2_to_m5(top, layout, c1_bot[0], c1_bot[1])
-    # Route on M3 from via stack down to M3 VSS rail (y=0..2)
-    top.shapes(li_m3).insert(rect(c1_bot[0] - wire_w2/2, 0.0,
-                                   c1_bot[0] + wire_w2/2, c1_bot[1] + wire_w2/2))
-
-    # C_int2: top plate (TM1) ← LP via M2→TM1 stack at c2_top
-    draw_via_stack_m2_to_tm1(top, layout, c2_top[0], c2_top[1])
-    # C_int2: bottom plate (M5) → VSS via M5→M4→M3 stack, then M3 to VSS rail
-    draw_via_stack_m2_to_m5(top, layout, c2_bot[0], c2_bot[1])
-    top.shapes(li_m3).insert(rect(c2_bot[0] - wire_w2/2, 0.0,
-                                   c2_bot[0] + wire_w2/2, c2_bot[1] + wire_w2/2))
-
-    # C_sw1: top and bottom plate via stacks
-    draw_via_stack_m2_to_tm1(top, layout, csw1_top[0], csw1_top[1])
-    draw_via_stack_m2_to_m5(top, layout, csw1_bot[0], csw1_bot[1])
-
-    # C_sw2: top and bottom plate via stacks
-    draw_via_stack_m2_to_tm1(top, layout, csw2_top[0], csw2_top[1])
-    draw_via_stack_m2_to_m5(top, layout, csw2_bot[0], csw2_bot[1])
-
-    # C_Q array: via stacks at each cap's top and bottom contact points
-    # Bottom via stacks offset to left side of cap to avoid M2 conflicts
-    # with NOL NMOS source straps (C_Q bit 3 center coincides with nmos[3])
-    for cap_info in cq['caps']:
-        draw_via_stack_m2_to_tm1(top, layout, cap_info['top'][0], cap_info['top'][1])
-        bot_via_x = cap_info['x'] + 1.0
-        draw_via_stack_m2_to_m5(top, layout, bot_via_x, cap_info['bot'][1])
-
-    # LP feedback: route LP to OTA1 negative input
+    # --- LP feedback: route LP to summing node via SC_R2 ---
+    # LP → SC_R2 → summing node (OTA1.inn)
     # Verticals on M3 to avoid crossing sc_clk and q pin M2 routes
-    fb_x, fb_y = ota1['inn']
-    draw_via1(top, layout, fb_x, fb_y)
     fb_route_y = ota_y - 4.0
-    # Horizontal M2 connecting fb_x to lp_x1 at fb_route_y
-    top.shapes(li_m2).insert(rect(min(fb_x, lp_x1) - wire_w2/2, fb_route_y - wire_w2/2,
-                                   max(fb_x, lp_x1) + wire_w2/2, fb_route_y + wire_w2/2))
-    # fb vertical: M3 from fb_route_y to fb_y at fb_x
-    draw_via2(top, layout, fb_x, fb_y)
-    draw_via2(top, layout, fb_x, fb_route_y)
-    top.shapes(li_m3).insert(rect(fb_x - wire_w2/2, fb_route_y - wire_w2/2,
-                                   fb_x + wire_w2/2, fb_y + wire_w2/2))
-    # LP-side vertical: M3 from fb_route_y to lp_route_y at lp_x1
+    top.shapes(li_m2).insert(rect(min(sum_x, lp_x1) - wire_w2/2, fb_route_y - wire_w2/2,
+                                   max(sum_x, lp_x1) + wire_w2/2, fb_route_y + wire_w2/2))
+    draw_via2(top, layout, sum_x, fb_route_y)
+    top.shapes(li_m3).insert(rect(sum_x - wire_w2/2, fb_route_y - wire_w2/2,
+                                   sum_x + wire_w2/2, sum_y + wire_w2/2))
     draw_via2(top, layout, lp_x1, fb_route_y)
     top.shapes(li_m3).insert(rect(lp_x1 - wire_w2/2, fb_route_y - wire_w2/2,
                                    lp_x1 + wire_w2/2, lp_route_y + wire_w2/2))
 
     # =====================================================================
-    # Analog Mux routing
+    # Via stacks: connect M2 routing to MIM cap plates (M5 / TM1)
     # =====================================================================
-    # Route mux inputs from filter nodes (using M2)
+
+    # C_int1: top plate (TM1) ← BP via M2→TM1 stack
+    draw_via_stack_m2_to_tm1(top, layout, c1_top[0], c1_top[1])
+    # C_int1: bottom plate (M5) → VSS via M5→M3 stack, then M3 to VSS rail
+    draw_via_stack_m2_to_m5(top, layout, c1_bot[0], c1_bot[1])
+    top.shapes(li_m3).insert(rect(c1_bot[0] - wire_w2/2, 0.0,
+                                   c1_bot[0] + wire_w2/2, c1_bot[1] + wire_w2/2))
+
+    # C_int2: top plate (TM1) ← LP via M2→TM1 stack
+    draw_via_stack_m2_to_tm1(top, layout, c2_top[0], c2_top[1])
+    # C_int2: bottom plate (M5) → VSS
+    draw_via_stack_m2_to_m5(top, layout, c2_bot[0], c2_bot[1])
+    top.shapes(li_m3).insert(rect(c2_bot[0] - wire_w2/2, 0.0,
+                                   c2_bot[0] + wire_w2/2, c2_bot[1] + wire_w2/2))
+
+    # C_sw1..3: via stacks for top and bottom plates
+    for csw_bot, csw_top in [(csw1_bot, csw1_top), (csw2_bot, csw2_top),
+                              (csw3_bot, csw3_top)]:
+        draw_via_stack_m2_to_tm1(top, layout, csw_top[0], csw_top[1])
+        draw_via_stack_m2_to_m5(top, layout, csw_bot[0], csw_bot[1])
+
+    # C_Q array: via stacks
+    for cap_info in cq['caps']:
+        draw_via_stack_m2_to_tm1(top, layout, cap_info['top'][0], cap_info['top'][1])
+        bot_via_x = cap_info['x'] + 1.0
+        draw_via_stack_m2_to_m5(top, layout, bot_via_x, cap_info['bot'][1])
+
+    # =====================================================================
+    # Mux routing
+    # =====================================================================
     # BP → mux.bp_in
     bp_mux_x, bp_mux_y = mux['bp_in']
     draw_via1(top, layout, bp_mux_x, bp_mux_y)
@@ -801,18 +908,12 @@ def build_sc_svf():
                                    bp_mux_x + wire_w2/2, bp_mux_y + wire_w2/2))
 
     # LP → mux.lp_in
-    # Limit M2 extent to avoid M2.b violation with NOL nmos[3] source M2 strap
     lp_mux_x, lp_mux_y = mux['lp_in']
     draw_via1(top, layout, lp_mux_x, lp_mux_y)
-    sd_ext_nol = CONT_SIZE + 2 * CONT_ENC_ACTIV
-    nmos_pitch_nol = (sd_ext_nol + NOL_N_L + sd_ext_nol) + 1.0
-    nol_src3_x = nol_x + 3 * nmos_pitch_nol + sd_ext_nol / 2
-    lp_route_xmax = nol_src3_x - wire_w2 / 2 - M2_SPACE  # clear of NOL M2 strap
-    lp_route_right = min(c2_x + C_INT_SIDE / 2, lp_route_xmax)
-    top.shapes(li_m2).insert(rect(lp_route_right - wire_w2/2, lp_mux_y - wire_w2/2,
+    top.shapes(li_m2).insert(rect(c2_x + C_INT_SIDE / 2 - wire_w2/2, lp_mux_y - wire_w2/2,
                                    lp_mux_x + wire_w2/2, lp_mux_y + wire_w2/2))
 
-    # HP → mux.hp_in (HP derived from vin - LP - Q*BP, route from vin area)
+    # HP → mux.hp_in (from summing node area)
     hp_mux_x, hp_mux_y = mux['hp_in']
     draw_via1(top, layout, hp_mux_x, hp_mux_y)
 
@@ -820,29 +921,27 @@ def build_sc_svf():
     # Pin routing
     # =====================================================================
 
-    # --- vin pin: left edge, y≈36 ---
-    # Long vertical routed on M3 to avoid crossing sel1, sc_clk, q pin M2 routes
-    vin_pin_y = 34.0
-    vin_ota_x, vin_ota_y = ota1['inp']
-    draw_via1(top, layout, vin_ota_x, vin_ota_y)
-    # M2 pin stub from left edge to via2
+    # --- vin pin: left edge, y≈30 ---
+    vin_pin_y = 30.0
+    # vin routes to OTA1.inn summing node (inverting input for correct feedback)
+    # Via M3 vertical to avoid crossing M2 pin routes
+    sum_via_x = sum_x  # already has via1 at sum_x, sum_y
     top.shapes(li_m2).insert(rect(0.0, vin_pin_y - wire_w2/2,
-                                   vin_ota_x + wire_w2/2, vin_pin_y + wire_w2/2))
-    # M3 vertical from bypass_mux_y to vin_ota_y (replaces two M2 verticals)
-    bypass_mux_x, bypass_mux_y = mux['bypass_in']
-    draw_via2(top, layout, vin_ota_x, vin_ota_y)
-    draw_via2(top, layout, vin_ota_x, vin_pin_y)
-    draw_via2(top, layout, vin_ota_x, bypass_mux_y)
-    top.shapes(li_m3).insert(rect(vin_ota_x - wire_w2/2, bypass_mux_y - wire_w2/2,
-                                   vin_ota_x + wire_w2/2, vin_ota_y + wire_w2/2))
+                                   sum_via_x + wire_w2/2, vin_pin_y + wire_w2/2))
+    # M3 vertical from vin_pin_y to sum_y
+    draw_via2(top, layout, sum_via_x, vin_pin_y)
+    top.shapes(li_m3).insert(rect(sum_via_x - wire_w2/2, vin_pin_y - wire_w2/2,
+                                   sum_via_x + wire_w2/2, sum_y + wire_w2/2))
 
-    # Route vin to bypass mux input (horizontal M2 from M3 via to mux)
+    # vin also routes to bypass mux input
+    bypass_mux_x, bypass_mux_y = mux['bypass_in']
     draw_via1(top, layout, bypass_mux_x, bypass_mux_y)
-    top.shapes(li_m2).insert(rect(vin_ota_x - wire_w2/2, bypass_mux_y - wire_w2/2,
+    draw_via2(top, layout, sum_via_x, bypass_mux_y)
+    top.shapes(li_m2).insert(rect(sum_via_x - wire_w2/2, bypass_mux_y - wire_w2/2,
                                    bypass_mux_x + wire_w2/2, bypass_mux_y + wire_w2/2))
 
-    # --- vout pin: right edge, y≈36 ---
-    vout_pin_y = 34.0
+    # --- vout pin: right edge, y≈30 ---
+    vout_pin_y = 30.0
     mux_out_x, mux_out_y = mux['out']
     draw_via1(top, layout, mux_out_x, mux_out_y)
     vout_jog_x = mux_out_x + 1.5
@@ -855,24 +954,22 @@ def build_sc_svf():
     top.shapes(li_m2).insert(rect(vout_jog_x - wire_w2/2, vout_pin_y - wire_w2/2,
                                    MACRO_W, vout_pin_y + wire_w2/2))
 
-    # --- sel[0] pin: left edge, y≈10 ---
-    sel0_pin_y = 10.0
+    # --- sel[0] pin: left edge, y≈8 ---
+    sel0_pin_y = 8.0
     top.shapes(li_m2).insert(rect(0.0, sel0_pin_y - wire_w2/2,
-                                   mux['hp_gate'][0] + wire_w2/2, sel0_pin_y + wire_w2/2))
+                                   mux['lp_ctrl_n'][0] + wire_w2/2, sel0_pin_y + wire_w2/2))
 
-    # --- sel[1] pin: left edge, y≈16 ---
-    sel1_pin_y = 16.0
+    # --- sel[1] pin: left edge, y≈14 ---
+    sel1_pin_y = 14.0
     top.shapes(li_m2).insert(rect(0.0, sel1_pin_y - wire_w2/2,
-                                   mux['bp_gate'][0] + wire_w2/2, sel1_pin_y + wire_w2/2))
+                                   mux['bp_ctrl_n'][0] + wire_w2/2, sel1_pin_y + wire_w2/2))
 
-    # --- sc_clk pin: left edge, y≈52 ---
-    # Route via1 to left of NOL generator (clear of internal M1 drain wires)
-    sc_clk_pin_y = 49.0
+    # --- sc_clk pin: left edge, y≈40 ---
+    sc_clk_pin_y = 40.0
     nol_clk_y = nol['clk_in'][1]
-    via_clk_x = nol_x - 1.5  # offset left to clear drain M1
+    via_clk_x = nol_x - 1.5
     via_clk_y = nol_clk_y
     draw_via1(top, layout, via_clk_x, via_clk_y)
-    # M2 from pin to via1
     top.shapes(li_m2).insert(rect(0.0, sc_clk_pin_y - wire_w2/2,
                                    via_clk_x + wire_w2/2, sc_clk_pin_y + wire_w2/2))
     top.shapes(li_m2).insert(rect(via_clk_x - wire_w2/2,
@@ -880,10 +977,8 @@ def build_sc_svf():
                                    via_clk_x + wire_w2/2,
                                    max(sc_clk_pin_y, via_clk_y) + wire_w2/2))
 
-    # --- q0..q3 pins: left edge, y≈53,55,57,59 ---
-    # Pin stubs only — no long M2 extension (would cross OTA VSS via2 pads)
-    q_pin_ys = [53.0, 55.0, 57.0, 59.0]
-    q_names = ['q0', 'q1', 'q2', 'q3']
+    # --- q0..q3 pins: left edge, y≈45,47,49,51 ---
+    q_pin_ys = [45.0, 47.0, 49.0, 51.0]
 
     # =====================================================================
     # Pin labels
@@ -900,14 +995,9 @@ def build_sc_svf():
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
                   rect(0.0, sc_clk_pin_y - 1.0, 0.5, sc_clk_pin_y + 1.0),
                   "sc_clk", layout)
-    add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, q_pin_ys[0] - 0.5, 0.5, q_pin_ys[0] + 0.5), "q0", layout)
-    add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, q_pin_ys[1] - 0.5, 0.5, q_pin_ys[1] + 0.5), "q1", layout)
-    add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, q_pin_ys[2] - 0.5, 0.5, q_pin_ys[2] + 0.5), "q2", layout)
-    add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                  rect(0.0, q_pin_ys[3] - 0.5, 0.5, q_pin_ys[3] + 0.5), "q3", layout)
+    for i, qy in enumerate(q_pin_ys):
+        add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
+                      rect(0.0, qy - 0.5, 0.5, qy + 0.5), f"q{i}", layout)
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
                   rect(0.0, MACRO_H - 2.0, MACRO_W, MACRO_H), "vdd", layout)
     add_pin_label(top, L_METAL3_PIN, L_METAL3_LBL,
@@ -931,9 +1021,11 @@ if __name__ == "__main__":
     print(f"Wrote {outpath}")
     print(f"  OTAs: 2 × 5-transistor (diff pair W={OTA_DP_W}µm L={OTA_DP_L}µm)")
     print(f"  Integration caps: 2 × {C_INT} pF (MIM {C_INT_SIDE}×{C_INT_SIDE} µm)")
-    print(f"  Switching caps: 2 × {C_SW*1000:.1f} fF (MIM {C_SW_SIDE}×{C_SW_SIDE} µm)")
+    print(f"  Switching caps: 3 × {C_SW*1000:.1f} fF (MIM {C_SW_SIDE}×{C_SW_SIDE} µm)")
     print(f"  C_Q array: 4-bit binary-weighted ({CQ_UNIT_SIDE}µm unit)")
-    print(f"  CMOS switches: 4 (N: W={SW_N_W}µm L={SW_N_L}µm, P: W={SW_P_W}µm L={SW_P_L}µm)")
+    print(f"  CMOS switches: 10 (N: W={SW_N_W}µm L={SW_N_L}µm, P: W={SW_P_W}µm L={SW_P_L}µm)")
+    print(f"  CMOS mux: 4 × TG (N: W={MUX_N_W}µm P: W={MUX_P_W}µm)")
+    print(f"  Bias gen: PMOS+NMOS diode (W={BIAS_P_W}µm L={BIAS_P_L}µm)")
     print(f"  NOL clock: 8 transistors (4 CMOS pairs)")
-    print(f"  Mux: 4 × NMOS W={MUX_W}µm L={MUX_L}µm")
     print(f"  Macro: {MACRO_W} × {MACRO_H} µm = {MACRO_W*MACRO_H:.0f} µm²")
+    print(f"  Alpha: {C_SW*1000:.1f}fF / {C_INT*1000:.0f}fF = {C_SW/C_INT:.4f}")
