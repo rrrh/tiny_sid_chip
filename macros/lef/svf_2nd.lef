@@ -32,7 +32,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 7.000 0.500 9.000 ;
+        RECT 0.000 6.500 0.500 8.500 ;
     END
   END sel0
 
@@ -41,7 +41,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 13.000 0.500 15.000 ;
+        RECT 0.000 13.500 0.500 15.500 ;
     END
   END sel1
 
@@ -50,7 +50,7 @@ MACRO svf_2nd
     USE CLOCK ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 39.000 0.500 41.000 ;
+        RECT 0.000 35.000 0.500 37.000 ;
     END
   END sc_clk
 

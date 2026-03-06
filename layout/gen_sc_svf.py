@@ -284,7 +284,7 @@ def draw_ota(cell, layout, x, y):
     Note: 'inp' = M1 gate = non-inverting (+)
           'inn' = M2 gate = inverting (-)
     """
-    dp_gap = 1.3
+    dp_gap = 1.4  # increased from 1.3 to fix M1.b between dp source wire and tail drain pad
 
     sd_ext_n = SD_EXT
     dp_act_len = sd_ext_n + OTA_DP_L + sd_ext_n
@@ -655,7 +655,7 @@ def build_sc_svf():
     # =====================================================================
     # NW.b1: bias PMOS NWell must be >= 1.8µm from macro left edge
     # Act.b: bias PMOS must be >= 0.21µm from OTA tail in all directions
-    bias_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.02  # 2.13µm
+    bias_x = 2.64  # must be: ≥2.61 (M1.b from OTA1 source) AND ≤2.67 (M1.b from OTA1 drain)
     bias_y = 37.0  # lowered so PMOS ends at ~42.5, well below OTA at y=44
     bias = draw_bias_gen(top, layout, bias_x, bias_y)
 
@@ -672,6 +672,16 @@ def build_sc_svf():
                                    bvx + wire_w/2, MACRO_H - 2.5))
     draw_via1(top, layout, bvx, MACRO_H - 2.5)
     draw_via2(top, layout, bvx, MACRO_H - 1.0)
+
+    # Merge bias VDD and OTA1 VDD-left M2 pads to avoid M2.b violations
+    # Must cover full via pad extents (not just wire_w2)
+    ota1_vdd_l_x = ota1['vdd_l'][0]
+    via1_m2_half = VIA1_ENC_M2 + VIA1_SIZE / 2  # 0.195
+    via2_m2_half = VIA2_ENC_M2 + VIA2_SIZE / 2  # 0.20
+    top.shapes(li_m2).insert(rect(ota1_vdd_l_x - via1_m2_half, MACRO_H - 2.5 - via1_m2_half,
+                                   bvx + via1_m2_half, MACRO_H - 2.5 + via1_m2_half))
+    top.shapes(li_m2).insert(rect(ota1_vdd_l_x - via2_m2_half, MACRO_H - 1.0 - via2_m2_half,
+                                   bvx + via2_m2_half, MACRO_H - 1.0 + via2_m2_half))
 
     # Connect bias output to OTA tail gates via M1 horizontal bus
     bias_out_x, bias_out_y = bias['bias_out']
@@ -710,6 +720,33 @@ def build_sc_svf():
     nol_y = 38.5
     nol = draw_nol_clock(top, layout, nol_x, nol_y)
 
+    # Add GatPoly T-pad + contact below NMOS[0] gate for sc_clk connection.
+    # Direct M1 routing to gate top has structural M1.b violation (0.055µm gap
+    # between gate M1 wire and drain-to-drain M1 wire within the same transistor).
+    # Solution: extend gate poly downward, widen for contact, route M1 below.
+    li_gp = layout.layer(*L_GATPOLY)
+    li_cnt = layout.layer(*L_CONT)
+    nol_gp_x1 = nol_x + SD_EXT                    # 14.38
+    nol_gate_cx = nol_gp_x1 + NOL_N_L / 2         # 14.445
+    nol_gp_bot = nol_y - GATPOLY_EXT               # 38.32 (existing gate poly bottom)
+    gp_cnt_enc = 0.07                              # GatPoly enclosure of contact (Cnt.d >= 0.06)
+    gp_pad_w = CONT_SIZE + 2 * gp_cnt_enc          # 0.30
+    gp_pad_h = gp_pad_w                            # 0.30
+    gp_pad_bot = nol_gp_bot - gp_pad_h             # 38.02
+    # T-pad poly (wider than gate, below Activ)
+    top.shapes(li_gp).insert(rect(nol_gate_cx - gp_pad_w / 2, gp_pad_bot,
+                                   nol_gate_cx + gp_pad_w / 2, nol_gp_bot))
+    # Contact on T-pad
+    cnt_x = nol_gate_cx - CONT_SIZE / 2            # 14.365
+    cnt_y = gp_pad_bot + gp_cnt_enc                # 38.09
+    top.shapes(li_cnt).insert(rect(cnt_x, cnt_y, cnt_x + CONT_SIZE, cnt_y + CONT_SIZE))
+    # M1 pad for contact
+    top.shapes(li_m1).insert(rect(cnt_x - CONT_ENC_M1, cnt_y - CONT_ENC_M1,
+                                   cnt_x + CONT_SIZE + CONT_ENC_M1,
+                                   cnt_y + CONT_SIZE + CONT_ENC_M1))
+    # Override clk_in position to gate contact center (for routing below)
+    nol_gate_cnt_y = cnt_y + CONT_SIZE / 2          # 38.17
+
     # NOL NMOS sources to VSS via M3
     for i in range(4):
         sx, sy = nol['nmos'][i]['source']
@@ -728,7 +765,7 @@ def build_sc_svf():
     # =====================================================================
     # MIM Integration Caps (C_int1 and C_int2, side by side)
     # =====================================================================
-    cap_y = 19.0
+    cap_y = 20.0  # raised from 19.0 to fix TM1.b (CQ bit-3 TM1 pad vs C_int2 TM1 bottom)
     c1_x = 2.0
     c1_bot, c1_top = draw_mim_cap(top, layout, c1_x, cap_y, C_INT_SIDE, C_INT_SIDE)
 
@@ -743,7 +780,7 @@ def build_sc_svf():
     # So cap bottom = cap_y - MIM_ENC_M5 = cap_y - 0.60; via center at cap_bottom
     # Via M3 pad bottom = cap_y - 0.60 - 0.195 = cap_y - 0.795
     # Need cap_y - 0.795 >= 2.0 + 0.21 → cap_y >= 3.005
-    cq_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.02  # keep NWell clear
+    cq_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.12  # keep NWell clear (extra margin)
     cq_y = 3.5
     cq = draw_cap_array(top, layout, cq_x, cq_y)
 
@@ -776,7 +813,7 @@ def build_sc_svf():
     sw_gap = 2.5
     # NW.b1: switch PMOS NWell must be >= 1.8µm from macro left edge
     # NWell left = sw_start_x - NWELL_ENC_ACTIV, need >= NWELL_SPACE_DN
-    sw_start_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.02  # 2.13µm
+    sw_start_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.12  # 2.23µm (extra margin)
 
     sd_ext = SD_EXT
     sw_w = sd_ext + SW_N_L + sd_ext
@@ -805,7 +842,7 @@ def build_sc_svf():
     # Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS)
     # =====================================================================
     # Near OTA NMOS region
-    for xt in [2.0, 10.0, 18.0, 26.0]:
+    for xt in [2.0, 10.0, 18.5, 26.0]:  # 18.0→18.5 to avoid Cnt.d with NOL PMOS GatPoly
         draw_ptap(top, layout, xt, ota_y - 1.0)
     # Near NOL clock NMOS
     for xt in [14.0, 18.0, 22.0]:
@@ -839,11 +876,9 @@ def build_sc_svf():
     # BP horizontal on M2
     top.shapes(li_m2).insert(rect(bp_x1 - wire_w2/2, bp_route_y - wire_w2/2,
                                    bp_x2 + wire_w2/2, bp_route_y + wire_w2/2))
-    # BP vertical at bp_x2: M3 from bp_route_y to bp_y2
-    draw_via2(top, layout, bp_x2, bp_y2)
-    draw_via2(top, layout, bp_x2, bp_route_y)
-    top.shapes(li_m3).insert(rect(bp_x2 - wire_w2/2, bp_route_y - wire_w2/2,
-                                   bp_x2 + wire_w2/2, bp_y2 + wire_w2/2))
+    # BP vertical at bp_x2: M2 from bp_route_y to bp_y2 (avoids M3.b with LP M3 vert)
+    top.shapes(li_m2).insert(rect(bp_x2 - wire_w2/2, min(bp_route_y, bp_y2) - wire_w2/2,
+                                   bp_x2 + wire_w2/2, max(bp_route_y, bp_y2) + wire_w2/2))
     # BP → C_int1 top plate
     top.shapes(li_m2).insert(rect(bp_x1 - wire_w2/2, c1_top[1] - wire_w2/2,
                                    bp_x1 + wire_w2/2, bp_route_y + wire_w2/2))
@@ -869,10 +904,15 @@ def build_sc_svf():
     # LP → SC_R2 → summing node (OTA1.inn)
     # Verticals on M3 to avoid crossing sc_clk and q pin M2 routes
     fb_route_y = ota_y - 4.0
-    top.shapes(li_m2).insert(rect(min(sum_x, lp_x1) - wire_w2/2, fb_route_y - wire_w2/2,
-                                   max(sum_x, lp_x1) + wire_w2/2, fb_route_y + wire_w2/2))
-    draw_via2(top, layout, sum_x, fb_route_y)
-    top.shapes(li_m3).insert(rect(sum_x - wire_w2/2, fb_route_y - wire_w2/2,
+    # Offset sum FB via2/M3 to sum_x - 0.25 to clear bp_x1 via2 M2/M3 pads
+    sum_fb_x = sum_x - 0.25
+    top.shapes(li_m2).insert(rect(sum_fb_x - wire_w2/2, fb_route_y - wire_w2/2,
+                                   lp_x1 + wire_w2/2, fb_route_y + wire_w2/2))
+    draw_via2(top, layout, sum_fb_x, fb_route_y)
+    top.shapes(li_m3).insert(rect(sum_fb_x - wire_w2/2, fb_route_y - wire_w2/2,
+                                   sum_fb_x + wire_w2/2, sum_y + wire_w2/2))
+    # M3 jog from sum_fb_x to sum_x at sum_y to connect to OTA1.inn via stack
+    top.shapes(li_m3).insert(rect(sum_fb_x - wire_w2/2, sum_y - wire_w2/2,
                                    sum_x + wire_w2/2, sum_y + wire_w2/2))
     draw_via2(top, layout, lp_x1, fb_route_y)
     top.shapes(li_m3).insert(rect(lp_x1 - wire_w2/2, fb_route_y - wire_w2/2,
@@ -905,7 +945,7 @@ def build_sc_svf():
     # C_Q array: via stacks
     for cap_info in cq['caps']:
         draw_via_stack_m2_to_tm1(top, layout, cap_info['top'][0], cap_info['top'][1])
-        bot_via_x = cap_info['x'] + 1.0
+        bot_via_x = cap_info['x'] + cap_info['w'] / 2  # center of cap, clears bias/OTA1 VSS M3
         draw_via_stack_m2_to_m5(top, layout, bot_via_x, cap_info['bot'][1])
 
     # =====================================================================
@@ -914,7 +954,10 @@ def build_sc_svf():
     # BP → mux.bp_in
     bp_mux_x, bp_mux_y = mux['bp_in']
     draw_via1(top, layout, bp_mux_x, bp_mux_y)
-    top.shapes(li_m2).insert(rect(c1_x + C_INT_SIDE / 2 - wire_w2/2, bp_mux_y - wire_w2/2,
+    # Start BP→mux M2 horizontal from x=22 (right of all CQ top via pads)
+    # to avoid M2.b with CQ bit1/bit2 top via M2 pads at y≈13.1
+    bp_mux_start_x = 22.0
+    top.shapes(li_m2).insert(rect(bp_mux_start_x, bp_mux_y - wire_w2/2,
                                    bp_mux_x + wire_w2/2, bp_mux_y + wire_w2/2))
 
     # LP → mux.lp_in
@@ -935,13 +978,16 @@ def build_sc_svf():
     vin_pin_y = 30.0
     # vin routes to OTA1.inn summing node (inverting input for correct feedback)
     # Via M3 vertical to avoid crossing M2 pin routes
-    sum_via_x = sum_x  # already has via1 at sum_x, sum_y
+    sum_via_x = sum_x - 0.25  # offset left to clear bp_x1 M3 via2 pads
     top.shapes(li_m2).insert(rect(0.0, vin_pin_y - wire_w2/2,
                                    sum_via_x + wire_w2/2, vin_pin_y + wire_w2/2))
-    # M3 vertical from vin_pin_y to sum_y
+    # M3 vertical from vin_pin_y to sum_y (at offset x)
     draw_via2(top, layout, sum_via_x, vin_pin_y)
     top.shapes(li_m3).insert(rect(sum_via_x - wire_w2/2, vin_pin_y - wire_w2/2,
                                    sum_via_x + wire_w2/2, sum_y + wire_w2/2))
+    # M3 jog to sum_x at sum_y (merges with fb M3 jog)
+    top.shapes(li_m3).insert(rect(sum_via_x - wire_w2/2, sum_y - wire_w2/2,
+                                   sum_x + wire_w2/2, sum_y + wire_w2/2))
 
     # vin also routes to bypass mux input
     bypass_mux_x, bypass_mux_y = mux['bypass_in']
@@ -953,9 +999,13 @@ def build_sc_svf():
     # --- vout pin: right edge, y≈30 ---
     vout_pin_y = 30.0
     mux_out_x, mux_out_y = mux['out']
-    draw_via1(top, layout, mux_out_x, mux_out_y)
-    vout_jog_x = mux_out_x + 1.5
-    top.shapes(li_m2).insert(rect(mux_out_x - wire_w2/2, mux_out_y - wire_w2/2,
+    # Move via1 right to avoid M2.b with LP mux input via1 at (42.19, 4.5)
+    vout_via_x = mux_out_x + 1.0  # 43.70 — clear of lp_mux via M2 pad
+    top.shapes(li_m1).insert(rect(mux_out_x - wire_w/2, mux_out_y - wire_w/2,
+                                   vout_via_x + wire_w/2, mux_out_y + wire_w/2))
+    draw_via1(top, layout, vout_via_x, mux_out_y)
+    vout_jog_x = vout_via_x + 0.20  # merge with via1 M2 pad (right=43.895), clear csw1 M2 pad (left=44.51)
+    top.shapes(li_m2).insert(rect(vout_via_x - wire_w2/2, mux_out_y - wire_w2/2,
                                    vout_jog_x + wire_w2/2, mux_out_y + wire_w2/2))
     top.shapes(li_m2).insert(rect(vout_jog_x - wire_w2/2,
                                    min(mux_out_y, vout_pin_y) - wire_w2/2,
@@ -965,23 +1015,32 @@ def build_sc_svf():
                                    MACRO_W, vout_pin_y + wire_w2/2))
 
     # --- sel[0] pin: left edge, y≈8 ---
-    sel0_pin_y = 8.0
+    sel0_pin_y = 7.5  # lowered to clear CQ bit0 top via M2 pad at y=8.35
     top.shapes(li_m2).insert(rect(0.0, sel0_pin_y - wire_w2/2,
                                    mux['lp_ctrl_n'][0] + wire_w2/2, sel0_pin_y + wire_w2/2))
 
     # --- sel[1] pin: left edge, y≈14 ---
-    sel1_pin_y = 14.0
+    sel1_pin_y = 14.5  # raised to clear BP mux via1 M2 pad at y=13.695
     top.shapes(li_m2).insert(rect(0.0, sel1_pin_y - wire_w2/2,
                                    mux['bp_ctrl_n'][0] + wire_w2/2, sel1_pin_y + wire_w2/2))
 
-    # --- sc_clk pin: left edge, y≈40 ---
-    sc_clk_pin_y = 40.0
-    nol_clk_y = nol['clk_in'][1]
-    via_clk_x = nol_x - 1.5
-    via_clk_y = nol_clk_y
+    # --- sc_clk pin: left edge, y≈36 ---
+    # sc_clk routes on M2 at y=36 (below bias gen at y=37) to avoid crossing
+    # the LP feedback M2 horizontal at fb_route_y=40
+    sc_clk_pin_y = 36.0
+    # Route to gate T-pad contact below NMOS[0] (nol_gate_cnt_y ≈ 38.17)
+    # via_clk_x must be RIGHT of fb M2 horizontal (ends at lp_x1 + wire_w2/2)
+    via_clk_x = 13.5  # right of fb M2 right edge (12.95) + M2.b clearance
+    via_clk_y = nol_gate_cnt_y  # route to gate contact, not gate top
     draw_via1(top, layout, via_clk_x, via_clk_y)
+    # M1 from via_clk to gate contact M1 pad (below transistor — avoids drain M1)
+    top.shapes(li_m1).insert(rect(via_clk_x - wire_w/2, via_clk_y - wire_w/2,
+                                   nol_gate_cx + CONT_SIZE/2 + CONT_ENC_M1,
+                                   via_clk_y + wire_w/2))
+    # M2 horizontal from pin (x=0) to via_clk_x at sc_clk_pin_y
     top.shapes(li_m2).insert(rect(0.0, sc_clk_pin_y - wire_w2/2,
                                    via_clk_x + wire_w2/2, sc_clk_pin_y + wire_w2/2))
+    # M2 vertical from sc_clk_pin_y to via_clk_y
     top.shapes(li_m2).insert(rect(via_clk_x - wire_w2/2,
                                    min(sc_clk_pin_y, via_clk_y) - wire_w2/2,
                                    via_clk_x + wire_w2/2,
