@@ -64,7 +64,10 @@ def draw_resistor_h(cell, layout, x, y, length, width=R_WIDTH):
     """
     li_gp  = layout.layer(*L_GATPOLY)
     li_psd = layout.layer(*L_PSD)
+    li_nsd = layout.layer(*L_NSD)
     li_sal = layout.layer(*L_SALBLOCK)
+    li_polyres = layout.layer(*L_POLYRES)
+    li_extblk  = layout.layer(*L_EXTBLOCK)
     li_cnt = layout.layer(*L_CONT)
     li_m1  = layout.layer(*L_METAL1)
 
@@ -78,11 +81,22 @@ def draw_resistor_h(cell, layout, x, y, length, width=R_WIDTH):
     enc = 0.1
     cell.shapes(li_psd).insert(rect(x - enc, y - enc, x + total_l + enc, y + width + enc))
 
+    # nSD over resistor body (required for rhigh extraction)
+    cell.shapes(li_nsd).insert(rect(x - enc, y - enc, x + total_l + enc, y + width + enc))
+
     # SalBlock over resistor body
     sal_x1 = x + pad + SAL_SPACE_CONT - SAL_ENC_GATPOLY
     sal_x2 = x + pad + SAL_SPACE_CONT + length + SAL_ENC_GATPOLY
     cell.shapes(li_sal).insert(rect(sal_x1, y - SAL_ENC_GATPOLY,
                                      sal_x2, y + width + SAL_ENC_GATPOLY))
+
+    # polyres_drw marker (required for rhigh recognition)
+    cell.shapes(li_polyres).insert(rect(sal_x1, y - SAL_ENC_GATPOLY,
+                                         sal_x2, y + width + SAL_ENC_GATPOLY))
+
+    # extblock_drw marker (required for rhigh extraction)
+    cell.shapes(li_extblk).insert(rect(sal_x1, y - SAL_ENC_GATPOLY,
+                                        sal_x2, y + width + SAL_ENC_GATPOLY))
 
     # Left contact + Metal1
     cx_l = x + pad / 2 - CONT_SIZE / 2
@@ -108,7 +122,6 @@ def draw_nmos(cell, layout, x, y, w=NMOS_W, l=NMOS_L):
     """Draw NMOS transistor. Returns pin centers dict."""
     li_act = layout.layer(*L_ACTIV)
     li_gp  = layout.layer(*L_GATPOLY)
-    li_nsd = layout.layer(*L_NSD)
     li_cnt = layout.layer(*L_CONT)
     li_m1  = layout.layer(*L_METAL1)
 
@@ -116,7 +129,6 @@ def draw_nmos(cell, layout, x, y, w=NMOS_W, l=NMOS_L):
     act_len = sd_ext + l + sd_ext
 
     cell.shapes(li_act).insert(rect(x, y, x + act_len, y + w))
-    cell.shapes(li_nsd).insert(rect(x - 0.1, y - 0.1, x + act_len + 0.1, y + w + 0.1))
 
     gp_x1 = x + sd_ext
     cell.shapes(li_gp).insert(rect(gp_x1, y - GATPOLY_EXT,
@@ -333,8 +345,16 @@ def build_r2r_dac():
         x_cursor += R_TOTAL + gap
 
     # --- Substrate taps (LU.b: pSD-PWell tie within 20µm of NMOS) ---
+    # Connect ptap M1 to switch source VSS bus via M1 vertical
+    # (cannot use M3 — would short gate M3 routes for d0/d1)
+    bus_y = switch_sources[0][1] - 0.8 if switch_sources else sw_y
     for xt in [3.0, 9.0, 15.0, 21.0, 27.0, 33.0]:
         draw_ptap(top, layout, xt, sw_y - 1.5)
+        ptap_cx = xt + 0.18
+        ptap_cy = sw_y - 1.5 + 0.18
+        # M1 vertical from ptap up to VSS bus
+        top.shapes(li_m1).insert(rect(ptap_cx - wire_w / 2, ptap_cy - wire_w / 2,
+                                       ptap_cx + wire_w / 2, bus_y + wire_w / 2))
 
     # --- Vout pin (right edge) ---
     vout_via_x = vout_contact[0]

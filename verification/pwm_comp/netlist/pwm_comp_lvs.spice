@@ -1,0 +1,21 @@
+* PWM Comparator — IHP SG13G2 LVS reference netlist
+* OTA (5T, diode-connected tail) + CMOS inverter
+* Total: 4 NMOS + 3 PMOS
+
+.subckt pwm_comp vinp vinn out vdd vss
+
+* OTA: 5-transistor differential pair with current mirror load
+* M5: Tail current source (diode-connected after layout fix)
+MM5  tail tail vss vss sg13_lv_nmos w=2.0e-6 l=0.5e-6
+* M1, M2: NMOS differential pair
+MM1  mirr vinp tail vss sg13_lv_nmos w=4.0e-6 l=0.5e-6
+MM2  ota_o vinn tail vss sg13_lv_nmos w=4.0e-6 l=0.5e-6
+* M3, M4: PMOS current mirror load (M3 diode-connected)
+MM3  mirr mirr vdd vdd sg13_lv_pmos w=2.0e-6 l=0.5e-6
+MM4  ota_o mirr vdd vdd sg13_lv_pmos w=2.0e-6 l=0.5e-6
+
+* CMOS Inverter: sharpens OTA output to rail-to-rail
+MM6  out ota_o vss vss sg13_lv_nmos w=0.5e-6 l=0.13e-6
+MM7  out ota_o vdd vdd sg13_lv_pmos w=1.0e-6 l=0.13e-6
+
+.ends pwm_comp
