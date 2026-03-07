@@ -502,7 +502,7 @@ def draw_cap_array(cell, layout, x, y):
 
     Returns dict with per-bit top/bot centers.
     """
-    gap = MIM_SPACE + 2 * MIM_ENC_M5
+    gap = MIM_SPACE  # min Cmim-to-Cmim spacing (M5 plates merge — same VSS net)
 
     caps = []
 
@@ -938,7 +938,7 @@ def build_sc_svf():
     # SC Switching Caps (C_sw × 3: input, LP feedback, BP damping)
     # =====================================================================
     sw_cap_y = 3.5
-    csw_gap = MIM_SPACE + 2 * MIM_ENC_M5 + 0.5
+    csw_gap = MIM_SPACE  # min Cmim-to-Cmim spacing (M5 plates merge — same VSS net)
 
     csw1_x = cq_x + cq['total_w'] + csw_gap
     csw1_bot, csw1_top = draw_mim_cap(top, layout, csw1_x, sw_cap_y,
