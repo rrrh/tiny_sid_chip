@@ -90,14 +90,15 @@ BIAS_P_L = 0.50
 # Transistor drawing helpers
 # ===========================================================================
 
-def draw_nmos(cell, layout, x, y, w, l):
+def draw_nmos(cell, layout, x, y, w, l, sd_ext=None):
     """Draw NMOS transistor, return pin centers dict."""
     li_act = layout.layer(*L_ACTIV)
     li_gp  = layout.layer(*L_GATPOLY)
     li_cnt = layout.layer(*L_CONT)
     li_m1  = layout.layer(*L_METAL1)
 
-    sd_ext = SD_EXT
+    if sd_ext is None:
+        sd_ext = SD_EXT
     act_len = sd_ext + l + sd_ext
 
     cell.shapes(li_act).insert(rect(x, y, x + act_len, y + w))
@@ -128,7 +129,7 @@ def draw_nmos(cell, layout, x, y, w, l):
     }
 
 
-def draw_pmos(cell, layout, x, y, w, l, draw_nwell=True):
+def draw_pmos(cell, layout, x, y, w, l, draw_nwell=True, sd_ext=None):
     """Draw PMOS transistor (in NWell), return pin centers dict."""
     li_act  = layout.layer(*L_ACTIV)
     li_gp   = layout.layer(*L_GATPOLY)
@@ -137,7 +138,8 @@ def draw_pmos(cell, layout, x, y, w, l, draw_nwell=True):
     li_cnt  = layout.layer(*L_CONT)
     li_m1   = layout.layer(*L_METAL1)
 
-    sd_ext = SD_EXT
+    if sd_ext is None:
+        sd_ext = SD_EXT
     act_len = sd_ext + l + sd_ext
 
     if draw_nwell:
@@ -182,7 +184,7 @@ def draw_gate_contact(cell, layout, gate_x, gate_y, l, side='above'):
     li_cnt = layout.layer(*L_CONT)
     li_m1  = layout.layer(*L_METAL1)
 
-    margin = 0.02  # clearance from Activ edge
+    margin = 0.14  # Cnt.e: min Cont on GatPoly space to Activ = 0.14µm
     gp_enc = CONT_ENC_GATPOLY  # 0.08
 
     if side == 'above':
@@ -375,12 +377,27 @@ def draw_ota(cell, layout, x, y):
     m4 = draw_pmos(cell, layout, x + dp_act_len + dp_gap, ld_y,
                    w=OTA_LD_W, l=OTA_LD_L, draw_nwell=False)
 
-    # Gate contacts for all OTA transistors
-    m5['gate'] = draw_gate_contact(cell, layout, *m5['gate'], l=OTA_TAIL_L, side='above')
-    m1['gate'] = draw_gate_contact(cell, layout, *m1['gate'], l=OTA_DP_L, side='above')
-    m2['gate'] = draw_gate_contact(cell, layout, *m2['gate'], l=OTA_DP_L, side='above')
-    m3['gate'] = draw_gate_contact(cell, layout, *m3['gate'], l=OTA_LD_L, side='below')
-    m4['gate'] = draw_gate_contact(cell, layout, *m4['gate'], l=OTA_LD_L, side='below')
+    # Gate contacts — place on OUTER sides to avoid M1.b with drain wires
+    # Tail: gate below (away from diff pair above)
+    m5_gate_x = m5['gate'][0]
+    m5['gate'] = draw_gate_contact(cell, layout, m5_gate_x, y - GATPOLY_EXT,
+                                    l=OTA_TAIL_L, side='below')
+    # Diff pair: gates below (away from load above)
+    m1_gate_x = m1['gate'][0]
+    m1['gate'] = draw_gate_contact(cell, layout, m1_gate_x, dp_y - GATPOLY_EXT,
+                                    l=OTA_DP_L, side='below')
+    m2_gate_x = m2['gate'][0]
+    m2['gate'] = draw_gate_contact(cell, layout, m2_gate_x, dp_y - GATPOLY_EXT,
+                                    l=OTA_DP_L, side='below')
+    # Load: gates above (away from diff pair below)
+    m3_gate_x = m3['gate'][0]
+    m3['gate'] = draw_gate_contact(cell, layout, m3_gate_x,
+                                    ld_y + OTA_LD_W + GATPOLY_EXT,
+                                    l=OTA_LD_L, side='above')
+    m4_gate_x = m4['gate'][0]
+    m4['gate'] = draw_gate_contact(cell, layout, m4_gate_x,
+                                    ld_y + OTA_LD_W + GATPOLY_EXT,
+                                    l=OTA_LD_L, side='above')
 
     # M1 routing: diff pair sources to tail drain
     # Route via y above tail to avoid shorting tail drain to tail source
@@ -444,9 +461,14 @@ def draw_cmos_switch(cell, layout, x, y):
     pmos_y = y + SW_N_W + 1.5
     mp = draw_pmos(cell, layout, x, pmos_y, w=SW_P_W, l=SW_P_L)
 
-    # Gate contacts
-    mn['gate'] = draw_gate_contact(cell, layout, *mn['gate'], l=SW_N_L, side='above')
-    mp['gate'] = draw_gate_contact(cell, layout, *mp['gate'], l=SW_P_L, side='below')
+    # Gate contacts — place on OUTER sides to avoid M1.b with source/drain wires
+    nmos_gate_x = mn['gate'][0]
+    mn['gate'] = draw_gate_contact(cell, layout, nmos_gate_x, y - GATPOLY_EXT,
+                                    l=SW_N_L, side='below')
+    pmos_gate_x = mp['gate'][0]
+    mp['gate'] = draw_gate_contact(cell, layout, pmos_gate_x,
+                                    pmos_y + SW_P_W + GATPOLY_EXT,
+                                    l=SW_P_L, side='above')
 
     # Connect NMOS source to PMOS source (M1 vertical)
     cell.shapes(li_m1).insert(rect(mn['source'][0] - wire_w/2, mn['source'][1] - wire_w/2,
@@ -518,13 +540,15 @@ def draw_nol_clock(cell, layout, x, y):
     """
     li_m1 = layout.layer(*L_METAL1)
     wire_w = M1_WIDTH
-    sd_ext = SD_EXT
+    # Use wider sd_ext for NOL to give M1.b clearance between gate M1 pad
+    # and source/drain M1 wires (need sd_ext/2 >= 0.165 + M1_SPACE)
+    nol_sd_ext = 0.70  # gives gap = 0.70/2 - 0.165 = 0.185 > M1_SPACE
 
-    nmos_pitch = (sd_ext + NOL_N_L + sd_ext) + 1.0
+    nmos_pitch = (nol_sd_ext + NOL_N_L + nol_sd_ext) + 1.0
     nmos = []
     for i in range(4):
         nx = x + i * nmos_pitch
-        mn = draw_nmos(cell, layout, nx, y, w=NOL_N_W, l=NOL_N_L)
+        mn = draw_nmos(cell, layout, nx, y, w=NOL_N_W, l=NOL_N_L, sd_ext=nol_sd_ext)
         nmos.append(mn)
 
     pmos_y = y + NOL_N_W + 2.0
@@ -539,10 +563,10 @@ def draw_nol_clock(cell, layout, x, y):
     for i in range(4):
         px = x + i * nmos_pitch
         mp = draw_pmos(cell, layout, px, pmos_y, w=NOL_P_W, l=NOL_P_L,
-                       draw_nwell=False)
+                       draw_nwell=False, sd_ext=nol_sd_ext)
         pmos.append(mp)
 
-    # Gate contacts for all NOL transistors
+    # Gate contacts between NMOS and PMOS (original positions)
     for i in range(4):
         nmos[i]['gate'] = draw_gate_contact(cell, layout, *nmos[i]['gate'],
                                              l=NOL_N_L, side='above')
@@ -639,9 +663,14 @@ def draw_cmos_mux(cell, layout, x, y):
         # PMOS pass gate (above NMOS, parallel)
         pmos_y = sy + MUX_N_W + 1.0
         mp = draw_pmos(cell, layout, x, pmos_y, w=MUX_P_W, l=MUX_P_L)
-        # Gate contacts
-        mn['gate'] = draw_gate_contact(cell, layout, *mn['gate'], l=MUX_N_L, side='above')
-        mp['gate'] = draw_gate_contact(cell, layout, *mp['gate'], l=MUX_P_L, side='below')
+        # Gate contacts — place on OUTER sides to avoid M1.b with source/drain wires
+        nmos_gate_x = mn['gate'][0]
+        mn['gate'] = draw_gate_contact(cell, layout, nmos_gate_x, sy - GATPOLY_EXT,
+                                        l=MUX_N_L, side='below')
+        pmos_gate_x = mp['gate'][0]
+        mp['gate'] = draw_gate_contact(cell, layout, pmos_gate_x,
+                                        pmos_y + MUX_P_W + GATPOLY_EXT,
+                                        l=MUX_P_L, side='above')
         # Connect NMOS source to PMOS source
         cell.shapes(li_m1).insert(rect(mn['source'][0] - wire_w/2, mn['source'][1] - wire_w/2,
                                         mn['source'][0] + wire_w/2, mp['source'][1] + wire_w/2))
@@ -695,9 +724,14 @@ def draw_bias_gen(cell, layout, x, y):
     pmos_y = y + BIAS_N_W + 1.5
     mp = draw_pmos(cell, layout, x, pmos_y, w=BIAS_P_W, l=BIAS_P_L)
 
-    # Gate contacts
-    mn['gate'] = draw_gate_contact(cell, layout, *mn['gate'], l=BIAS_N_L, side='above')
-    mp['gate'] = draw_gate_contact(cell, layout, *mp['gate'], l=BIAS_P_L, side='below')
+    # Gate contacts — place on OUTER sides to avoid M1.b with drain wire
+    nmos_gate_x = mn['gate'][0]
+    mn['gate'] = draw_gate_contact(cell, layout, nmos_gate_x, y - GATPOLY_EXT,
+                                    l=BIAS_N_L, side='below')
+    pmos_gate_x = mp['gate'][0]
+    mp['gate'] = draw_gate_contact(cell, layout, pmos_gate_x,
+                                    pmos_y + BIAS_P_W + GATPOLY_EXT,
+                                    l=BIAS_P_L, side='above')
 
     # Connect NMOS drain to PMOS drain (bias node, M1 vertical)
     cell.shapes(li_m1).insert(rect(mn['drain'][0] - wire_w/2, mn['drain'][1] - wire_w/2,

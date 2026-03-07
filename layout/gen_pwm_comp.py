@@ -163,7 +163,7 @@ def draw_gate_contact(cell, layout, gate_x, gate_y, l, side='above'):
     li_cnt = layout.layer(*L_CONT)
     li_m1  = layout.layer(*L_METAL1)
 
-    margin = 0.02  # clearance from Activ edge
+    margin = 0.14  # Cnt.e: min Cont on GatPoly space to Activ = 0.14µm
 
     if side == 'above':
         activ_top = gate_y - GATPOLY_EXT
@@ -232,16 +232,28 @@ def draw_ota(cell, layout, x, y):
     m4 = draw_pmos(cell, layout, x + dp_act_len + dp_gap, ld_y,
                    w=OTA_LD_W, l=OTA_LD_L, draw_nwell=False)
 
-    # Gate contacts for all OTA transistors (L=0.5µm fits Contact within poly)
-    m5['gate'] = draw_gate_contact(cell, layout, *m5['gate'], l=OTA_TAIL_L, side='above')
-    m1['gate'] = draw_gate_contact(cell, layout, *m1['gate'], l=OTA_DP_L, side='above')
-    m2['gate'] = draw_gate_contact(cell, layout, *m2['gate'], l=OTA_DP_L, side='above')
-    m3['gate'] = draw_gate_contact(cell, layout, *m3['gate'], l=OTA_LD_L, side='below')
-    m4['gate'] = draw_gate_contact(cell, layout, *m4['gate'], l=OTA_LD_L, side='below')
+    # Gate contacts — place on OUTER sides to avoid M1.b with drain wires
+    m5_gate_x = m5['gate'][0]
+    m5['gate'] = draw_gate_contact(cell, layout, m5_gate_x, y - GATPOLY_EXT,
+                                    l=OTA_TAIL_L, side='below')
+    m1_gate_x = m1['gate'][0]
+    m1['gate'] = draw_gate_contact(cell, layout, m1_gate_x, dp_y - GATPOLY_EXT,
+                                    l=OTA_DP_L, side='below')
+    m2_gate_x = m2['gate'][0]
+    m2['gate'] = draw_gate_contact(cell, layout, m2_gate_x, dp_y - GATPOLY_EXT,
+                                    l=OTA_DP_L, side='below')
+    m3_gate_x = m3['gate'][0]
+    m3['gate'] = draw_gate_contact(cell, layout, m3_gate_x,
+                                    ld_y + OTA_LD_W + GATPOLY_EXT,
+                                    l=OTA_LD_L, side='above')
+    m4_gate_x = m4['gate'][0]
+    m4['gate'] = draw_gate_contact(cell, layout, m4_gate_x,
+                                    ld_y + OTA_LD_W + GATPOLY_EXT,
+                                    l=OTA_LD_L, side='above')
 
     # M1 routing: diff pair sources to tail drain
     # Route via y above tail to avoid shorting tail drain to tail source
-    tail_route_y = y + OTA_TAIL_W + 0.3  # above tail, merges with gate contact M1
+    tail_route_y = y + OTA_TAIL_W + 0.7  # above tail, clear of drain M1 pad
     # Vertical M1 from each diff pair source down to tail route y
     cell.shapes(li_m1).insert(rect(m1['source'][0] - wire_w/2, tail_route_y - wire_w/2,
                                     m1['source'][0] + wire_w/2, m1['source'][1] + wire_w/2))
