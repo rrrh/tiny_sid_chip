@@ -14,7 +14,7 @@
     "r2r_dac_8bit": {
       "instances": {
         "u_dac": {
-          "location": [165.6, 66],
+          "location": [165.6, 36],
           "orientation": "N"
         },
         "u_ramp_dac": {
@@ -32,7 +32,7 @@
     "svf_2nd": {
       "instances": {
         "u_svf": {
-          "location": [140.0, 128],
+          "location": [140.0, 68],
           "orientation": "N"
         }
       },
@@ -46,7 +46,7 @@
     "pwm_comp": {
       "instances": {
         "u_comp": {
-          "location": [190.0, 210],
+          "location": [190.0, 150],
           "orientation": "N"
         }
       },
@@ -60,7 +60,7 @@
     "bias_gen": {
       "instances": {
         "u_bias": {
-          "location": [65.0, 4],
+          "location": [65.0, 4.0],
           "orientation": "N"
         }
       },

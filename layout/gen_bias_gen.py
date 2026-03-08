@@ -40,8 +40,8 @@ FC_BITS   = 11
 Q_BITS    = 4
 TOTAL_BITS = FC_BITS + Q_BITS  # 15
 
-MACRO_W   = 75.0
-MACRO_H   = 24.0
+MACRO_W   = 71.0
+MACRO_H   = 22.0
 
 # Derived
 PAD_W     = CONT_SIZE + 2 * CONT_ENC_GATPOLY  # 0.32 µm
@@ -352,17 +352,17 @@ def build_bias_gen():
     wire_w = M1_WIDTH
     hw = M2_WIDTH / 2
 
-    # Y coordinates
-    sw_y       = 10.5
-    r2_lower_y = 13.5
-    r2_upper_y = 16.5
-    series_y   = 19.5
-    vss_bus_y  = 10.0
+    # Y coordinates (compact)
+    sw_y       = 9.5
+    r2_lower_y = 12.0
+    r2_upper_y = 14.5
+    series_y   = 17.0
+    vss_bus_y  = 9.0
 
     gap = 0.18
 
     # --- 11-bit FC section ---
-    fc_x_start = 2.0
+    fc_x_start = 1.5
     fc_vref, fc_vout, fc_x_end, fc_pins = build_r2r_section(
         top, layout, fc_x_start, FC_BITS, "fc",
         sw_y, r2_lower_y, r2_upper_y, series_y,
@@ -371,7 +371,7 @@ def build_bias_gen():
 
     # --- 4-bit Q section (after FC, with 2µm gap) ---
     # Q pins use Y positions above FC pins to avoid overlap
-    q_x_start = fc_x_end + 2.0
+    q_x_start = fc_x_end + 1.0
     q_vref, q_vout, q_x_end, q_pins = build_r2r_section(
         top, layout, q_x_start, Q_BITS, "q",
         sw_y, r2_lower_y, r2_upper_y, series_y,
@@ -390,7 +390,7 @@ def build_bias_gen():
     # --- Analog output pins (right side of each section) ---
     # ibias_fc: from FC vout, route to right edge via M2
     fc_vout_x, fc_vout_y = fc_vout
-    ibias_fc_pin_y = 14.0
+    ibias_fc_pin_y = 12.0
     draw_via1(top, layout, fc_vout_x, fc_vout_y)
     draw_via2(top, layout, fc_vout_x, fc_vout_y)
     # M3 vertical down to pin Y
@@ -406,7 +406,7 @@ def build_bias_gen():
 
     # ibias_q: from Q vout, route to right edge via M2
     q_vout_x, q_vout_y = q_vout
-    ibias_q_pin_y = 14.0
+    ibias_q_pin_y = 12.0
     draw_via1(top, layout, q_vout_x, q_vout_y)
     draw_via2(top, layout, q_vout_x, q_vout_y)
     top.shapes(li_m3).insert(rect(q_vout_x - hw, ibias_q_pin_y - hw,
