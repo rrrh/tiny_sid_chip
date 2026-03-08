@@ -14,7 +14,7 @@
     "r2r_dac_8bit": {
       "instances": {
         "u_dac": {
-          "location": [165.6, 49],
+          "location": [165.6, 66],
           "orientation": "N"
         },
         "u_ramp_dac": {
@@ -32,7 +32,7 @@
     "svf_2nd": {
       "instances": {
         "u_svf": {
-          "location": [141.6, 99],
+          "location": [140.0, 128],
           "orientation": "N"
         }
       },
@@ -46,7 +46,7 @@
     "pwm_comp": {
       "instances": {
         "u_comp": {
-          "location": [189.6, 23],
+          "location": [190.0, 210],
           "orientation": "N"
         }
       },
@@ -55,6 +55,20 @@
       "nl": ["dir::../macros/nl/pwm_comp.v"],
       "lib": {
         "*": ["dir::../macros/lib/pwm_comp.lib"]
+      }
+    },
+    "bias_gen": {
+      "instances": {
+        "u_bias": {
+          "location": [65.0, 4],
+          "orientation": "N"
+        }
+      },
+      "gds": ["dir::../macros/gds/bias_gen.gds"],
+      "lef": ["dir::../macros/lef/bias_gen.lef"],
+      "nl": ["dir::../macros/nl/bias_gen.v"],
+      "lib": {
+        "*": ["dir::../macros/lib/bias_gen.lib"]
       }
     }
   },

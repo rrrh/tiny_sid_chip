@@ -1,32 +1,32 @@
-// 2nd-order Switched-Capacitor State Variable Filter (analog hard macro)
+// 2nd-order gm-C State Variable Filter (analog hard macro)
 // Scalar pin names to match LEF for OpenROAD compatibility
 // Power (vdd/vss) connected via PDN, not RTL ports
 //
-// SC SVF replaces gm-C topology:
-//   sc_clk  : switching clock (from programmable divider), sets fc
-//   q0..q3  : 4-bit binary-weighted C_Q array switches, sets Q
+// gm-C topology — fc and Q set by analog bias currents:
+//   ibias_fc : bias current input for fc-controlling OTAs
+//   ibias_q  : bias current input for Q-controlling OTA
 
 `ifdef BEHAVIORAL_SIM
 //----------------------------------------------------------------------
 // Behavioral model: 2nd-order state variable filter using real arithmetic.
 // Parent writes sim_data_in[7:0] (from DAC) and reads sim_data_out[7:0]
-// (to ADC) via hierarchical references.
+// (to comparator) via hierarchical references.
 //
-// SVF topology (discrete-time, one iteration per sc_clk posedge):
+// SVF topology (discrete-time, one iteration per sample_clk posedge):
 //   hp = input - damping*bp - lp
 //   bp += alpha * hp
 //   lp += alpha * bp          (uses updated bp — standard SVF)
 //
-// alpha = C_sw / C_int = 33.8fF / 502fF ≈ 0.0673
-// damping = 1/Q = 1/(0.5 + q_val)   [q_val = {q3,q2,q1,q0}]
+// alpha ≈ 0.0673 (fixed for behavioral model)
+// damping = 1.0 (fixed Q for behavioral model)
 // sel = {sel1,sel0}: 00=LP, 01=BP, 10=HP, 11=bypass
 //----------------------------------------------------------------------
 module svf_2nd (
     input  wire vin,
     output wire vout,
     input  wire sel0, sel1,
-    input  wire sc_clk,
-    input  wire q0, q1, q2, q3
+    input  wire ibias_fc,
+    input  wire ibias_q
 );
     // Simulation data bus (written/read by parent via hier ref)
     reg [7:0] sim_data_in;
@@ -36,20 +36,23 @@ module svf_2nd (
     real lp, bp;
     real hp_r, in_r, out_r, damp_r;
 
+    // Internal sample clock for behavioral sim (not a real pin)
+    reg sample_clk;
     initial begin
         lp = 0.0;
         bp = 0.0;
         sim_data_in  = 8'd128;
         sim_data_out = 8'd128;
+        sample_clk = 0;
+        forever #500 sample_clk = ~sample_clk; // 1 MHz sample rate
     end
 
-    localparam real ALPHA = 0.0673;   // C_sw / C_int ≈ 33.8fF / 502fF
+    localparam real ALPHA = 0.0673;   // gm / (2*pi*C) normalized
 
-    always @(posedge sc_clk) begin : svf_update
-        integer q_val, out_i;
+    always @(posedge sample_clk) begin : svf_update
+        integer out_i;
 
-        q_val  = {q3, q2, q1, q0};
-        damp_r = 1.0 / (0.5 + q_val);
+        damp_r = 1.0;  // Fixed Q for behavioral model
 
         // AC-couple: center 0-255 around zero
         in_r = (sim_data_in - 128.0) / 128.0;
@@ -82,8 +85,8 @@ module svf_2nd (
     input  wire vin,
     output wire vout,
     input  wire sel0, sel1,
-    input  wire sc_clk,
-    input  wire q0, q1, q2, q3
+    input  wire ibias_fc,
+    input  wire ibias_q
 );
 endmodule
 `endif

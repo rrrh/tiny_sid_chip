@@ -41,8 +41,8 @@
 //     2: res_filt — [7:4] resonance → Q bias DAC, [3:0] filt enable             ($D417)
 //     3: mode_vol — [6:4] mode (HP/BP/LP), [3:0] vol                            ($D418)
 //
-//   Analog signal chain: vol_scale → R-2R DAC → SC SVF → comparator → analog PWM
-//   SC clock divider + C_Q array driven from register bank (flat memory, no SPI)
+//   Analog signal chain: vol_scale → R-2R DAC → gm-C SVF → comparator → analog PWM
+//   ibias_fc/ibias_q bias current inputs left unconnected (external bias required)
 //
 // Waveform register (SID $d404 layout):
 //   [0] gate  [1] sync  [2] ring-mod  [3] test
@@ -499,18 +499,16 @@ module tt_um_sid (
 
     //==========================================================================
     // Analog filter signal chain:
-    //   vol_scale → R-2R DAC → SC SVF → comparator → analog PWM
+    //   vol_scale → R-2R DAC → gm-C SVF → comparator → analog PWM
     //   Ramp DAC (2nd R-2R) generates sawtooth ref for PWM comparator
     //
     // Register mapping (voice_sel=3, flat memory — no SPI):
-    //   fc_lo/fc_hi → filt_fc[6:0] → linear clock divider → sc_clk
-    //   res_filt[3:0] → q0..q3 (C_Q cap array switches, direct)
     //   mode_vol[6:4] → svf_sel[1:0] (HP>BP>LP priority, or bypass)
     //   mode_vol[3:0] → filt_vol     (digital volume scaling BEFORE DAC)
+    //   ibias_fc/ibias_q: analog bias current inputs (unconnected — external bias)
     //==========================================================================
     (* keep *) wire dac_out;           // R-2R DAC analog output
     (* keep *) wire filter_out;        // SVF analog output
-    (* keep *) wire sc_clk;            // SC switching clock to SVF
     (* keep *) wire ramp_out;          // Ramp DAC analog output
     (* keep *) wire analog_pwm;        // Comparator output (analog PWM)
 
@@ -536,41 +534,27 @@ module tt_um_sid (
         .vout (dac_out)
     );
 
-    // --- Programmable clock divider for SC SVF fc tuning ---
-    // filt_fc[6:0] maps linearly to div_ratio (full 11-bit resolution)
-    // filt_fc=0 → div_ratio=2032 (~5.9 kHz SC clock → ~940 Hz cutoff)
-    // filt_fc=127 → div_ratio=0 (clamped to 16 below)
-    wire [10:0] div_ratio_raw = 11'd2032 - {filt_fc[6:0], 4'b0000};
-    wire [10:0] div_ratio = (div_ratio_raw < 11'd16) ? 11'd16 : div_ratio_raw;
+    // --- Bias generator: dual R-2R DAC → bias currents for SVF ---
+    wire ibias_fc_wire, ibias_q_wire;
+    bias_gen u_bias (
+        .fc0 (filt_fc[0]),  .fc1 (filt_fc[1]),  .fc2 (filt_fc[2]),
+        .fc3 (filt_fc[3]),  .fc4 (filt_fc[4]),  .fc5 (filt_fc[5]),
+        .fc6 (filt_fc[6]),  .fc7 (filt_fc[7]),  .fc8 (filt_fc[8]),
+        .fc9 (filt_fc[9]),  .fc10(filt_fc[10]),
+        .q0  (filt_res[0]), .q1  (filt_res[1]),
+        .q2  (filt_res[2]), .q3  (filt_res[3]),
+        .ibias_fc (ibias_fc_wire),
+        .ibias_q  (ibias_q_wire)
+    );
 
-    reg [10:0] clk_cnt;
-    reg       sc_clk_reg;
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            clk_cnt    <= 11'd0;
-            sc_clk_reg <= 1'b0;
-        end else begin
-            if (clk_cnt >= div_ratio - 1'b1) begin
-                clk_cnt    <= 11'd0;
-                sc_clk_reg <= ~sc_clk_reg;
-            end else begin
-                clk_cnt <= clk_cnt + 1'b1;
-            end
-        end
-    end
-    assign sc_clk = sc_clk_reg;
-
-    // --- Analog SC SVF ---
+    // --- Analog gm-C SVF ---
     svf_2nd u_svf (
         .vin      (dac_out),
         .vout     (filter_out),
         .sel0     (svf_sel[0]),
         .sel1     (svf_sel[1]),
-        .sc_clk   (sc_clk),
-        .q0       (filt_res[0]),
-        .q1       (filt_res[1]),
-        .q2       (filt_res[2]),
-        .q3       (filt_res[3])
+        .ibias_fc (ibias_fc_wire),
+        .ibias_q  (ibias_q_wire)
     );
 
     // --- 8-bit ramp counter for PWM reference (runs at clk = 24 MHz) ---
@@ -625,6 +609,6 @@ module tt_um_sid (
     assign uio_out = 8'b0;
     assign uio_oe  = 8'b0;
 
-    wire _unused = &{ena, ui_in[6:5], filt_fc[10:7], 1'b0};
+    wire _unused = &{ena, ui_in[6:5], 1'b0};
 
 endmodule

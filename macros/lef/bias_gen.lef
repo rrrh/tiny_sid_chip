@@ -1,0 +1,196 @@
+VERSION 5.7 ;
+BUSBITCHARS "[]" ;
+DIVIDERCHAR "/" ;
+
+MACRO bias_gen
+  CLASS BLOCK ;
+  ORIGIN 0 0 ;
+  FOREIGN bias_gen 0 0 ;
+  SIZE 75.000 BY 24.000 ;
+  SYMMETRY X Y ;
+
+  PIN fc0
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 1.750 0.500 2.250 ;
+    END
+  END fc0
+
+  PIN fc1
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 2.350 0.500 2.850 ;
+    END
+  END fc1
+
+  PIN fc2
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 2.950 0.500 3.450 ;
+    END
+  END fc2
+
+  PIN fc3
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 3.550 0.500 4.050 ;
+    END
+  END fc3
+
+  PIN fc4
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 4.150 0.500 4.650 ;
+    END
+  END fc4
+
+  PIN fc5
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 4.750 0.500 5.250 ;
+    END
+  END fc5
+
+  PIN fc6
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 5.350 0.500 5.850 ;
+    END
+  END fc6
+
+  PIN fc7
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 5.950 0.500 6.450 ;
+    END
+  END fc7
+
+  PIN fc8
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 6.550 0.500 7.050 ;
+    END
+  END fc8
+
+  PIN fc9
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 7.150 0.500 7.650 ;
+    END
+  END fc9
+
+  PIN fc10
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 7.750 0.500 8.250 ;
+    END
+  END fc10
+
+  PIN q0
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 8.250 0.500 8.750 ;
+    END
+  END q0
+
+  PIN q1
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 8.750 0.500 9.250 ;
+    END
+  END q1
+
+  PIN q2
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 9.250 0.500 9.750 ;
+    END
+  END q2
+
+  PIN q3
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 9.750 0.500 10.250 ;
+    END
+  END q3
+
+  PIN ibias_fc
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 53.705 13.500 54.705 14.500 ;
+    END
+  END ibias_fc
+
+  PIN ibias_q
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 74.500 13.500 75.000 14.500 ;
+    END
+  END ibias_q
+
+  PIN vdd
+    DIRECTION INOUT ;
+    USE POWER ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 22.500 75.000 24.000 ;
+    END
+  END vdd
+
+  PIN vss
+    DIRECTION INOUT ;
+    USE GROUND ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 0.000 75.000 1.500 ;
+    END
+  END vss
+
+  OBS
+    LAYER Metal1 ;
+      RECT 0.500 0.500 74.500 23.500 ;
+    LAYER Metal2 ;
+      RECT 0.500 0.500 74.500 23.500 ;
+    LAYER Metal3 ;
+      RECT 0.500 1.500 74.500 22.500 ;
+    LAYER TopMetal1 ;
+      RECT 0.500 0.500 74.500 23.500 ;
+  END
+
+END bias_gen
+
+END LIBRARY

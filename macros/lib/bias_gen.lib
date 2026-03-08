@@ -1,0 +1,54 @@
+library(bias_gen) {
+  comment : "Dual R-2R bias generator for gm-C SVF";
+  delay_model : table_lookup;
+  simulation : false;
+  capacitive_load_unit (1,pf);
+  leakage_power_unit : 1pW;
+  current_unit : "1A";
+  pulling_resistance_unit : "1kohm";
+  time_unit : "1ns";
+  voltage_unit : "1v";
+  library_features(report_delay_calculation);
+  input_threshold_pct_fall : 50;
+  input_threshold_pct_rise : 50;
+  output_threshold_pct_fall : 50;
+  output_threshold_pct_rise : 50;
+  slew_lower_threshold_pct_fall : 20;
+  slew_lower_threshold_pct_rise : 20;
+  slew_upper_threshold_pct_fall : 80;
+  slew_upper_threshold_pct_rise : 80;
+  nom_process : 1;
+  nom_temperature : 25;
+  nom_voltage : 1.2;
+  type ("bus15") {
+    base_type : array;
+    data_type : bit;
+    bit_width : 15;
+    bit_from : 14;
+    bit_to : 0;
+  }
+  cell(bias_gen) {
+    area : 1800;
+    dont_touch : true;
+    dont_use : true;
+    pin(fc0)  { direction : input; capacitance : 0.002; }
+    pin(fc1)  { direction : input; capacitance : 0.002; }
+    pin(fc2)  { direction : input; capacitance : 0.002; }
+    pin(fc3)  { direction : input; capacitance : 0.002; }
+    pin(fc4)  { direction : input; capacitance : 0.002; }
+    pin(fc5)  { direction : input; capacitance : 0.002; }
+    pin(fc6)  { direction : input; capacitance : 0.002; }
+    pin(fc7)  { direction : input; capacitance : 0.002; }
+    pin(fc8)  { direction : input; capacitance : 0.002; }
+    pin(fc9)  { direction : input; capacitance : 0.002; }
+    pin(fc10) { direction : input; capacitance : 0.002; }
+    pin(q0)   { direction : input; capacitance : 0.002; }
+    pin(q1)   { direction : input; capacitance : 0.002; }
+    pin(q2)   { direction : input; capacitance : 0.002; }
+    pin(q3)   { direction : input; capacitance : 0.002; }
+    pin(ibias_fc) { direction : output; capacitance : 0.005; }
+    pin(ibias_q)  { direction : output; capacitance : 0.005; }
+    pin(vdd) { direction : inout; }
+    pin(vss) { direction : inout; }
+  }
+}
