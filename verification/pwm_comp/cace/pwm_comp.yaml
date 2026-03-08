@@ -1,0 +1,158 @@
+#--------------------------------------------------------------
+# CACE circuit characterization file
+# PWM Comparator (OTA + CMOS Inverter) — IHP SG13G2 130nm
+#--------------------------------------------------------------
+
+name:           pwm_comp
+description:    PWM comparator — 5T OTA with CMOS inverter output stage
+PDK:            ihp-sg13g2
+
+cace_format:    5.2
+
+authorship:
+  designer:         shue
+  creation_date:    March 6, 2026
+  license:          Apache 2.0
+
+paths:
+  root:             ..
+  schematic:        xschem
+  layout:           gds
+  netlist:          netlist
+  documentation:    doc
+
+pins:
+  vinp:
+    description: Non-inverting input (from SVF output)
+    type: signal
+    direction: input
+    Vmin: 0
+    Vmax: vdd
+  vinn:
+    description: Inverting input (from ramp DAC)
+    type: signal
+    direction: input
+    Vmin: 0
+    Vmax: vdd
+  out:
+    description: Digital PWM output (rail-to-rail)
+    type: signal
+    direction: output
+  vdd:
+    description: Positive power supply
+    type: power
+    direction: inout
+    Vmin: 1.08
+    Vmax: 1.32
+  vss:
+    description: Ground
+    type: ground
+    direction: inout
+
+default_conditions:
+  vdd:
+    description: Power supply voltage
+    display: Vdd
+    unit: V
+    typical: 1.2
+  temperature:
+    description: Ambient temperature
+    display: Temp
+    unit: "\u00B0C"
+    typical: 27
+  corner:
+    description: Process corner (MOS)
+    display: Corner
+    typical: mos_tt
+
+parameters:
+
+  # -- DC transfer function and offset voltage ----------------
+  dc_transfer:
+    description: DC transfer curve — sweep Vinp with Vinn at mid-rail
+    display: DC Transfer / Offset
+    spec:
+      vos:
+        display: Input Offset Voltage
+        description: Offset from ideal trip point (Vinp = Vinn = VDD/2)
+        unit: mV
+        maximum:
+          value: 50.0
+      trip_point:
+        display: Trip Point
+        description: Vinp at which output transitions (Vinn = VDD/2)
+        unit: V
+        minimum:
+          value: 0.4
+        maximum:
+          value: 0.8
+    tool:
+      ngspice:
+        template: dc_transfer.spice
+        format: ascii
+        suffix: .data
+        variables: [null, vout]
+        script: dc_params.py
+        script_variables: [vos, trip_point]
+    conditions:
+      corner:
+        enumerate: [mos_tt, mos_ff, mos_ss]
+      temperature:
+        enumerate: [-40, 27, 130]
+      vdd:
+        typical: 1.2
+    plot:
+      transfer_curve:
+        type: xyplot
+        xaxis: null
+        yaxis: vout
+      offset_vs_corner:
+        type: xyplot
+        xaxis: corner
+        yaxis: vos
+      offset_vs_temp:
+        type: xyplot
+        xaxis: temperature
+        yaxis: vos
+
+  # -- Propagation delay --------------------------------------
+  prop_delay:
+    description: Propagation delay from input crossing to output transition
+    display: Propagation Delay
+    spec:
+      t_plh:
+        display: tPLH
+        description: Low-to-high propagation delay (Vinp rising through Vinn)
+        unit: ns
+        maximum:
+          value: 100.0
+      t_phl:
+        display: tPHL
+        description: High-to-low propagation delay (Vinp falling through Vinn)
+        unit: ns
+        maximum:
+          value: 100.0
+    tool:
+      ngspice:
+        template: prop_delay.spice
+        format: ascii
+        suffix: .data
+        variables: [time, vinp, null, vout]
+        script: delay_params.py
+        script_variables: [t_plh, t_phl]
+    conditions:
+      corner:
+        enumerate: [mos_tt, mos_ff, mos_ss]
+      temperature:
+        enumerate: [-40, 27, 130]
+      vdd:
+        typical: 1.2
+    plot:
+      delay_vs_corner:
+        type: xyplot
+        xaxis: corner
+        yaxis: t_plh
+      delay_vs_temp:
+        type: xyplot
+        xaxis: temperature
+        yaxis: t_plh

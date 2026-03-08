@@ -44,7 +44,10 @@ Cint2 vg2 lp_bar {c_int_val}
 Rin2  bp vg2 {r_eff_val}
 
 * ==== HP output (behavioral) ====
-Bhp hp 0 V = v(vin) - v(lp)
+* Tow-Thomas: LP and BP are sign-inverted from standard biquad.
+* Standard: LP_s + BP_s + HP_s = 1, so HP_s = 1 - LP_s - BP_s.
+* With LP_tt = -LP_s and BP_tt = -BP_s: HP = vin + lp + bp.
+Bhp hp 0 V = v(vin) + v(lp) + v(bp)
 
 * ==== 4:1 Output Mux (behavioral) ====
 Bsel_hp  sel_hp  0 V = ({vdd_val}-v(sel1))*({vdd_val}-v(sel0))/{vdd_sq_val}

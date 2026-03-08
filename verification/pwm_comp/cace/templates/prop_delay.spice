@@ -1,0 +1,47 @@
+* PWM Comparator — Propagation Delay
+* CACE template: transient with fast step input crossing Vinn
+*
+* Conditions substituted by CACE:
+*   CACE{vdd}          — supply voltage (V)
+*   CACE{temperature}  — temperature (deg C)
+*   CACE{corner}       — MOS process corner (mos_tt, mos_ff, mos_ss)
+
+* -- PDK Models ------------------------------------------------
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib CACE{corner}
+
+* -- DUT -------------------------------------------------------
+.include CACE{DUT_path}
+
+* -- Parameters ------------------------------------------------
+.param vdd_val = CACE{vdd}
+
+* -- Temperature -----------------------------------------------
+.temp CACE{temperature}
+
+* -- Power supplies --------------------------------------------
+Vdd  vdd 0 {vdd_val}
+Vss  vss 0 0
+
+* -- Input: Vinn at mid-rail ----------------------------------
+Vvinn vinn 0 {vdd_val/2}
+
+* -- Vinp: two fast step transitions to measure tPLH and tPHL --
+* Start low (0.2V), step up to 1.0V at 50ns (rising crossing),
+* step back down at 200ns (falling crossing). 1ns transitions.
+Vvinp vinp 0 PWL(0 0.2 49n 0.2 50n 1.0 199n 1.0 200n 0.2 400n 0.2)
+
+* -- Output load -----------------------------------------------
+Cload out 0 10f
+Rload out 0 1meg
+
+* -- DUT instantiation -----------------------------------------
+Xcomp vinp vinn out vdd vss pwm_comp
+
+* -- Transient: 400ns ------------------------------------------
+.control
+  tran 0.05n 400n
+  wrdata CACE{simpath}/CACE{filename}_CACE{N}.data v(vinp) v(out)
+  quit
+.endc
+
+.end

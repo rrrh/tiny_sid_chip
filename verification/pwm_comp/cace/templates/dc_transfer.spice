@@ -1,0 +1,42 @@
+* PWM Comparator — DC Transfer Function
+* CACE template: sweep Vinp from 0 to VDD with Vinn = VDD/2
+*
+* Conditions substituted by CACE:
+*   CACE{vdd}          — supply voltage (V)
+*   CACE{temperature}  — temperature (deg C)
+*   CACE{corner}       — MOS process corner (mos_tt, mos_ff, mos_ss)
+
+* -- PDK Models ------------------------------------------------
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib CACE{corner}
+
+* -- DUT -------------------------------------------------------
+.include CACE{DUT_path}
+
+* -- Parameters ------------------------------------------------
+.param vdd_val = CACE{vdd}
+
+* -- Temperature -----------------------------------------------
+.temp CACE{temperature}
+
+* -- Power supplies --------------------------------------------
+Vdd  vdd 0 {vdd_val}
+Vss  vss 0 0
+
+* -- Input: sweep Vinp, hold Vinn at mid-rail ------------------
+Vvinp vinp 0 0
+Vvinn vinn 0 {vdd_val/2}
+
+* -- Output load -----------------------------------------------
+Rload out 0 1meg
+
+* -- DUT instantiation -----------------------------------------
+Xcomp vinp vinn out vdd vss pwm_comp
+
+* -- DC sweep: Vinp from 0 to VDD, 5mV steps ------------------
+.control
+  dc Vvinp 0 CACE{vdd} 0.005
+  wrdata CACE{simpath}/CACE{filename}_CACE{N}.data v(out)
+  quit
+.endc
+
+.end

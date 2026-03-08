@@ -1,75 +1,53 @@
 * 8-bit R-2R DAC — IHP SG13G2
-* Complementary-switch R-2R: each 2R leg steered to VDD or VSS
+* Complementary CMOS switches (NMOS to VSS + PMOS to VDD)
+* Both gates driven by d[n]: d=VDD → NMOS on (sw=VSS), d=0 → PMOS on (sw=VDD)
+* Inverted output: code 0 → Vout ≈ VDD, code 255 → Vout ≈ 0
+* Bit ordering: d0(LSB)→VDD end, d7(MSB)→output end
 * Pin order: d7 d6 d5 d4 d3 d2 d1 d0 vout vdd vss
 
-* ============================================================
-* Complementary Switch Subcircuit
-* When d=VDD: out connects to vhi (PMOS on, NMOS off)
-* When d=0:   out connects to vlo (NMOS on, PMOS off)
-* ============================================================
-.subckt cmos_sw out sel selb vhi vlo vdd vss
-XMp_hi out selb vhi vdd sg13_lv_pmos w=20e-6 l=0.13e-6
-XMn_lo out selb vlo vss sg13_lv_nmos w=10e-6 l=0.13e-6
-.ends cmos_sw
-
-* ============================================================
-* 8-bit R-2R DAC
-* Pins: d7 d6 d5 d4 d3 d2 d1 d0 vout vdd vss
-*   d7 = MSB, d0 = LSB
-*   bit = VDD → 2R leg to VDD, bit = 0 → 2R leg to VSS
-* ============================================================
 .subckt r2r_dac_8bit d7 d6 d5 d4 d3 d2 d1 d0 vout vdd vss
 
-* Complementary gate signals
-Binv7 d7b 0 V = v(vdd) - v(d7)
-Binv6 d6b 0 V = v(vdd) - v(d6)
-Binv5 d5b 0 V = v(vdd) - v(d5)
-Binv4 d4b 0 V = v(vdd) - v(d4)
-Binv3 d3b 0 V = v(vdd) - v(d3)
-Binv2 d2b 0 V = v(vdd) - v(d2)
-Binv1 d1b 0 V = v(vdd) - v(d1)
-Binv0 d0b 0 V = v(vdd) - v(d0)
+* Series R chain: VDD -> j0 -> j1 -> ... -> j6 -> vout
+* j0 is VDD end (lowest weight, driven by d0=LSB)
+* j6/vout is output end (highest weight, driven by d7=MSB)
+XRs0  vdd  j0   vss rhigh w=2e-6 l=2.1e-6
+XRs1  j0   j1   vss rhigh w=2e-6 l=2.1e-6
+XRs2  j1   j2   vss rhigh w=2e-6 l=2.1e-6
+XRs3  j2   j3   vss rhigh w=2e-6 l=2.1e-6
+XRs4  j3   j4   vss rhigh w=2e-6 l=2.1e-6
+XRs5  j4   j5   vss rhigh w=2e-6 l=2.1e-6
+XRs6  j5   j6   vss rhigh w=2e-6 l=2.1e-6
+XRs7  j6   vout vss rhigh w=2e-6 l=2.1e-6
 
-* Termination resistor at LSB end (2R from tap0 to VSS)
-XRterm tap0 vss vss rhigh w=2e-6 l=6.15e-6
+* Merged 2R shunt arms (folded pair = single 2R)
+XR2r0  j0   sd0  vss rhigh w=2e-6 l=4.2e-6
+XR2r1  j1   sd1  vss rhigh w=2e-6 l=4.2e-6
+XR2r2  j2   sd2  vss rhigh w=2e-6 l=4.2e-6
+XR2r3  j3   sd3  vss rhigh w=2e-6 l=4.2e-6
+XR2r4  j4   sd4  vss rhigh w=2e-6 l=4.2e-6
+XR2r5  j5   sd5  vss rhigh w=2e-6 l=4.2e-6
+XR2r6  j6   sd6  vss rhigh w=2e-6 l=4.2e-6
+XR2r7  vout sd7  vss rhigh w=2e-6 l=4.2e-6
 
-* Bit 0 (LSB)
-XR2R_0  tap0 sw0 vss rhigh w=2e-6 l=6.15e-6
-Xsw0    sw0 d0 d0b vdd vss vdd vss cmos_sw
-XRs01   tap0 tap1 vss rhigh w=2e-6 l=3.08e-6
+* NMOS switches: d[N]=VDD → on → shunt arm to VSS
+* d0→sd0 (LSB, VDD end), d7→sd7 (MSB, output end)
+XMn0  sd0 d0 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
+XMn1  sd1 d1 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
+XMn2  sd2 d2 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
+XMn3  sd3 d3 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
+XMn4  sd4 d4 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
+XMn5  sd5 d5 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
+XMn6  sd6 d6 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
+XMn7  sd7 d7 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
 
-* Bit 1
-XR2R_1  tap1 sw1 vss rhigh w=2e-6 l=6.15e-6
-Xsw1    sw1 d1 d1b vdd vss vdd vss cmos_sw
-XRs12   tap1 tap2 vss rhigh w=2e-6 l=3.08e-6
-
-* Bit 2
-XR2R_2  tap2 sw2 vss rhigh w=2e-6 l=6.15e-6
-Xsw2    sw2 d2 d2b vdd vss vdd vss cmos_sw
-XRs23   tap2 tap3 vss rhigh w=2e-6 l=3.08e-6
-
-* Bit 3
-XR2R_3  tap3 sw3 vss rhigh w=2e-6 l=6.15e-6
-Xsw3    sw3 d3 d3b vdd vss vdd vss cmos_sw
-XRs34   tap3 tap4 vss rhigh w=2e-6 l=3.08e-6
-
-* Bit 4
-XR2R_4  tap4 sw4 vss rhigh w=2e-6 l=6.15e-6
-Xsw4    sw4 d4 d4b vdd vss vdd vss cmos_sw
-XRs45   tap4 tap5 vss rhigh w=2e-6 l=3.08e-6
-
-* Bit 5
-XR2R_5  tap5 sw5 vss rhigh w=2e-6 l=6.15e-6
-Xsw5    sw5 d5 d5b vdd vss vdd vss cmos_sw
-XRs56   tap5 tap6 vss rhigh w=2e-6 l=3.08e-6
-
-* Bit 6
-XR2R_6  tap6 sw6 vss rhigh w=2e-6 l=6.15e-6
-Xsw6    sw6 d6 d6b vdd vss vdd vss cmos_sw
-XRs67   tap6 vout vss rhigh w=2e-6 l=3.08e-6
-
-* Bit 7 (MSB)
-XR2R_7  vout sw7 vss rhigh w=2e-6 l=6.15e-6
-Xsw7    sw7 d7 d7b vdd vss vdd vss cmos_sw
+* PMOS switches: d[N]=0 → on → shunt arm to VDD
+XMp0  sd0 d0 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMp1  sd1 d1 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMp2  sd2 d2 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMp3  sd3 d3 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMp4  sd4 d4 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMp5  sd5 d5 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMp6  sd6 d6 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMp7  sd7 d7 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
 
 .ends r2r_dac_8bit

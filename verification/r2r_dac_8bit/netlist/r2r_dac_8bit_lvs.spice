@@ -1,37 +1,48 @@
 * 8-bit R-2R DAC — IHP SG13G2 LVS reference netlist
-* 8 series rhigh + 8 shunt rhigh (merged 2R) + 8 NMOS switches
-* Total: 8 NMOS + 16 rhigh
+* Complementary CMOS switches (NMOS to VSS + PMOS to VDD)
+* Bit ordering: d0(LSB)→VDD end, d7(MSB)→output end
+* Total: 8 NMOS + 8 PMOS + 16 rhigh
 
 .subckt r2r_dac_8bit d0 d1 d2 d3 d4 d5 d6 d7 vout vdd vss
 
-* Series R chain: VDD -> j7 -> j6 -> ... -> j1 -> vout
-RRs7  vdd  j7   rhigh w=2u l=2.1u ps=0 b=1 m=1
-RRs6  j7   j6   rhigh w=2u l=2.1u ps=0 b=1 m=1
-RRs5  j6   j5   rhigh w=2u l=2.1u ps=0 b=1 m=1
-RRs4  j5   j4   rhigh w=2u l=2.1u ps=0 b=1 m=1
-RRs3  j4   j3   rhigh w=2u l=2.1u ps=0 b=1 m=1
-RRs2  j3   j2   rhigh w=2u l=2.1u ps=0 b=1 m=1
-RRs1  j2   j1   rhigh w=2u l=2.1u ps=0 b=1 m=1
-RRs0  j1   vout rhigh w=2u l=2.1u ps=0 b=1 m=1
+* Series R chain: VDD -> j0 -> j1 -> ... -> j6 -> vout
+RRs0  vdd  j0   rhigh w=2u l=2.1u ps=0 b=1 m=1
+RRs1  j0   j1   rhigh w=2u l=2.1u ps=0 b=1 m=1
+RRs2  j1   j2   rhigh w=2u l=2.1u ps=0 b=1 m=1
+RRs3  j2   j3   rhigh w=2u l=2.1u ps=0 b=1 m=1
+RRs4  j3   j4   rhigh w=2u l=2.1u ps=0 b=1 m=1
+RRs5  j4   j5   rhigh w=2u l=2.1u ps=0 b=1 m=1
+RRs6  j5   j6   rhigh w=2u l=2.1u ps=0 b=1 m=1
+RRs7  j6   vout rhigh w=2u l=2.1u ps=0 b=1 m=1
 
 * Merged 2R shunt arms (folded pair extracted as single resistor)
-RR2r7  j7   sd7  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r6  j6   sd6  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r5  j5   sd5  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r4  j4   sd4  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r3  j3   sd3  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r2  j2   sd2  rhigh w=2u l=4.2u ps=0 b=1 m=1
+RR2r0  j0   sd0  rhigh w=2u l=4.2u ps=0 b=1 m=1
 RR2r1  j1   sd1  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r0  vout sd0  rhigh w=2u l=4.2u ps=0 b=1 m=1
+RR2r2  j2   sd2  rhigh w=2u l=4.2u ps=0 b=1 m=1
+RR2r3  j3   sd3  rhigh w=2u l=4.2u ps=0 b=1 m=1
+RR2r4  j4   sd4  rhigh w=2u l=4.2u ps=0 b=1 m=1
+RR2r5  j5   sd5  rhigh w=2u l=4.2u ps=0 b=1 m=1
+RR2r6  j6   sd6  rhigh w=2u l=4.2u ps=0 b=1 m=1
+RR2r7  vout sd7  rhigh w=2u l=4.2u ps=0 b=1 m=1
 
-* NMOS switches (gate = d[N], drain = shunt node, source = VSS bus)
-MM7  sd7 d7 vss vss sg13_lv_nmos w=2u l=0.13u
-MM6  sd6 d6 vss vss sg13_lv_nmos w=2u l=0.13u
-MM5  sd5 d5 vss vss sg13_lv_nmos w=2u l=0.13u
-MM4  sd4 d4 vss vss sg13_lv_nmos w=2u l=0.13u
-MM3  sd3 d3 vss vss sg13_lv_nmos w=2u l=0.13u
-MM2  sd2 d2 vss vss sg13_lv_nmos w=2u l=0.13u
-MM1  sd1 d1 vss vss sg13_lv_nmos w=2u l=0.13u
-MM0  sd0 d0 vss vss sg13_lv_nmos w=2u l=0.13u
+* NMOS switches (gate = d[N], drain = shunt node, source = VSS)
+MMn0  sd0 d0 vss vss sg13_lv_nmos w=10u l=0.13u
+MMn1  sd1 d1 vss vss sg13_lv_nmos w=10u l=0.13u
+MMn2  sd2 d2 vss vss sg13_lv_nmos w=10u l=0.13u
+MMn3  sd3 d3 vss vss sg13_lv_nmos w=10u l=0.13u
+MMn4  sd4 d4 vss vss sg13_lv_nmos w=10u l=0.13u
+MMn5  sd5 d5 vss vss sg13_lv_nmos w=10u l=0.13u
+MMn6  sd6 d6 vss vss sg13_lv_nmos w=10u l=0.13u
+MMn7  sd7 d7 vss vss sg13_lv_nmos w=10u l=0.13u
+
+* PMOS switches (gate = d[N], drain = shunt node, source = VDD)
+MMp0  sd0 d0 vdd vdd sg13_lv_pmos w=20u l=0.13u
+MMp1  sd1 d1 vdd vdd sg13_lv_pmos w=20u l=0.13u
+MMp2  sd2 d2 vdd vdd sg13_lv_pmos w=20u l=0.13u
+MMp3  sd3 d3 vdd vdd sg13_lv_pmos w=20u l=0.13u
+MMp4  sd4 d4 vdd vdd sg13_lv_pmos w=20u l=0.13u
+MMp5  sd5 d5 vdd vdd sg13_lv_pmos w=20u l=0.13u
+MMp6  sd6 d6 vdd vdd sg13_lv_pmos w=20u l=0.13u
+MMp7  sd7 d7 vdd vdd sg13_lv_pmos w=20u l=0.13u
 
 .ends r2r_dac_8bit

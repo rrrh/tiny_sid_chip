@@ -5,7 +5,10 @@ Input:
     results['vout'] — list of 256 output voltages (code 0 .. 255)
 
 Output:
-    {'vout_min': [V(code=0)], 'vout_max': [V(code=255)]}
+    {'vout_min': [min(Vout)], 'vout_max': [max(Vout)]}
+
+Note: NMOS shunt-switch R-2R has inverted output — code 0 gives max,
+code 255 gives min. We report actual min/max regardless of code order.
 """
 
 from typing import Any
@@ -21,6 +24,6 @@ def postprocess(
         raise Exception(f'Expected 256 data points, got {len(vout)}')
 
     return {
-        'vout_min': [vout[0]],
-        'vout_max': [vout[-1]],
+        'vout_min': [min(vout)],
+        'vout_max': [max(vout)],
     }

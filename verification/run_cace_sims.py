@@ -136,7 +136,7 @@ def run_parameter(macro_name, cace_dir, param_name, param_def, netlist_path, def
             try:
                 result = subprocess.run(
                     ['ngspice', '-b', spice_path],
-                    capture_output=True, text=True, timeout=120,
+                    capture_output=True, text=True, timeout=300,
                     cwd=tmpdir
                 )
             except subprocess.TimeoutExpired:
@@ -440,6 +440,31 @@ def generate_custom_plots(macro_name, all_param_results, plot_dir):
         plt.close(fig)
         print(f"    Plot: {os.path.relpath(outpath, VERIFICATION_DIR)}")
 
+    if macro_name == 'svf_2nd' and 'hp_response' in all_param_results:
+        # HP frequency response
+        results = all_param_results['hp_response']
+        fig, ax = plt.subplots(figsize=(8, 5))
+        for cond_dict, raw_data, processed, spec_ok in results:
+            freq = raw_data.get('freq', [])
+            vout_re = raw_data.get('vout_re', [])
+            vout_im = raw_data.get('vout_im', [])
+            if freq and vout_re and vout_im:
+                mag_db = [20 * math.log10(max(math.sqrt(r**2 + i**2), 1e-20))
+                          for r, i in zip(vout_re, vout_im)]
+                f_clk = cond_dict.get('f_clk', '?')
+                ax.semilogx(freq, mag_db, label=f'f_clk={f_clk} Hz')
+        ax.set_xlabel('Frequency (Hz)')
+        ax.set_ylabel('Magnitude (dB)')
+        ax.set_title('SVF High-Pass Response')
+        ax.legend()
+        ax.grid(True, alpha=0.3, which='both')
+        ax.set_ylim(-40, 5)
+        plt.tight_layout()
+        outpath = os.path.join(plot_dir, 'svf_hp_bode.png')
+        fig.savefig(outpath, dpi=150)
+        plt.close(fig)
+        print(f"    Plot: {os.path.relpath(outpath, VERIFICATION_DIR)}")
+
     if macro_name == 'svf_2nd' and 'lp_response' in all_param_results:
         # LP frequency response
         results = all_param_results['lp_response']
@@ -465,34 +490,34 @@ def generate_custom_plots(macro_name, all_param_results, plot_dir):
         plt.close(fig)
         print(f"    Plot: {os.path.relpath(outpath, VERIFICATION_DIR)}")
 
-    if macro_name == 'sar_adc_8bit' and 'comp_resolve_time' in all_param_results:
-        # Comparator waveform for one condition
-        results = all_param_results['comp_resolve_time']
+    if macro_name == 'pwm_comp' and 'prop_delay' in all_param_results:
+        # Comparator transient waveform for typical corner
+        results = all_param_results['prop_delay']
         for cond_dict, raw_data, processed, spec_ok in results:
             if (cond_dict.get('corner') == 'mos_tt' and
-                cond_dict.get('temperature') == 27 and
-                cond_dict.get('vdiff') == 10):
+                cond_dict.get('temperature') == 27):
                 time = raw_data.get('time', [])
-                outp = raw_data.get('outp', [])
-                outn = raw_data.get('outn', [])
-                clk = raw_data.get('clk', [])
-                if time and outp and outn:
-                    time_ns = [t * 1e9 for t in time]
+                vinp = raw_data.get('vinp', [])
+                vout = raw_data.get('vout', [])
+                if time and vinp and vout:
+                    time_us = [t * 1e6 for t in time]
                     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6),
-                                                    sharex=True, height_ratios=[3, 1])
-                    ax1.plot(time_ns, outp, 'b-', label='outp', linewidth=0.8)
-                    ax1.plot(time_ns, outn, 'r-', label='outn', linewidth=0.8)
+                                                    sharex=True, height_ratios=[1, 1])
+                    vdd = float(cond_dict.get('vdd', 1.2))
+                    ax1.plot(time_us, vinp, 'b-', label='Vinp', linewidth=0.8)
+                    ax1.axhline(y=vdd/2, color='r', linestyle='--', alpha=0.5,
+                               label=f'Vinn={vdd/2:.1f}V')
                     ax1.set_ylabel('Voltage (V)')
-                    ax1.set_title('StrongARM Comparator (TT, 27°C, Vdiff=10mV)')
+                    ax1.set_title('PWM Comparator Transient (TT, 27C)')
                     ax1.legend()
                     ax1.grid(True, alpha=0.3)
-                    if clk:
-                        ax2.plot(time_ns, clk, 'g-', linewidth=0.8)
-                        ax2.set_ylabel('CLK (V)')
-                        ax2.set_xlabel('Time (ns)')
-                        ax2.grid(True, alpha=0.3)
+                    ax2.plot(time_us, vout, 'g-', linewidth=0.8, label='Vout')
+                    ax2.set_ylabel('Output (V)')
+                    ax2.set_xlabel('Time (us)')
+                    ax2.legend()
+                    ax2.grid(True, alpha=0.3)
                     plt.tight_layout()
-                    outpath = os.path.join(plot_dir, 'sar_comp_waveform.png')
+                    outpath = os.path.join(plot_dir, 'pwm_comp_transient.png')
                     fig.savefig(outpath, dpi=150)
                     plt.close(fig)
                     print(f"    Plot: {os.path.relpath(outpath, VERIFICATION_DIR)}")
@@ -718,7 +743,8 @@ def run_macro(macro_name):
 
 
 def main():
-    macros = ['r2r_dac_8bit', 'svf_2nd', 'sar_adc_8bit', 'bias_dac_2ch']
+    # Only the 3 analog macros used in the active design (tt_um_sid)
+    macros = ['r2r_dac_8bit', 'svf_2nd', 'pwm_comp']
 
     if len(sys.argv) > 1:
         macros = sys.argv[1:]
