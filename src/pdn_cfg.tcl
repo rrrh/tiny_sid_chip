@@ -63,8 +63,6 @@ if { $::env(PDN_ENABLE_RAILS) == 1 } {
 
 # Analog macro grid: connect Metal3 PG pins to TopMetal1 stripes
 # via intermediate Metal4 (vertical) and Metal5 (horizontal) stripes.
-# M4 width=1.0 ensures multi-cut via pads fit within the stripe
-# (avoids M4.b notch violations from via enclosure extending beyond stripe).
 # PDN connect is net-aware: VDD stripes only connect to VDD pins.
 # TopMetal1 OBS in macro LEFs is narrowed to leave 4um at edges
 # for the M5-TM1 via connection.
@@ -79,13 +77,14 @@ define_pdn_grid \
 add_pdn_stripe \
     -grid macro_grid \
     -layer Metal4 \
-    -width 1.0 \
-    -pitch 14.0 \
-    -offset 7.0 \
+    -width 0.44 \
+    -pitch 10.0 \
+    -offset 5.0 \
     -starts_with POWER \
-    -spacing 3.0
+    -spacing 1.0
 
 # Metal5 horizontal stripes inside macros (cross M4 vertical stripes)
+# pitch=4 ensures stripes land near both top and bottom PG pins
 add_pdn_stripe \
     -grid macro_grid \
     -layer Metal5 \
