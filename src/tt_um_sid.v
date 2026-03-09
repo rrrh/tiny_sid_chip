@@ -41,8 +41,8 @@
 //     2: res_filt — [7:4] resonance → Q bias DAC, [3:0] filt enable             ($D417)
 //     3: mode_vol — [6:4] mode (HP/BP/LP), [3:0] vol                            ($D418)
 //
-//   Analog signal chain: vol_scale → R-2R DAC → gm-C SVF → comparator → analog PWM
-//   ibias_fc/ibias_q bias current inputs left unconnected (external bias required)
+//   Analog signal chain: vol_scale → R-2R DAC → SC+OTA SVF → comparator → analog PWM
+//   sc_clk from NCO phase accumulator, q[3:0] from inverted resonance register
 //
 // Waveform register (SID $d404 layout):
 //   [0] gate  [1] sync  [2] ring-mod  [3] test
@@ -499,13 +499,13 @@ module tt_um_sid (
 
     //==========================================================================
     // Analog filter signal chain:
-    //   vol_scale → R-2R DAC → gm-C SVF → comparator → analog PWM
+    //   vol_scale → R-2R DAC → SC+OTA SVF → comparator → analog PWM
     //   Ramp DAC (2nd R-2R) generates sawtooth ref for PWM comparator
     //
     // Register mapping (voice_sel=3, flat memory — no SPI):
     //   mode_vol[6:4] → svf_sel[1:0] (HP>BP>LP priority, or bypass)
     //   mode_vol[3:0] → filt_vol     (digital volume scaling BEFORE DAC)
-    //   ibias_fc/ibias_q: analog bias current inputs (unconnected — external bias)
+    //   sc_clk from NCO, q[3:0] from inverted resonance register
     //==========================================================================
     (* keep *) wire dac_out;           // R-2R DAC analog output
     (* keep *) wire filter_out;        // SVF analog output
@@ -534,27 +534,31 @@ module tt_um_sid (
         .vout (dac_out)
     );
 
-    // --- Bias generator: dual R-2R DAC → bias currents for SVF ---
-    wire ibias_fc_wire, ibias_q_wire;
-    bias_gen u_bias (
-        .fc0 (filt_fc[0]),  .fc1 (filt_fc[1]),  .fc2 (filt_fc[2]),
-        .fc3 (filt_fc[3]),  .fc4 (filt_fc[4]),  .fc5 (filt_fc[5]),
-        .fc6 (filt_fc[6]),  .fc7 (filt_fc[7]),  .fc8 (filt_fc[8]),
-        .fc9 (filt_fc[9]),  .fc10(filt_fc[10]),
-        .q0  (filt_res[0]), .q1  (filt_res[1]),
-        .q2  (filt_res[2]), .q3  (filt_res[3]),
-        .ibias_fc (ibias_fc_wire),
-        .ibias_q  (ibias_q_wire)
-    );
+    // --- NCO phase accumulator: filt_fc[10:0] → sc_clk ---
+    // increment = fc + fc/4 (×5/4 scaling for finer tuning range)
+    // 16-bit accumulator, MSB = sc_clk
+    reg [15:0] phase_acc;
+    wire [12:0] nco_increment = {2'b0, filt_fc} + {4'b0, filt_fc[10:2]};
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n) phase_acc <= 16'd0;
+        else        phase_acc <= phase_acc + {3'b0, nco_increment};
+    wire sc_clk_nco = phase_acc[15];
 
-    // --- Analog gm-C SVF ---
+    // --- Q register inversion: SID res=0 → flat, res=15 → self-oscillation ---
+    // q_pins = 15 - filt_res: high q_pins = more Csw_q = lower Q = flatter
+    wire [3:0] q_pins = 4'd15 - filt_res;
+
+    // --- Analog SC+OTA SVF ---
     svf_2nd u_svf (
         .vin      (dac_out),
         .vout     (filter_out),
         .sel0     (svf_sel[0]),
         .sel1     (svf_sel[1]),
-        .ibias_fc (ibias_fc_wire),
-        .ibias_q  (ibias_q_wire)
+        .sc_clk   (sc_clk_nco),
+        .q0       (q_pins[0]),
+        .q1       (q_pins[1]),
+        .q2       (q_pins[2]),
+        .q3       (q_pins[3])
     );
 
     // --- 8-bit ramp counter for PWM reference (runs at clk = 24 MHz) ---

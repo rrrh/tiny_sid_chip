@@ -56,20 +56,6 @@
       "lib": {
         "*": ["dir::../macros/lib/pwm_comp.lib"]
       }
-    },
-    "bias_gen": {
-      "instances": {
-        "u_bias": {
-          "location": [65.0, 4.0],
-          "orientation": "N"
-        }
-      },
-      "gds": ["dir::../macros/gds/bias_gen.gds"],
-      "lef": ["dir::../macros/lef/bias_gen.lef"],
-      "nl": ["dir::../macros/nl/bias_gen.v"],
-      "lib": {
-        "*": ["dir::../macros/lib/bias_gen.lib"]
-      }
     }
   },
   "PL_TARGET_DENSITY_PCT": 50,
