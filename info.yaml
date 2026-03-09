@@ -18,9 +18,6 @@ project:
   source_files:
     - "tt_um_sid.v"
     - "pwm_audio.v"
-    - "filter.v"
-    - "SVF_8bit.v"
-    - "output_lpf.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 pinout:
