@@ -90,7 +90,7 @@ add_pdn_stripe \
     -layer Metal5 \
     -width 1.0 \
     -pitch 4.0 \
-    -offset 2.0 \
+    -offset 1.0 \
     -starts_with POWER \
     -spacing 1.0
 
