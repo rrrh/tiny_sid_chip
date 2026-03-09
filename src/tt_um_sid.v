@@ -535,13 +535,11 @@ module tt_um_sid (
     );
 
     // --- NCO phase accumulator: filt_fc[10:0] → sc_clk ---
-    // increment = fc + fc/4 (×5/4 scaling for finer tuning range)
-    // 16-bit accumulator, MSB = sc_clk
+    // increment = fc + fc/4 (×5/4 scaling), folded into single accumulator add
     reg [15:0] phase_acc;
-    wire [12:0] nco_increment = {2'b0, filt_fc} + {4'b0, filt_fc[10:2]};
     always @(posedge clk or negedge rst_n)
         if (!rst_n) phase_acc <= 16'd0;
-        else        phase_acc <= phase_acc + {3'b0, nco_increment};
+        else        phase_acc <= phase_acc + {5'b0, filt_fc} + {7'b0, filt_fc[10:2]};
     wire sc_clk_nco = phase_acc[15];
 
     // --- Q register inversion: SID res=0 → flat, res=15 → self-oscillation ---
