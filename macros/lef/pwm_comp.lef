@@ -36,23 +36,23 @@ MACRO pwm_comp
     END
   END out
 
-  PIN vdd
+  PIN VDD
     DIRECTION INOUT ;
     USE POWER ;
     PORT
       LAYER Metal3 ;
         RECT 0.000 13.000 12.000 15.000 ;
     END
-  END vdd
+  END VDD
 
-  PIN vss
+  PIN VSS
     DIRECTION INOUT ;
     USE GROUND ;
     PORT
       LAYER Metal3 ;
         RECT 0.000 0.000 12.000 2.000 ;
     END
-  END vss
+  END VSS
 
   OBS
     LAYER Metal1 ;

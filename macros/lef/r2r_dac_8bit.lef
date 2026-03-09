@@ -90,23 +90,23 @@ MACRO r2r_dac_8bit
     END
   END vout
 
-  PIN vdd
+  PIN VDD
     DIRECTION INOUT ;
     USE POWER ;
     PORT
       LAYER Metal3 ;
         RECT 0.000 28.500 36.000 30.000 ;
     END
-  END vdd
+  END VDD
 
-  PIN vss
+  PIN VSS
     DIRECTION INOUT ;
     USE GROUND ;
     PORT
       LAYER Metal3 ;
         RECT 0.000 0.000 36.000 1.500 ;
     END
-  END vss
+  END VSS
 
   OBS
     LAYER Metal1 ;
@@ -116,7 +116,7 @@ MACRO r2r_dac_8bit
     LAYER Metal3 ;
       RECT 0.500 1.500 35.500 28.500 ;
     LAYER TopMetal1 ;
-      RECT 0.500 0.500 35.500 29.500 ;
+      RECT 0.500 4.000 35.500 26.000 ;
   END
 
 END r2r_dac_8bit
