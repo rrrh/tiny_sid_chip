@@ -6,7 +6,7 @@ MACRO svf_2nd
   CLASS BLOCK ;
   ORIGIN 0 0 ;
   FOREIGN svf_2nd 0 0 ;
-  SIZE 70.000 BY 72.000 ;
+  SIZE 64.000 BY 67.000 ;
   SYMMETRY X Y ;
 
   PIN vin
@@ -14,7 +14,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 33.000 0.500 37.000 ;
+        RECT 0.000 29.000 0.500 33.000 ;
     END
   END vin
 
@@ -23,7 +23,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 69.500 33.000 70.000 37.000 ;
+        RECT 63.500 29.000 64.000 33.000 ;
     END
   END vout
 
@@ -32,7 +32,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 6.500 0.500 8.500 ;
+        RECT 0.000 5.500 0.500 7.500 ;
     END
   END sel0
 
@@ -41,7 +41,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 16.500 0.500 18.500 ;
+        RECT 0.000 14.500 0.500 16.500 ;
     END
   END sel1
 
@@ -50,7 +50,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 47.000 0.500 49.000 ;
+        RECT 0.000 43.000 0.500 45.000 ;
     END
   END sc_clk
 
@@ -59,7 +59,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 24.700 0.500 25.300 ;
+        RECT 0.000 21.700 0.500 22.300 ;
     END
   END q0
 
@@ -68,7 +68,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 26.200 0.500 26.800 ;
+        RECT 0.000 23.200 0.500 23.800 ;
     END
   END q1
 
@@ -77,7 +77,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 27.700 0.500 28.300 ;
+        RECT 0.000 24.700 0.500 25.300 ;
     END
   END q2
 
@@ -86,7 +86,7 @@ MACRO svf_2nd
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 29.200 0.500 29.800 ;
+        RECT 0.000 26.200 0.500 26.800 ;
     END
   END q3
 
@@ -95,7 +95,7 @@ MACRO svf_2nd
     USE POWER ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 70.000 70.000 72.000 ;
+        RECT 0.000 65.000 64.000 67.000 ;
     END
   END vdd
 
@@ -104,19 +104,19 @@ MACRO svf_2nd
     USE GROUND ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 0.000 70.000 2.000 ;
+        RECT 0.000 0.000 64.000 2.000 ;
     END
   END vss
 
   OBS
     LAYER Metal1 ;
-      RECT 0.500 0.500 69.500 71.500 ;
+      RECT 0.500 0.500 63.500 66.500 ;
     LAYER Metal2 ;
-      RECT 0.500 0.500 69.500 71.500 ;
+      RECT 0.500 0.500 63.500 66.500 ;
     LAYER Metal3 ;
-      RECT 0.500 0.500 69.500 71.500 ;
+      RECT 0.500 0.500 63.500 66.500 ;
     LAYER TopMetal1 ;
-      RECT 0.500 0.500 69.500 71.500 ;
+      RECT 0.500 0.500 63.500 66.500 ;
   END
 
 END svf_2nd

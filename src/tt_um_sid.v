@@ -544,7 +544,7 @@ module tt_um_sid (
 
     // --- Q register inversion: SID res=0 → flat, res=15 → self-oscillation ---
     // q_pins = 15 - filt_res: high q_pins = more Csw_q = lower Q = flatter
-    wire [3:0] q_pins = 4'd15 - filt_res;
+    wire [3:0] q_pins = ~filt_res;
 
     // --- Analog SC+OTA SVF ---
     svf_2nd u_svf (
