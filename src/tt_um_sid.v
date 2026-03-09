@@ -558,11 +558,11 @@ module tt_um_sid (
     );
 
     // --- 8-bit ramp counter for PWM reference (runs at clk = 24 MHz) ---
-    // Wraps at 255 → 94.1 kHz sawtooth
+    // 255-step period (0–254) → 94.1 kHz, matches digital PWM
     reg [7:0] ramp_cnt;
     always @(posedge clk or negedge rst_n)
         if (!rst_n) ramp_cnt <= 8'd0;
-        else        ramp_cnt <= ramp_cnt + 8'd1;
+        else        ramp_cnt <= (ramp_cnt == 8'd254) ? 8'd0 : ramp_cnt + 8'd1;
 
     // --- Ramp DAC: converts counter to analog ramp ---
     r2r_dac_8bit u_ramp_dac (

@@ -387,8 +387,8 @@ def build_bias_gen():
         draw_via1(top, layout, vref_x, vdd_rail_y)
         draw_via2(top, layout, vref_x, vdd_rail_y)
 
-    # --- Analog output pins (right side of each section) ---
-    # ibias_fc: from FC vout, route to right edge via M2
+    # --- Analog output pins (both routed to right edge of macro) ---
+    # ibias_fc: from FC vout, route M3 to right edge
     fc_vout_x, fc_vout_y = fc_vout
     ibias_fc_pin_y = 12.0
     draw_via1(top, layout, fc_vout_x, fc_vout_y)
@@ -396,22 +396,21 @@ def build_bias_gen():
     # M3 vertical down to pin Y
     top.shapes(li_m3).insert(rect(fc_vout_x - hw, ibias_fc_pin_y - hw,
                                     fc_vout_x + hw, fc_vout_y))
-    # M3 horizontal to right edge of FC section
-    fc_pin_x = fc_x_end + 1.0
+    # M3 horizontal all the way to right edge
+    fc_pin_x = MACRO_W - 0.3
     top.shapes(li_m3).insert(rect(fc_vout_x - hw, ibias_fc_pin_y - hw,
                                     fc_pin_x, ibias_fc_pin_y + hw))
     draw_via2(top, layout, fc_pin_x, ibias_fc_pin_y)
     top.shapes(li_m2).insert(rect(fc_pin_x - hw, ibias_fc_pin_y - 0.5,
-                                    fc_pin_x + 0.5, ibias_fc_pin_y + 0.5))
+                                    MACRO_W, ibias_fc_pin_y + 0.5))
 
-    # ibias_q: from Q vout, route to right edge via M2
+    # ibias_q: from Q vout, route M3 to right edge (different Y)
     q_vout_x, q_vout_y = q_vout
-    ibias_q_pin_y = 12.0
+    ibias_q_pin_y = 14.0
     draw_via1(top, layout, q_vout_x, q_vout_y)
     draw_via2(top, layout, q_vout_x, q_vout_y)
     top.shapes(li_m3).insert(rect(q_vout_x - hw, ibias_q_pin_y - hw,
                                     q_vout_x + hw, q_vout_y))
-    # Route to macro right edge
     q_pin_x = MACRO_W - 0.3
     top.shapes(li_m3).insert(rect(q_vout_x - hw, ibias_q_pin_y - hw,
                                     q_pin_x, ibias_q_pin_y + hw))
