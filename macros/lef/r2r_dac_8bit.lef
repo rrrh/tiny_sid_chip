@@ -14,7 +14,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 1.650 0.500 2.350 ;
+        RECT 0.000 1.800 0.500 2.400 ;
     END
   END d0
 
@@ -23,7 +23,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 2.450 0.500 3.150 ;
+        RECT 0.000 2.640 0.500 3.240 ;
     END
   END d1
 
@@ -32,7 +32,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 3.250 0.500 3.950 ;
+        RECT 0.000 3.480 0.500 4.080 ;
     END
   END d2
 
@@ -41,7 +41,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 4.050 0.500 4.750 ;
+        RECT 0.000 4.320 0.500 4.920 ;
     END
   END d3
 
@@ -50,7 +50,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 4.850 0.500 5.550 ;
+        RECT 0.000 5.160 0.500 5.760 ;
     END
   END d4
 
@@ -59,7 +59,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 5.650 0.500 6.350 ;
+        RECT 0.000 6.000 0.500 6.600 ;
     END
   END d5
 
@@ -68,7 +68,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 6.450 0.500 7.150 ;
+        RECT 0.000 6.840 0.500 7.440 ;
     END
   END d6
 
@@ -77,7 +77,7 @@ MACRO r2r_dac_8bit
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 7.250 0.500 7.950 ;
+        RECT 0.000 7.680 0.500 8.280 ;
     END
   END d7
 

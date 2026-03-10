@@ -372,7 +372,7 @@ def build_r2r_dac():
         draw_via1(top, layout, gc_x, gc_y)
 
         # Pin routing: left edge M2 → M3 → M2 vertical to gate
-        pin_y = 2.0 + bit * 0.8
+        pin_y = 2.10 + bit * 0.84  # aligned to M3 track grid (0.42µm pitch)
         hw = M2_WIDTH / 2
 
         top.shapes(li_m2).insert(rect(0.0, pin_y - hw, 1.5, pin_y + hw))
@@ -491,9 +491,9 @@ def build_r2r_dac():
 
     # Pin labels
     for bit in range(NBITS):
-        pin_y = 2.0 + bit * 0.8
+        pin_y = 2.10 + bit * 0.84  # aligned to M3 track grid (0.42µm pitch)
         add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                      rect(0.0, pin_y - 0.29, 0.5, pin_y + 0.29),
+                      rect(0.0, pin_y - 0.30, 0.5, pin_y + 0.30),
                       f"d{bit}", layout)
 
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
