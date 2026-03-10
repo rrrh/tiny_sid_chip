@@ -850,7 +850,7 @@ def build_sc_svf():
     # =====================================================================
     # Bias generator (between NOL clock and OTAs)
     # =====================================================================
-    bias_x = 2.64
+    bias_x = 2.40
     bias_y = 45.5  # well below OTA row at y=53
     bias = draw_bias_gen(top, layout, bias_x, bias_y)
 
@@ -870,7 +870,7 @@ def build_sc_svf():
 
     # Connect bias output to OTA tail gates via M1 horizontal bus
     bias_out_x, bias_out_y = bias['bias_out']
-    bias_bus_y = 51.5
+    bias_bus_y = 51.8
     # Vertical from bias output to bus
     top.shapes(li_m1).insert(rect(bias_out_x - wire_w/2, bias_out_y - wire_w/2,
                                    bias_out_x + wire_w/2, bias_bus_y + wire_w/2))
@@ -1034,8 +1034,9 @@ def build_sc_svf():
     li_nw = layout.layer(*L_NWELL)
 
     # --- ptaps for DRC LU.b (within 20µm of NMOS) ---
-    for xt in [2.0, 10.0, 26.0]:
+    for xt in [0.5, 26.0]:
         draw_ptap(top, layout, xt, ota_y - 1.0)
+    draw_ptap(top, layout, 10.0, ota_y - 2.0)  # moved down to clear bias M1 bus at y=51.8
     draw_ptap(top, layout, 18.4, ota_y - 3.5)  # moved down to avoid NOL VDD bus M1
     for xt in [14.0, 18.0, 22.0]:
         draw_ptap(top, layout, xt, 45.5)
@@ -1078,7 +1079,7 @@ def build_sc_svf():
 
     # Bias PMOS ntap
     bias_pmos_y = bias_y + BIAS_N_W + 1.5
-    ntap_bias_x = bias_x + 0.5
+    ntap_bias_x = bias_x  # shifted left to avoid M1.b with bias bus vertical wire
     ntap_bias_y = bias_pmos_y + BIAS_P_W + NTAP_OFFSET
     draw_ntap(top, layout, ntap_bias_x, ntap_bias_y)
     ntap_bias_cx = ntap_bias_x + 0.18
@@ -1213,7 +1214,7 @@ def build_sc_svf():
     # NOTE: LP→sum1 SC feedback (R_fb) goes through switches — no direct route here
 
     # --- lp_neg → OTA3.inn (inverter input) via M2 (no M3 near sum3) ---
-    inv_route_y = ota_y - 6.5
+    inv_route_y = ota_y - 6.7
     # M2 route x offset left from sum3 to avoid LP via2 M2 pad conflict
     sum3_route_x = sum3_x - 1.0
     draw_via2(top, layout, lp_neg_x, inv_route_y)
@@ -1306,8 +1307,8 @@ def build_sc_svf():
     # =====================================================================
 
     # --- vin pin: left edge, y≈35 ---
-    vin_pin_y = 31.0
-    vin_via_x = sum1_x + 0.86  # offset RIGHT to clear BP M3 at x=5.93 (need >=0.41 c2c)
+    vin_pin_y = 30.8
+    vin_via_x = sum1_x + 0.96  # offset RIGHT to clear BP M3 at x=5.93 (need >=0.41 c2c)
     top.shapes(li_m2).insert(rect(0.0, vin_pin_y - wire_w2/2,
                                    vin_via_x + wire_w2/2, vin_pin_y + wire_w2/2))
     draw_via2(top, layout, vin_via_x, vin_pin_y)
