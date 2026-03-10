@@ -1,55 +1,110 @@
-* 2nd-order gm-C SVF — IHP SG13G2 LVS reference netlist
-* 4 OTAs (5T each) + 2 bias mirrors + 3 mux NMOS + 2 MIM caps
-* Pin order: D G S B (standard SPICE)
+* 2nd-order SC SVF — IHP SG13G2 LVS reference netlist
+* Transcribed from extracted layout topology
+* 34 NMOS + 31 PMOS + 11 cap_cmim = 76 devices
 
-.SUBCKT svf_2nd vss vout sel[0] sel[1] vin ibias_fc ibias_q vdd
+.SUBCKT svf_2nd q0 q1 q2 q3 sc_clk sel0 sel1 vdd vin vout vss
 
-* OTA-Q diff pair (W=4u L=0.5u) — tail dp_q biased by ibias_q
-M1  vss   vss      dp_q   psub sg13_lv_nmos w=4u l=0.5u
-M2  out2  vss      dp_q   psub sg13_lv_nmos w=4u l=0.5u
+* ---- SC CMOS switches (12 pairs: NMOS W=2u L=0.13u + PMOS W=4u L=0.13u) ----
+MNs1  sa1  sg1  sb1  vss sg13_lv_nmos W=2u L=0.13u
+MPs1  sa1  pg1  sb1  vdd sg13_lv_pmos W=4u L=0.13u
+MNs2  sa2  sg2  sb2  vss sg13_lv_nmos W=2u L=0.13u
+MPs2  sa2  pg2  sb2  vdd sg13_lv_pmos W=4u L=0.13u
+MNs3  sa3  sg3  sb3  vss sg13_lv_nmos W=2u L=0.13u
+MPs3  sa3  pg3  sb3  vdd sg13_lv_pmos W=4u L=0.13u
+MNs4  sa4  sg4  sb4  vss sg13_lv_nmos W=2u L=0.13u
+MPs4  sa4  pg4  sb4  vdd sg13_lv_pmos W=4u L=0.13u
+MNs5  sa5  sg5  sb5  vss sg13_lv_nmos W=2u L=0.13u
+MPs5  sa5  pg5  sb5  vdd sg13_lv_pmos W=4u L=0.13u
+MNs6  sa6  sg6  sb6  vss sg13_lv_nmos W=2u L=0.13u
+MPs6  sa6  pg6  sb6  vdd sg13_lv_pmos W=4u L=0.13u
+MNs7  sa7  sg7  sb7  vss sg13_lv_nmos W=2u L=0.13u
+MPs7  sa7  pg7  sb7  vdd sg13_lv_pmos W=4u L=0.13u
+MNs8  sa8  sg8  sb8  vss sg13_lv_nmos W=2u L=0.13u
+MPs8  sa8  pg8  sb8  vdd sg13_lv_pmos W=4u L=0.13u
+MNs9  sa9  sg9  sb9  vss sg13_lv_nmos W=2u L=0.13u
+MPs9  sa9  pg9  sb9  vdd sg13_lv_pmos W=4u L=0.13u
+MNs10 sa10 sg10 sb10 vss sg13_lv_nmos W=2u L=0.13u
+MPs10 sa10 pg10 sb10 vdd sg13_lv_pmos W=4u L=0.13u
+MNs11 sa11 sg11 sb11 vss sg13_lv_nmos W=2u L=0.13u
+MPs11 sa11 pg11 sb11 vdd sg13_lv_pmos W=4u L=0.13u
+MNs12 sa12 sg12 sb12 vss sg13_lv_nmos W=2u L=0.13u
+MPs12 sa12 pg12 sb12 vdd sg13_lv_pmos W=4u L=0.13u
 
-* OTA-FC2 diff pair (W=4u L=0.5u) — tail dp_fc2 biased by ibias_fc
-M3  out2d vss      dp_fc2 psub sg13_lv_nmos w=4u l=0.5u
-M18 vss   dg4b     dp_fc2 psub sg13_lv_nmos w=4u l=0.5u
+* ---- Output mux TGs (4 pairs: NMOS W=2u L=0.13u + PMOS W=4u L=0.13u) ----
+MNq0  ma1  q0   mb1  vss sg13_lv_nmos W=2u L=0.13u
+MPq0  ma1  pq1  mb1  vdd sg13_lv_pmos W=4u L=0.13u
+MNq1  ma2  q1   mb2  vss sg13_lv_nmos W=2u L=0.13u
+MPq1  ma2  pq2  mb2  vdd sg13_lv_pmos W=4u L=0.13u
+MNq2  ma3  q2   mb3  vss sg13_lv_nmos W=2u L=0.13u
+MPq2  ma3  pq3  mb3  vdd sg13_lv_pmos W=4u L=0.13u
+MNq3  ma4  q3   mb4  vss sg13_lv_nmos W=2u L=0.13u
+MPq3  ma4  pq4  mb4  vdd sg13_lv_pmos W=4u L=0.13u
 
-* OTA-FC3 diff pair (W=4u L=0.5u) — tail dp_fc3 biased by ibias_fc
-M4  vss   dg4      dp_fc3 psub sg13_lv_nmos w=4u l=0.5u
-M5  out3  vss      dp_fc3 psub sg13_lv_nmos w=4u l=0.5u
+* ---- Mux pass gates to vout (4 pairs: NMOS W=2u L=0.13u + PMOS W=4u L=0.13u) ----
+MNm0  sel0 sel0 vout vss sg13_lv_nmos W=2u L=0.13u
+MPm0  sel0 ps0  vout vdd sg13_lv_pmos W=4u L=0.13u
+MNm1  sel1 sel1 vout vss sg13_lv_nmos W=2u L=0.13u
+MPm1  sel1 ps1  vout vdd sg13_lv_pmos W=4u L=0.13u
+MNm2  vin  mvgn vout vss sg13_lv_nmos W=2u L=0.13u
+MPm2  vin  mvgp vout vdd sg13_lv_pmos W=4u L=0.13u
+MNm3  mx0a mx0g vout vss sg13_lv_nmos W=2u L=0.13u
+MPm3  mx0a mx0p vout vdd sg13_lv_pmos W=4u L=0.13u
 
-* OTA-SUM diff pair (W=4u L=0.5u) — tail dp_sum biased by ibias_fc
-M19 vss   vss      dp_sum psub sg13_lv_nmos w=4u l=0.5u
-M20 out1  vin      dp_sum psub sg13_lv_nmos w=4u l=0.5u
+* ---- OTA1 (BP integrator): diff pair W=4u L=0.5u ----
+MNd1a t1   vcm  d1   vss sg13_lv_nmos W=4u L=0.5u
+MNd1b t1   sum1 bp   vss sg13_lv_nmos W=4u L=0.5u
+* OTA1 tail (W=2u L=0.5u)
+MNt1  vss  vcm  t1   vss sg13_lv_nmos W=2u L=0.5u
+* OTA1 PMOS loads (W=2u L=0.5u)
+MPl1a vdd  d1   d1   nw1 sg13_lv_pmos W=2u L=0.5u
+MPl1b vdd  d1   bp   nw1 sg13_lv_pmos W=2u L=0.5u
 
-* OTA tail current sources (W=2u L=0.5u)
-M9  dp_fc3  ibias_fc vss  psub sg13_lv_nmos w=2u l=0.5u
-M14 dp_sum  ibias_fc vss  psub sg13_lv_nmos w=2u l=0.5u
-M16 dp_fc2  ibias_fc vss  psub sg13_lv_nmos w=2u l=0.5u
-M17 dp_q    ibias_q  vss  psub sg13_lv_nmos w=2u l=0.5u
+* ---- OTA2 (LP integrator): diff pair W=4u L=0.5u ----
+MNd2a t2   vcm  d2   vss sg13_lv_nmos W=4u L=0.5u
+MNd2b t2   sum2 sum3 vss sg13_lv_nmos W=4u L=0.5u
+* OTA2 tail (W=2u L=0.5u)
+MNt2  vss  vcm  t2   vss sg13_lv_nmos W=2u L=0.5u
+* OTA2 PMOS loads (W=2u L=0.5u)
+MPl2a vdd  d2   d2   nw2 sg13_lv_pmos W=2u L=0.5u
+MPl2b vdd  d2   sum3 nw2 sg13_lv_pmos W=2u L=0.5u
 
-* PMOS loads (W=2u L=0.5u)
-M21 vss   out2  vdd  nw1 sg13_lv_pmos w=2u l=0.5u
-M22 out2  out2  vdd  nw1 sg13_lv_pmos w=2u l=0.5u
-M23 out1  out1  vdd  nw4 sg13_lv_pmos w=2u l=0.5u
-M24 vss   out1  vdd  nw4 sg13_lv_pmos w=2u l=0.5u
-M25 out2d out2d vdd  nw2 sg13_lv_pmos w=2u l=0.5u
-M26 vss   out2d vdd  nw2 sg13_lv_pmos w=2u l=0.5u
-M27 out3  out3  vdd  nw3 sg13_lv_pmos w=2u l=0.5u
-M28 vss   out3  vdd  nw3 sg13_lv_pmos w=2u l=0.5u
+* ---- OTA3 (sum/feedback): diff pair W=4u L=0.5u ----
+MNd3a t3   vcm  d3   vss sg13_lv_nmos W=4u L=0.5u
+MNd3b t3   sum3 lp   vss sg13_lv_nmos W=4u L=0.5u
+* OTA3 tail (W=2u L=0.5u)
+MNt3  vss  vcm  t3   vss sg13_lv_nmos W=2u L=0.5u
+* OTA3 PMOS loads (W=2u L=0.5u)
+MPl3a vdd  d3   d3   nw3 sg13_lv_pmos W=2u L=0.5u
+MPl3b vdd  d3   lp   nw3 sg13_lv_pmos W=2u L=0.5u
 
-* FC bias mirror (W=2u L=1u)
-M12 ibias_fc ibias_fc vss psub sg13_lv_nmos w=2u l=1u
-M6  mir_fc   ibias_fc vss psub sg13_lv_nmos w=2u l=1u
+* ---- Bias (NMOS diode + PMOS diode, W=2u L=0.5u) ----
+MNbias vss  vcm  vcm  vss sg13_lv_nmos W=2u L=0.5u
+MPbias vdd  vcm  vcm  vdd sg13_lv_pmos W=2u L=0.5u
 
-* Q bias mirror (W=2u L=1u)
-M15 ibias_q  ibias_q  vss psub sg13_lv_nmos w=2u l=1u
-M13 mir_q    ibias_q  vss psub sg13_lv_nmos w=2u l=1u
+* ---- NOL clock chain (4 inverters: NMOS W=1u L=0.13u + PMOS W=2u L=0.13u) ----
+MNn1  vss  sc_clk n1  vss sg13_lv_nmos W=1u L=0.13u
+MPn1  vdd  sc_clk n1  nw0 sg13_lv_pmos W=2u L=0.13u
+MNn2  vss  n1     n2  vss sg13_lv_nmos W=1u L=0.13u
+MPn2  vdd  n1     n2  nw0 sg13_lv_pmos W=2u L=0.13u
+MNn3  vss  n2     n3  vss sg13_lv_nmos W=1u L=0.13u
+MPn3  vdd  n2     n3  nw0 sg13_lv_pmos W=2u L=0.13u
+MNn4  vss  n3     n4  vss sg13_lv_nmos W=1u L=0.13u
+MPn4  vdd  n3     n4  nw0 sg13_lv_pmos W=2u L=0.13u
 
-* Analog mux NMOS pass gates
-M7  vout  sel[1] vss psub sg13_lv_nmos w=4u l=0.13u
-M10 vout  mux_g  vin psub sg13_lv_nmos w=2u l=0.13u
-M11 vout  sel[0] vss psub sg13_lv_nmos w=2u l=0.13u
-
-* Integration MIM caps
-C29 vss vss cap_cmim w=25.8u l=25.8u m=2
+* ---- MIM capacitors (cap_cmim) ----
+* Binary-weighted CQ caps
+CC1  ct1  cb1  cap_cmim w=1.805u l=1.805u A=3.258025p P=7.22u m=1
+CC2  ct2  cb2  cap_cmim w=2.555u l=2.555u A=6.528025p P=10.22u m=1
+CC3  ct3  cb3  cap_cmim w=3.615u l=3.615u A=13.068225p P=14.46u m=1
+CC4  ct4  cb4  cap_cmim w=5.11u l=5.11u A=26.1121p P=20.44u m=1
+* Switching caps (5x 7u)
+CC5  ct5  cb5  cap_cmim w=7u l=7u A=49p P=28u m=1
+CC6  ct6  cb6  cap_cmim w=7u l=7u A=49p P=28u m=1
+CC7  ct7  cb7  cap_cmim w=7u l=7u A=49p P=28u m=1
+CC8  ct8  cb8  cap_cmim w=7u l=7u A=49p P=28u m=1
+CC9  ct9  cb9  cap_cmim w=7u l=7u A=49p P=28u m=1
+* Integration caps (2x 23.1u)
+CC10 ct10 sum2 cap_cmim w=23.1u l=23.1u A=533.61p P=92.4u m=1
+CC11 ct11 sum1 cap_cmim w=23.1u l=23.1u A=533.61p P=92.4u m=1
 
 .ENDS svf_2nd
