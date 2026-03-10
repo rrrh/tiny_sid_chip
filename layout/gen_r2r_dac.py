@@ -245,7 +245,7 @@ def draw_via4(cell, layout, x, y):
 
 
 def draw_power_via_stack(cell, layout, x, y):
-    draw_via3(cell, layout, x, y)
+    pass  # PDN M4 stripes handle M3→M4 connection; internal pads removed
 
 
 # ===========================================================================
