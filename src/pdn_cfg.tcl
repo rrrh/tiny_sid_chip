@@ -61,48 +61,57 @@ if { $::env(PDN_ENABLE_RAILS) == 1 } {
         -layers "Metal1 TopMetal1"
 }
 
-# Analog macro grid: connect Metal3 PG pins to TopMetal1 stripes
-# via intermediate Metal4 (vertical) and Metal5 (horizontal) stripes.
-# PDN connect is net-aware: VDD stripes only connect to VDD pins.
-# TopMetal1 OBS in macro LEFs is narrowed to leave 4um at edges
-# for the M5-TM1 via connection.
-define_pdn_grid \
-    -macro \
-    -default \
-    -name macro_grid \
-    -starts_with POWER \
-    -halo "0 0"
+# Per-macro PDN grids: each places M5 stripes only at power rail
+# positions to avoid cross-net overlap with internal MIM cap M5.
+# M5 stripe pair: VSS at VSS rail center, VDD at VDD rail center.
+# starts_with GROUND puts VSS first (at offset), VDD second.
+# Large pitch prevents repeat pairs.
 
-# Metal4 vertical stripes inside macros (cross M3 horizontal PG pins)
-add_pdn_stripe \
-    -grid macro_grid \
-    -layer Metal4 \
-    -width 0.44 \
-    -pitch 10.0 \
-    -offset 5.0 \
-    -starts_with POWER \
-    -spacing 1.0
+# Helper: define a macro grid with M4 stripes + targeted M5
+proc define_analog_macro_grid {name instances vss_y vdd_y macro_h} {
+    # M5 stripe spacing = VDD center - VSS center - width
+    set m5_spacing [expr {$vdd_y - $vss_y - 1.0}]
+    # Pitch large enough for no repeats (2× macro height)
+    set m5_pitch [expr {$macro_h * 2.0}]
 
-# Metal5 horizontal stripes inside macros (cross M4 vertical stripes)
-# pitch=4 ensures stripes land near both top and bottom PG pins
-add_pdn_stripe \
-    -grid macro_grid \
-    -layer Metal5 \
-    -width 1.0 \
-    -pitch 4.0 \
-    -offset 1.0 \
-    -starts_with POWER \
-    -spacing 1.0
+    define_pdn_grid \
+        -macro \
+        -name $name \
+        -instances $instances \
+        -starts_with POWER \
+        -halo "0 0"
 
-# Connection chain: M3 → Via3 → M4 → Via4 → M5 → TopVia1 → TM1
-add_pdn_connect \
-    -grid macro_grid \
-    -layers "Metal3 Metal4"
+    # Metal4 vertical stripes (cross M3 horizontal PG pins)
+    add_pdn_stripe \
+        -grid $name \
+        -layer Metal4 \
+        -width 0.44 \
+        -pitch 10.0 \
+        -offset 5.0 \
+        -starts_with POWER \
+        -spacing 1.0
 
-add_pdn_connect \
-    -grid macro_grid \
-    -layers "Metal4 Metal5"
+    # Metal5 horizontal stripes: one pair at power rail positions
+    add_pdn_stripe \
+        -grid $name \
+        -layer Metal5 \
+        -width 1.0 \
+        -pitch $m5_pitch \
+        -offset $vss_y \
+        -spacing $m5_spacing \
+        -starts_with GROUND
 
-add_pdn_connect \
-    -grid macro_grid \
-    -layers "Metal5 TopMetal1"
+    # Connection chain: M3 → M4 → M5 → TM1
+    add_pdn_connect -grid $name -layers "Metal3 Metal4"
+    add_pdn_connect -grid $name -layers "Metal4 Metal5"
+    add_pdn_connect -grid $name -layers "Metal5 TopMetal1"
+}
+
+# r2r_dac_8bit (30µm): VSS rail y=0-1.5, VDD rail y=28.5-30
+define_analog_macro_grid "r2r_grid" "u_dac u_ramp_dac" 0.75 29.25 30.0
+
+# svf_2nd (67µm): VSS rail y=0-2, VDD rail y=65-67
+define_analog_macro_grid "svf_grid" "u_svf" 1.0 66.0 67.0
+
+# pwm_comp (15µm): VSS rail y=0-2, VDD rail y=13-15
+define_analog_macro_grid "comp_grid" "u_comp" 1.0 14.0 15.0
