@@ -246,7 +246,6 @@ def draw_via4(cell, layout, x, y):
 
 def draw_power_via_stack(cell, layout, x, y):
     draw_via3(cell, layout, x, y)
-    draw_via4(cell, layout, x, y)
 
 
 # ===========================================================================
@@ -359,10 +358,9 @@ def build_r2r_dac():
         gc_x = gate_x - 0.40
 
         gc_half_gp = CONT_SIZE / 2 + CONT_ENC_GATPOLY
-        top.shapes(li_gp).insert(rect(gc_x - gc_half_gp, gc_y - gp_hw,
-                                        gate_x + gp_hw, gc_y + gp_hw))
+        # Single GatPoly rect bridging contact pad to gate bridge (avoids Gat.b notch)
         top.shapes(li_gp).insert(rect(gc_x - gc_half_gp, gc_y - gc_half_gp,
-                                        gc_x + gc_half_gp, gc_y + gc_half_gp))
+                                        gate_x + gp_hw, gc_y + gc_half_gp))
 
         gc_hs = CONT_SIZE / 2
         top.shapes(li_cnt).insert(rect(gc_x - gc_hs, gc_y - gc_hs,
@@ -413,12 +411,13 @@ def build_r2r_dac():
 
     # Substrate taps (ptap for PWell near NMOS)
     ptap_y = sw_y - 1.0
+    m1_half_pad = CONT_SIZE / 2 + CONT_ENC_M1  # match M1 pad width to avoid M1.b notch
     for xt in [3.0, 9.0, 15.0, 21.0, 27.0, 33.0]:
         draw_ptap(top, layout, xt, ptap_y)
         ptap_cx = xt + 0.18
         ptap_cy = ptap_y + 0.18
-        top.shapes(li_m1).insert(rect(ptap_cx - wire_w / 2, ptap_cy,
-                                       ptap_cx + wire_w / 2, vss_bus_y))
+        top.shapes(li_m1).insert(rect(ptap_cx - m1_half_pad, ptap_cy,
+                                       ptap_cx + m1_half_pad, vss_bus_y))
 
     # PMOS sources → VDD via M2 bus
     vdd_bus_m2_y = vdd_bus_y
@@ -494,7 +493,7 @@ def build_r2r_dac():
     for bit in range(NBITS):
         pin_y = 2.0 + bit * 0.8
         add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
-                      rect(0.0, pin_y - 0.35, 0.5, pin_y + 0.35),
+                      rect(0.0, pin_y - 0.29, 0.5, pin_y + 0.29),
                       f"d{bit}", layout)
 
     add_pin_label(top, L_METAL2_PIN, L_METAL2_LBL,
