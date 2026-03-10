@@ -96,8 +96,6 @@ MACRO svf_2nd
     PORT
       LAYER Metal3 ;
         RECT 0.000 65.000 64.000 67.000 ;
-      LAYER TopMetal1 ;
-        RECT 0.000 65.100 64.000 66.900 ;
     END
   END VDD
 
@@ -107,8 +105,6 @@ MACRO svf_2nd
     PORT
       LAYER Metal3 ;
         RECT 0.000 0.000 64.000 2.000 ;
-      LAYER TopMetal1 ;
-        RECT 0.000 0.000 64.000 1.360 ;
     END
   END VSS
 
@@ -119,8 +115,10 @@ MACRO svf_2nd
       RECT 0.500 0.500 63.500 66.500 ;
     LAYER Metal3 ;
       RECT 0.500 2.000 63.500 65.000 ;
+    LAYER Metal5 ;
+      RECT 0.500 17.000 63.500 44.000 ;
     LAYER TopMetal1 ;
-      RECT 0.500 1.360 63.500 65.100 ;
+      RECT 0.500 4.000 63.500 63.000 ;
   END
 
 END svf_2nd

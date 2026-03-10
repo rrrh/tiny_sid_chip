@@ -96,8 +96,6 @@ MACRO r2r_dac_8bit
     PORT
       LAYER Metal3 ;
         RECT 0.000 28.500 36.000 30.000 ;
-      LAYER TopMetal1 ;
-        RECT 0.000 28.360 36.000 30.000 ;
     END
   END VDD
 
@@ -107,8 +105,6 @@ MACRO r2r_dac_8bit
     PORT
       LAYER Metal3 ;
         RECT 0.000 0.000 36.000 1.500 ;
-      LAYER TopMetal1 ;
-        RECT 0.000 0.000 36.000 1.640 ;
     END
   END VSS
 
@@ -120,7 +116,7 @@ MACRO r2r_dac_8bit
     LAYER Metal3 ;
       RECT 0.500 1.500 35.500 28.500 ;
     LAYER TopMetal1 ;
-      RECT 0.500 1.640 35.500 28.360 ;
+      RECT 0.500 4.000 35.500 26.000 ;
   END
 
 END r2r_dac_8bit
