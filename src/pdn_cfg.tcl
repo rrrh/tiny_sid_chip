@@ -61,11 +61,11 @@ if { $::env(PDN_ENABLE_RAILS) == 1 } {
         -layers "Metal1 TopMetal1"
 }
 
-# Analog macro grid: connect Metal3 PG pins to TopMetal1 stripes
-# via intermediate Metal4 (vertical) and Metal5 (horizontal) stripes.
-# PDN connect is net-aware: VDD stripes only connect to VDD pins.
-# TopMetal1 OBS in macro LEFs is narrowed to leave 4um at edges
-# for the M5-TM1 via connection.
+# Analog macro grid: macros have internal M3→TM1 via stacks and TM1 power
+# strap pins.  The stdcell_grid's TopMetal1 stripes overlap with macro TM1
+# pins, providing the power connection.  No M4/M5 stripes are generated
+# inside macros (they would conflict with internal MIM cap M5 bottom plates
+# and power via pads).
 define_pdn_grid \
     -macro \
     -default \
@@ -73,36 +73,6 @@ define_pdn_grid \
     -starts_with POWER \
     -halo "0 0"
 
-# Metal4 vertical stripes inside macros (cross M3 horizontal PG pins)
-add_pdn_stripe \
-    -grid macro_grid \
-    -layer Metal4 \
-    -width 0.44 \
-    -pitch 10.0 \
-    -offset 5.0 \
-    -starts_with POWER \
-    -spacing 1.0
-
-# Metal5 horizontal stripes inside macros (cross M4 vertical stripes)
-# pitch=4 ensures stripes land near both top and bottom PG pins
-add_pdn_stripe \
-    -grid macro_grid \
-    -layer Metal5 \
-    -width 1.0 \
-    -pitch 4.0 \
-    -offset 1.0 \
-    -starts_with POWER \
-    -spacing 1.0
-
-# Connection chain: M3 → Via3 → M4 → Via4 → M5 → TopVia1 → TM1
 add_pdn_connect \
     -grid macro_grid \
-    -layers "Metal3 Metal4"
-
-add_pdn_connect \
-    -grid macro_grid \
-    -layers "Metal4 Metal5"
-
-add_pdn_connect \
-    -grid macro_grid \
-    -layers "Metal5 TopMetal1"
+    -layers "Metal3 TopMetal1"
