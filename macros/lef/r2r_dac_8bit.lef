@@ -119,10 +119,6 @@ MACRO r2r_dac_8bit
       RECT 0.500 0.500 35.500 29.500 ;
     LAYER Metal3 ;
       RECT 0.500 1.500 35.500 28.500 ;
-    LAYER Metal4 ;
-      RECT 0.500 0.500 35.500 29.500 ;
-    LAYER Metal5 ;
-      RECT 0.500 0.500 35.500 29.500 ;
     LAYER TopMetal1 ;
       RECT 0.500 1.640 35.500 28.360 ;
   END
