@@ -25,16 +25,16 @@ VIA_STACK = [
 MACROS = {
     "r2r_dac_8bit": {
         "gds": "../macros/gds/r2r_dac_8bit.gds",
-        "width": 36.0, "height": 38.0,
-        "vdd": (0.0, 36.5, 36.0, 38.0),  # Metal3 top rail
+        "width": 36.0, "height": 30.0,
+        "vdd": (0.0, 28.5, 36.0, 30.0),  # Metal3 top rail
         "vss": (0.0, 0.0, 36.0, 1.5),    # Metal3 bottom rail
     },
     "svf_2nd": {
         "gds": "../macros/gds/svf_2nd.gds",
-        "width": 62.0, "height": 68.0,
-        "vdd": (0.0, 66.0, 62.0, 68.0),
-        "vss": (0.0, 0.0, 62.0, 2.0),
-        # TM1 strap y overrides: push VSS strap down to clear cap TM1 at y=3.0
+        "width": 64.0, "height": 67.0,
+        "vdd": (0.0, 65.0, 64.0, 67.0),
+        "vss": (0.0, 0.0, 64.0, 2.0),
+        # TM1 strap y overrides: push VSS strap down to clear cap TM1 at y=3.5
         # (need ≥1.64 µm gap → strap top ≤ 1.36)
         "tm1_vss": (-0.28, 1.36),
     },
@@ -141,12 +141,18 @@ def process_macro(name, info):
             tm1_y1 = y1 + tm1_margin
             tm1_y2 = y2 - tm1_margin
 
-            # Ensure minimum TopMetal1 width (1.44 µm from DRC) — our rails are ≥1.3µm
+            # Ensure minimum TopMetal1 width (TM1.a min = 1.64 µm)
             tm1_width = tm1_y2 - tm1_y1
             if tm1_width < 1.64:
-                # Center a 1.64µm strap in the rail (TM1.a min width)
-                tm1_y1 = y_center - 0.82
-                tm1_y2 = y_center + 0.82
+                macro_h = info.get("height", 1e6)
+                if y_center < macro_h / 2:
+                    # Bottom rail: align to bottom, extend upward
+                    tm1_y1 = y1
+                    tm1_y2 = y1 + 1.64
+                else:
+                    # Top rail: align to top, extend downward
+                    tm1_y2 = y2
+                    tm1_y1 = y2 - 1.64
 
         print(f"  Adding TopMetal1 strap for {rail_name}: ({x1:.1f}, {tm1_y1:.2f}) - ({x2:.1f}, {tm1_y2:.2f})")
         top_cell.shapes(li_tm1).insert(rect(x1, tm1_y1, x2, tm1_y2))
