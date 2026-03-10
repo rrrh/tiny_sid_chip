@@ -70,7 +70,8 @@ if { $::env(PDN_ENABLE_RAILS) == 1 } {
 # Helper: define a macro grid with M4 stripes + targeted M5
 proc define_analog_macro_grid {name instances vss_y vdd_y macro_h} {
     # M5 stripe spacing = VDD center - VSS center - width
-    set m5_spacing [expr {$vdd_y - $vss_y - 1.0}]
+    set m5_width 0.44
+    set m5_spacing [expr {$vdd_y - $vss_y - $m5_width}]
     # Pitch large enough for no repeats (2× macro height)
     set m5_pitch [expr {$macro_h * 2.0}]
 
@@ -95,7 +96,7 @@ proc define_analog_macro_grid {name instances vss_y vdd_y macro_h} {
     add_pdn_stripe \
         -grid $name \
         -layer Metal5 \
-        -width 1.0 \
+        -width $m5_width \
         -pitch $m5_pitch \
         -offset $vss_y \
         -spacing $m5_spacing \
