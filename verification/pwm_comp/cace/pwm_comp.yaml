@@ -88,7 +88,7 @@ parameters:
           value: 0.8
     tool:
       ngspice:
-        template: dc_transfer.spice
+        template: dc_transfer.sch
         format: ascii
         suffix: .data
         variables: [null, vout]
@@ -102,10 +102,6 @@ parameters:
       vdd:
         typical: 1.2
     plot:
-      transfer_curve:
-        type: xyplot
-        xaxis: null
-        yaxis: vout
       offset_vs_corner:
         type: xyplot
         xaxis: corner
@@ -134,7 +130,7 @@ parameters:
           value: 100.0
     tool:
       ngspice:
-        template: prop_delay.spice
+        template: prop_delay.sch
         format: ascii
         suffix: .data
         variables: [time, vinp, null, vout]

@@ -1,11 +1,11 @@
 * 8-bit R-2R DAC — IHP SG13G2 LVS reference netlist
-* Complementary CMOS switches (NMOS to VSS + PMOS to VDD)
-* Bit ordering: d0(LSB)→VDD end, d7(MSB)→output end
-* Total: 8 NMOS + 8 PMOS + 16 rhigh
+* CMOS switches (NMOS W=3u + PMOS W=6u), rhigh W=2u L=2.1u
+* Folded 2R: two resistors in series (upper + lower) per bit
+* Total: 8 NMOS + 8 PMOS + 24 rhigh
 
 .subckt r2r_dac_8bit d0 d1 d2 d3 d4 d5 d6 d7 vout vdd vss
 
-* Series R chain: VDD -> j0 -> j1 -> ... -> j6 -> vout
+* Series R chain: vdd -> j0 -> j1 -> ... -> j6 -> vout
 RRs0  vdd  j0   rhigh w=2u l=2.1u ps=0 b=1 m=1
 RRs1  j0   j1   rhigh w=2u l=2.1u ps=0 b=1 m=1
 RRs2  j1   j2   rhigh w=2u l=2.1u ps=0 b=1 m=1
@@ -15,34 +15,43 @@ RRs5  j4   j5   rhigh w=2u l=2.1u ps=0 b=1 m=1
 RRs6  j5   j6   rhigh w=2u l=2.1u ps=0 b=1 m=1
 RRs7  j6   vout rhigh w=2u l=2.1u ps=0 b=1 m=1
 
-* Merged 2R shunt arms (folded pair extracted as single resistor)
-RR2r0  j0   sd0  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r1  j1   sd1  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r2  j2   sd2  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r3  j3   sd3  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r4  j4   sd4  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r5  j5   sd5  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r6  j6   sd6  rhigh w=2u l=4.2u ps=0 b=1 m=1
-RR2r7  vout sd7  rhigh w=2u l=4.2u ps=0 b=1 m=1
+* Folded 2R shunt arms (2 resistors per bit: upper + lower)
+* junction -> upper_right -> upper_left=hairpin -> lower_left -> lower_right -> switch drain
+RR2u0  j0   hp0  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2l0  hp0  sd0  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2u1  j1   hp1  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2l1  hp1  sd1  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2u2  j2   hp2  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2l2  hp2  sd2  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2u3  j3   hp3  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2l3  hp3  sd3  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2u4  j4   hp4  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2l4  hp4  sd4  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2u5  j5   hp5  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2l5  hp5  sd5  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2u6  j6   hp6  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2l6  hp6  sd6  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2u7  vout hp7  rhigh w=2u l=2.1u ps=0 b=1 m=1
+RR2l7  hp7  sd7  rhigh w=2u l=2.1u ps=0 b=1 m=1
 
 * NMOS switches (gate = d[N], drain = shunt node, source = VSS)
-MMn0  sd0 d0 vss vss sg13_lv_nmos w=10u l=0.13u
-MMn1  sd1 d1 vss vss sg13_lv_nmos w=10u l=0.13u
-MMn2  sd2 d2 vss vss sg13_lv_nmos w=10u l=0.13u
-MMn3  sd3 d3 vss vss sg13_lv_nmos w=10u l=0.13u
-MMn4  sd4 d4 vss vss sg13_lv_nmos w=10u l=0.13u
-MMn5  sd5 d5 vss vss sg13_lv_nmos w=10u l=0.13u
-MMn6  sd6 d6 vss vss sg13_lv_nmos w=10u l=0.13u
-MMn7  sd7 d7 vss vss sg13_lv_nmos w=10u l=0.13u
+MMn0  sd0 d0 vss vss sg13_lv_nmos w=3u l=0.13u ng=1 m=1
+MMn1  sd1 d1 vss vss sg13_lv_nmos w=3u l=0.13u ng=1 m=1
+MMn2  sd2 d2 vss vss sg13_lv_nmos w=3u l=0.13u ng=1 m=1
+MMn3  sd3 d3 vss vss sg13_lv_nmos w=3u l=0.13u ng=1 m=1
+MMn4  sd4 d4 vss vss sg13_lv_nmos w=3u l=0.13u ng=1 m=1
+MMn5  sd5 d5 vss vss sg13_lv_nmos w=3u l=0.13u ng=1 m=1
+MMn6  sd6 d6 vss vss sg13_lv_nmos w=3u l=0.13u ng=1 m=1
+MMn7  sd7 d7 vss vss sg13_lv_nmos w=3u l=0.13u ng=1 m=1
 
 * PMOS switches (gate = d[N], drain = shunt node, source = VDD)
-MMp0  sd0 d0 vdd vdd sg13_lv_pmos w=20u l=0.13u
-MMp1  sd1 d1 vdd vdd sg13_lv_pmos w=20u l=0.13u
-MMp2  sd2 d2 vdd vdd sg13_lv_pmos w=20u l=0.13u
-MMp3  sd3 d3 vdd vdd sg13_lv_pmos w=20u l=0.13u
-MMp4  sd4 d4 vdd vdd sg13_lv_pmos w=20u l=0.13u
-MMp5  sd5 d5 vdd vdd sg13_lv_pmos w=20u l=0.13u
-MMp6  sd6 d6 vdd vdd sg13_lv_pmos w=20u l=0.13u
-MMp7  sd7 d7 vdd vdd sg13_lv_pmos w=20u l=0.13u
+MMp0  sd0 d0 vdd vdd sg13_lv_pmos w=6u l=0.13u ng=1 m=1
+MMp1  sd1 d1 vdd vdd sg13_lv_pmos w=6u l=0.13u ng=1 m=1
+MMp2  sd2 d2 vdd vdd sg13_lv_pmos w=6u l=0.13u ng=1 m=1
+MMp3  sd3 d3 vdd vdd sg13_lv_pmos w=6u l=0.13u ng=1 m=1
+MMp4  sd4 d4 vdd vdd sg13_lv_pmos w=6u l=0.13u ng=1 m=1
+MMp5  sd5 d5 vdd vdd sg13_lv_pmos w=6u l=0.13u ng=1 m=1
+MMp6  sd6 d6 vdd vdd sg13_lv_pmos w=6u l=0.13u ng=1 m=1
+MMp7  sd7 d7 vdd vdd sg13_lv_pmos w=6u l=0.13u ng=1 m=1
 
 .ends r2r_dac_8bit

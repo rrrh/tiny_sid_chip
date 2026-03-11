@@ -1,0 +1,100 @@
+* SAR ADC — Full Conversion Loop (Analytical SAR + Analytical DAC)
+* CACE template: DC sweep of vin with analytical bit decisions
+*
+* For each input voltage, an analytical binary search determines the SAR
+* output code. The DAC output (vtop) is computed analytically from the
+* bit decisions: vtop = vref * code / 256.  The residual vin-vtop shows
+* quantization error.
+*
+* Note: The cap_dac_8bit subcircuit uses capacitors which are open at DC,
+* so vtop is computed analytically here.  Transient-domain verification
+* with the real cap DAC can be added when extracted netlists are available.
+*
+* Conditions:
+*   CACE{vdd}          — supply voltage / reference (V)
+*   CACE{temperature}   — temperature (deg C)
+*   CACE{corner}        — MOS process corner
+
+* ── PDK Models ──────────────────────────────────────────────
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib CACE{corner}
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerRES.lib res_typ
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerCAP.lib cap_typ
+
+* ── DUT (subcircuit definitions for reference) ──────────────
+.include CACE{DUT_path}
+
+* ── Parameters ──────────────────────────────────────────────
+.param vdd_val = CACE{vdd}
+
+* ── Temperature ─────────────────────────────────────────────
+.temp CACE{temperature}
+
+* ── Power supply / reference ────────────────────────────────
+Vdd  vdd  0 {vdd_val}
+
+* ── Swept input voltage ─────────────────────────────────────
+Vvin vin 0 0
+
+* ── Analytical SAR bit decisions (binary search) ────────────
+* Each bit is decided by comparing the residual voltage against
+* the corresponding DAC weight: weight_k = vref * 2^k / 256
+*
+* Bit 7 (MSB): set if vin >= vref * 128/256
+Bbit7 bit7 0 V = (v(vin) >= vdd_val * 128.0/256.0) ? vdd_val : 0
+Bresid7 resid7 0 V = v(vin) - ((v(bit7) > 0.6) ? vdd_val * 128.0/256.0 : 0)
+
+* Bit 6
+Bbit6 bit6 0 V = (v(resid7) >= vdd_val * 64.0/256.0) ? vdd_val : 0
+Bresid6 resid6 0 V = v(resid7) - ((v(bit6) > 0.6) ? vdd_val * 64.0/256.0 : 0)
+
+* Bit 5
+Bbit5 bit5 0 V = (v(resid6) >= vdd_val * 32.0/256.0) ? vdd_val : 0
+Bresid5 resid5 0 V = v(resid6) - ((v(bit5) > 0.6) ? vdd_val * 32.0/256.0 : 0)
+
+* Bit 4
+Bbit4 bit4 0 V = (v(resid5) >= vdd_val * 16.0/256.0) ? vdd_val : 0
+Bresid4 resid4 0 V = v(resid5) - ((v(bit4) > 0.6) ? vdd_val * 16.0/256.0 : 0)
+
+* Bit 3
+Bbit3 bit3 0 V = (v(resid4) >= vdd_val * 8.0/256.0) ? vdd_val : 0
+Bresid3 resid3 0 V = v(resid4) - ((v(bit3) > 0.6) ? vdd_val * 8.0/256.0 : 0)
+
+* Bit 2
+Bbit2 bit2 0 V = (v(resid3) >= vdd_val * 4.0/256.0) ? vdd_val : 0
+Bresid2 resid2 0 V = v(resid3) - ((v(bit2) > 0.6) ? vdd_val * 4.0/256.0 : 0)
+
+* Bit 1
+Bbit1 bit1 0 V = (v(resid2) >= vdd_val * 2.0/256.0) ? vdd_val : 0
+Bresid1 resid1 0 V = v(resid2) - ((v(bit1) > 0.6) ? vdd_val * 2.0/256.0 : 0)
+
+* Bit 0 (LSB)
+Bbit0 bit0 0 V = (v(resid1) >= vdd_val * 1.0/256.0) ? vdd_val : 0
+
+* ── Numerical output code ───────────────────────────────────
+Bcode code_out 0 V = ((v(bit7) > 0.6) ? 128 : 0)
++                   + ((v(bit6) > 0.6) ? 64  : 0)
++                   + ((v(bit5) > 0.6) ? 32  : 0)
++                   + ((v(bit4) > 0.6) ? 16  : 0)
++                   + ((v(bit3) > 0.6) ? 8   : 0)
++                   + ((v(bit2) > 0.6) ? 4   : 0)
++                   + ((v(bit1) > 0.6) ? 2   : 0)
++                   + ((v(bit0) > 0.6) ? 1   : 0)
+
+* ── Analytical DAC output (vtop = vref * code / 256) ───────
+Bvtop vtop 0 V = vdd_val * v(code_out) / 256.0
+
+* ── Quantization residual ──────────────────────────────────
+Bresidual residual 0 V = v(vin) - v(vtop)
+
+* ── DC sweep: vin from 0 to VDD in 1024 steps ──────────────
+* Use 4x oversampling (1024 steps) so each code is sampled ~4 times,
+* giving accurate INL/DNL even at code transition boundaries.
+.control
+  let vdd_v = CACE{vdd}
+  let vstep = vdd_v / 1024
+  dc Vvin 0 $&vdd_v $&vstep
+  wrdata CACE{simpath}/CACE{filename}_CACE{N}.data v(code_out) v(vtop) v(residual)
+  quit
+.endc
+
+.end

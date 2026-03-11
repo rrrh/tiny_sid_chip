@@ -10,44 +10,44 @@
 * Series R chain: VDD -> j0 -> j1 -> ... -> j6 -> vout
 * j0 is VDD end (lowest weight, driven by d0=LSB)
 * j6/vout is output end (highest weight, driven by d7=MSB)
-XRs0  vdd  j0   vss rhigh w=2e-6 l=2.1e-6
-XRs1  j0   j1   vss rhigh w=2e-6 l=2.1e-6
-XRs2  j1   j2   vss rhigh w=2e-6 l=2.1e-6
-XRs3  j2   j3   vss rhigh w=2e-6 l=2.1e-6
-XRs4  j3   j4   vss rhigh w=2e-6 l=2.1e-6
-XRs5  j4   j5   vss rhigh w=2e-6 l=2.1e-6
-XRs6  j5   j6   vss rhigh w=2e-6 l=2.1e-6
-XRs7  j6   vout vss rhigh w=2e-6 l=2.1e-6
+XRs0  vdd  j0   vss rhigh w=2e-6 l=3.08e-6
+XRs1  j0   j1   vss rhigh w=2e-6 l=3.08e-6
+XRs2  j1   j2   vss rhigh w=2e-6 l=3.08e-6
+XRs3  j2   j3   vss rhigh w=2e-6 l=3.08e-6
+XRs4  j3   j4   vss rhigh w=2e-6 l=3.08e-6
+XRs5  j4   j5   vss rhigh w=2e-6 l=3.08e-6
+XRs6  j5   j6   vss rhigh w=2e-6 l=3.08e-6
+XRs7  j6   vout vss rhigh w=2e-6 l=3.08e-6
 
 * Merged 2R shunt arms (folded pair = single 2R)
-XR2r0  j0   sd0  vss rhigh w=2e-6 l=4.2e-6
-XR2r1  j1   sd1  vss rhigh w=2e-6 l=4.2e-6
-XR2r2  j2   sd2  vss rhigh w=2e-6 l=4.2e-6
-XR2r3  j3   sd3  vss rhigh w=2e-6 l=4.2e-6
-XR2r4  j4   sd4  vss rhigh w=2e-6 l=4.2e-6
-XR2r5  j5   sd5  vss rhigh w=2e-6 l=4.2e-6
-XR2r6  j6   sd6  vss rhigh w=2e-6 l=4.2e-6
-XR2r7  vout sd7  vss rhigh w=2e-6 l=4.2e-6
+XR2r0  j0   sd0  vss rhigh w=2e-6 l=6.16e-6
+XR2r1  j1   sd1  vss rhigh w=2e-6 l=6.16e-6
+XR2r2  j2   sd2  vss rhigh w=2e-6 l=6.16e-6
+XR2r3  j3   sd3  vss rhigh w=2e-6 l=6.16e-6
+XR2r4  j4   sd4  vss rhigh w=2e-6 l=6.16e-6
+XR2r5  j5   sd5  vss rhigh w=2e-6 l=6.16e-6
+XR2r6  j6   sd6  vss rhigh w=2e-6 l=6.16e-6
+XR2r7  vout sd7  vss rhigh w=2e-6 l=6.16e-6
 
 * NMOS switches: d[N]=VDD → on → shunt arm to VSS
 * d0→sd0 (LSB, VDD end), d7→sd7 (MSB, output end)
-XMn0  sd0 d0 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
-XMn1  sd1 d1 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
-XMn2  sd2 d2 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
-XMn3  sd3 d3 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
-XMn4  sd4 d4 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
-XMn5  sd5 d5 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
-XMn6  sd6 d6 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
-XMn7  sd7 d7 vss vss sg13_lv_nmos w=10e-6 l=0.13e-6
+XMn0  sd0 d0 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6
+XMn1  sd1 d1 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6
+XMn2  sd2 d2 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6
+XMn3  sd3 d3 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6
+XMn4  sd4 d4 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6
+XMn5  sd5 d5 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6
+XMn6  sd6 d6 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6
+XMn7  sd7 d7 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6
 
 * PMOS switches: d[N]=0 → on → shunt arm to VDD
-XMp0  sd0 d0 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
-XMp1  sd1 d1 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
-XMp2  sd2 d2 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
-XMp3  sd3 d3 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
-XMp4  sd4 d4 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
-XMp5  sd5 d5 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
-XMp6  sd6 d6 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
-XMp7  sd7 d7 vdd vdd sg13_lv_pmos w=20e-6 l=0.13e-6
+XMp0  sd0 d0 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6
+XMp1  sd1 d1 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6
+XMp2  sd2 d2 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6
+XMp3  sd3 d3 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6
+XMp4  sd4 d4 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6
+XMp5  sd5 d5 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6
+XMp6  sd6 d6 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6
+XMp7  sd7 d7 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6
 
 .ends r2r_dac_8bit

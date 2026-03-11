@@ -1,0 +1,53 @@
+v {xschem version=3.4.8RC file_version=1.3}
+K {type=subcircuit
+format="@name @pinlist @symname"
+template="name=x1"}
+B 5 -282.5 -62.5 -277.5 -57.5 {name=D0 dir=in pinnumber=1}
+L 4 -280 -60 -240 -60 {}
+T {D0} -229 -69.6 0 0 0.4 0.4 {}
+T {@#0:pinnumber} -252 -76 0 1 0.25 0.25 {layer=13}
+B 5 -282.5 -42.5 -277.5 -37.5 {name=D1 dir=in pinnumber=2}
+L 4 -280 -40 -240 -40 {}
+T {D1} -229 -49.6 0 0 0.4 0.4 {}
+T {@#1:pinnumber} -252 -56 0 1 0.25 0.25 {layer=13}
+B 5 -282.5 -22.5 -277.5 -17.5 {name=D2 dir=in pinnumber=3}
+L 4 -280 -20 -240 -20 {}
+T {D2} -229 -29.6 0 0 0.4 0.4 {}
+T {@#2:pinnumber} -252 -36 0 1 0.25 0.25 {layer=13}
+B 5 -282.5 -2.5 -277.5 2.5 {name=D3 dir=in pinnumber=4}
+L 4 -280 0 -240 0 {}
+T {D3} -229 -9.6 0 0 0.4 0.4 {}
+T {@#3:pinnumber} -252 -16 0 1 0.25 0.25 {layer=13}
+B 5 -282.5 17.5 -277.5 22.5 {name=D4 dir=in pinnumber=5}
+L 4 -280 20 -240 20 {}
+T {D4} -229 10.4 0 0 0.4 0.4 {}
+T {@#4:pinnumber} -252 4 0 1 0.25 0.25 {layer=13}
+B 5 -282.5 37.5 -277.5 42.5 {name=D5 dir=in pinnumber=6}
+L 4 -280 40 -240 40 {}
+T {D5} -229 30.4 0 0 0.4 0.4 {}
+T {@#5:pinnumber} -252 24 0 1 0.25 0.25 {layer=13}
+B 5 -282.5 57.5 -277.5 62.5 {name=D6 dir=in pinnumber=7}
+L 4 -280 60 -240 60 {}
+T {D6} -229 50.4 0 0 0.4 0.4 {}
+T {@#6:pinnumber} -252 44 0 1 0.25 0.25 {layer=13}
+B 5 -282.5 77.5 -277.5 82.5 {name=D7 dir=in pinnumber=8}
+L 4 -280 80 -240 80 {}
+T {D7} -229 70.4 0 0 0.4 0.4 {}
+T {@#7:pinnumber} -252 64 0 1 0.25 0.25 {layer=13}
+B 5 277.5 -62.5 282.5 -57.5 {name=VOUT dir=out pinnumber=9}
+L 2 240 -60 280 -60 {}
+T {VOUT} 229 -69.6 0 1 0.4 0.4 {}
+T {@#8:pinnumber} 252 -76 0 0 0.25 0.25 {layer=13}
+B 5 -222.5 -182.5 -217.5 -177.5 {name=VDD dir=in pinnumber=10}
+L 4 -220 -180 -220 -140 {}
+T {VDD} -210.4 -129 1 0 0.4 0.4 {}
+T {@#9:pinnumber} -236 -152 3 0 0.25 0.25 {layer=13}
+B 5 -182.5 -182.5 -177.5 -177.5 {name=VSS dir=in pinnumber=11}
+L 4 -180 -180 -180 -140 {}
+T {VSS} -170.4 -129 1 0 0.4 0.4 {}
+T {@#10:pinnumber} -196 -152 3 0 0.25 0.25 {layer=13}
+P 4 5 -240 -140 240 -140 240 140 -240 140 -240 -140 {}
+T {TEST XSCHEM SYMGEN} 0 -68 0 0 0.6 0.6 {hcenter=1}
+T {RRRH} 0 -28 0 0 0.6 0.6 {hcenter=1}
+T {@symname} 0 12 0 0 0.6 0.6 {hcenter=1}
+T {@name} 0 52 0 0 0.6 0.6 {hcenter=1}

@@ -1,0 +1,75 @@
+* 8-bit SAR ADC — IHP SG13G2
+* StrongARM comparator + binary-weighted capacitive DAC
+*
+* This file contains the two analog subcircuits:
+*   1. strongarm_comp — StrongARM dynamic latch comparator (transistor-level)
+*   2. cap_dac_8bit   — binary-weighted capacitive DAC (behavioral switches + ideal caps)
+*
+* SAR logic is implemented in digital Verilog (not included here).
+
+* ============================================================
+* StrongARM Comparator
+* Pins: vinp vinn outp outn clk vdd vss
+* ============================================================
+.subckt strongarm_comp vinp vinn outp outn clk vdd vss
+
+* Tail current (clocked NMOS)
+XMtail vtail clk vss vss sg13_lv_nmos w=4e-6 l=0.13e-6
+
+* Input differential pair (longer L for low offset)
+XMn1 dn vinp vtail vss sg13_lv_nmos w=2e-6 l=0.5e-6
+XMn2 dp vinn vtail vss sg13_lv_nmos w=2e-6 l=0.5e-6
+
+* PMOS reset switches (gate=clk: precharge when clk=LOW, release when clk=HIGH)
+XMp_rst1 dp clk vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+XMp_rst2 dn clk vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+
+* Cross-coupled NMOS latch
+XMn_cc1 outp outn dn vss sg13_lv_nmos w=1e-6 l=0.13e-6
+XMn_cc2 outn outp dp vss sg13_lv_nmos w=1e-6 l=0.13e-6
+
+* Cross-coupled PMOS latch
+XMp_cc1 outp outn vdd vdd sg13_lv_pmos w=1e-6 l=0.13e-6
+XMp_cc2 outn outp vdd vdd sg13_lv_pmos w=1e-6 l=0.13e-6
+
+* PMOS reset for output nodes (gate=clk: precharge when clk=LOW)
+XMp_rst3 outp clk vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+XMp_rst4 outn clk vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+
+.ends strongarm_comp
+
+* ============================================================
+* Binary-Weighted Cap DAC (8-bit, ideal capacitors)
+* Pins: sw7..sw0 vtop vref vss
+* ============================================================
+.subckt cap_dac_8bit sw7 sw6 sw5 sw4 sw3 sw2 sw1 sw0 vtop vref vss
+
+* Behavioral switches + capacitors
+Bvsw7 nsw7 0 V = v(sw7) > 0.6 ? v(vref) : v(vss)
+C7 vtop nsw7 256f ic=0
+
+Bvsw6 nsw6 0 V = v(sw6) > 0.6 ? v(vref) : v(vss)
+C6 vtop nsw6 128f ic=0
+
+Bvsw5 nsw5 0 V = v(sw5) > 0.6 ? v(vref) : v(vss)
+C5 vtop nsw5 64f ic=0
+
+Bvsw4 nsw4 0 V = v(sw4) > 0.6 ? v(vref) : v(vss)
+C4 vtop nsw4 32f ic=0
+
+Bvsw3 nsw3 0 V = v(sw3) > 0.6 ? v(vref) : v(vss)
+C3 vtop nsw3 16f ic=0
+
+Bvsw2 nsw2 0 V = v(sw2) > 0.6 ? v(vref) : v(vss)
+C2 vtop nsw2 8f ic=0
+
+Bvsw1 nsw1 0 V = v(sw1) > 0.6 ? v(vref) : v(vss)
+C1 vtop nsw1 4f ic=0
+
+Bvsw0 nsw0 0 V = v(sw0) > 0.6 ? v(vref) : v(vss)
+C0 vtop nsw0 2f ic=0
+
+* Dummy LSB cap for termination
+Cdummy vtop vss 2f ic=0
+
+.ends cap_dac_8bit

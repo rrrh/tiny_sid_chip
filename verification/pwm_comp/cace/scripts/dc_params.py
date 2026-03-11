@@ -46,8 +46,9 @@ def postprocess(
             trip_point = vinp[i - 1] + frac * (vinp[i] - vinp[i - 1])
             break
 
-    # Offset = trip_point - ideal (VDD/2), in mV
-    vos = (trip_point - vdd / 2.0) * 1000.0
+    # Offset = trip_point - ideal (VDD/2), in V
+    # CACE handles unit conversion (V → mV) based on spec unit
+    vos = trip_point - vdd / 2.0
 
     return {
         'vos': [abs(vos)],

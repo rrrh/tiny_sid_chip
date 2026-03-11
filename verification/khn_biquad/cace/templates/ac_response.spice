@@ -1,0 +1,67 @@
+* KHN Biquad — AC Frequency Response (CT Equivalent Model)
+* Continuous-time equivalent of the SC biquad for fast AC analysis.
+*
+* Conditions substituted by CACE:
+*   CACE{f_clk}     — switching clock frequency (Hz)
+*   CACE{q_code}    — Q control code (1..15)
+*   CACE{en_lp_n}   — LP mixer enable (0 or 1)
+*   CACE{en_bp_n}   — BP mixer enable (0 or 1)
+*   CACE{en_hp_n}   — HP mixer enable (0 or 1)
+
+* ── SC design parameters ──────────────────────────────────
+* IHP SG13G2 cap_cmim: ~1.5 fF/um^2
+* C_sw  = 7.0 x 7.0 um = 73.5 fF  (C_in, C_fb, C_is, C5, C6, C_hp)
+* C_int = 23.1 x 23.1 um = 800.4 fF (integration caps)
+* C_q_unit = 1.81 x 1.81 um = 4.914 fF (Q bank unit cap)
+
+.param f_clk = CACE{f_clk}
+.param q_code = CACE{q_code}
+.param c_sw = 73.5e-15
+.param c_int = 800.4e-15
+.param c_q_unit = 4.914e-15
+.param c_q = {q_code * c_q_unit}
+
+* Equivalent resistances
+.param r_sw = {1/(f_clk * c_sw)}
+.param r_q = {1/(f_clk * c_q)}
+
+* Mixer enables (0 or 1)
+.param en_lp_n = CACE{en_lp_n}
+.param en_bp_n = CACE{en_bp_n}
+.param en_hp_n = CACE{en_hp_n}
+
+* ── Input: AC stimulus ────────────────────────────────────
+Vin vin 0 dc 0 ac 1
+
+* ── Integrator 1: vin,lp,bp → sum1 → OTA1 → bp ──────────
+* Config P (vin→sum1): non-inv SC → resistor from vin to sum1
+* Config N (lp→sum1):  inv SC → VCCS sinking current from sum1
+* Config P (bp→sum1):  Q damping → resistor from bp to sum1
+* Miller integrator: E_ota1(0, sum1) + C_int1(bp, sum1)
+R_in   vin  sum1  {r_sw}
+G_fb   sum1 0     lp 0  {1/r_sw}
+R_q    bp   sum1  {r_q}
+C_int1 bp   sum1  {c_int}
+E_ota1 bp   0     0 sum1  1e6
+
+* ── Integrator 2: bp → sum2 → OTA2 → lp ─────────────────
+* Config P opposite phase (bp→sum2): resistor from bp to sum2
+R_is   bp   sum2  {r_sw}
+C_int2 lp   sum2  {c_int}
+E_ota2 lp   0     0 sum2  1e6
+
+* ── HP reconstruction: hp = vin - lp ─────────────────────
+* Resetting SC amplifier with C5=C6=C_hp gives hp = vin - lp
+E_hp   hp   0     vol='v(vin) - v(lp)'
+
+* ── Output mixer (weighted sum of enabled outputs) ───────
+E_mix  vout 0     vol='v(lp)*en_lp_n + v(bp)*en_bp_n + v(hp)*en_hp_n'
+
+* ── AC analysis: 1 Hz to 1 MHz, 50 pts/decade ───────────
+.control
+  ac dec 50 1 1e6
+  wrdata CACE{simpath}/CACE{filename}_CACE{N}.data v(vout)
+  quit
+.endc
+
+.end

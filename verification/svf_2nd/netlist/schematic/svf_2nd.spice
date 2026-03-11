@@ -1,0 +1,105 @@
+** sch_path: /data/Projects/tiny_workspace/xschem/svf_2nd.sch
+**.subckt svf_2nd vin vout sc_clk sel0 sel1 q0 q1 q2 q3 vdd vss
+*.ipin vin
+*.opin vout
+*.ipin sc_clk
+*.ipin sel0
+*.ipin sel1
+*.ipin q0
+*.ipin q1
+*.ipin q2
+*.ipin q3
+*.iopin vdd
+*.iopin vss
+XXXMPbias vcm vcm vdd vdd sg13_lv_pmos w=2e-6 l=0.5e-6 ng=1
+XXXMNbias vcm vcm vss vss sg13_lv_nmos w=2e-6 l=0.5e-6 ng=1
+XXXMP_n0 n1 sc_clk vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_n0 n1 sc_clk vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_n1 phi1 n1 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_n1 phi1 n1 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_n2 n3 phi1 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_n2 n3 phi1 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_n3 phi2 n3 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_n3 phi2 n3 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+x_sw0 vin net1 phi1 phi2 vss vdd cmos_tg
+XXC_sw1 net1 net2 cap_cmim w=7.0e-6 l=7.0e-6
+x_sw1 net2 net3 phi2 phi1 vss vdd cmos_tg
+x_sw2 lp net4 phi1 phi2 vss vdd cmos_tg
+XXC_sw2 net4 net5 cap_cmim w=7.0e-6 l=7.0e-6
+x_sw3 net5 net3 phi2 phi1 vss vdd cmos_tg
+x_sw4 bp cq_a phi1 phi2 vss vdd cmos_tg
+x_sw5 cq_b net3 phi2 phi1 vss vdd cmos_tg
+XXC_int1 bp net3 cap_cmim w=23.1e-6 l=23.1e-6
+x_ota1 vcm net3 vcm bp vdd vss svf_ota5t
+x_sw6 bp net6 phi1 phi2 vss vdd cmos_tg
+XXC_sw3 net6 net7 cap_cmim w=7.0e-6 l=7.0e-6
+x_sw7 net7 net8 phi2 phi1 vss vdd cmos_tg
+XXC_int2 lp_neg net8 cap_cmim w=23.1e-6 l=23.1e-6
+x_ota2 vcm net8 vcm lp_neg vdd vss svf_ota5t
+x_sw8 lp_neg net9 phi1 phi2 vss vdd cmos_tg
+XXC_sw4 net9 net10 cap_cmim w=7.0e-6 l=7.0e-6
+x_sw9 net10 net11 phi2 phi1 vss vdd cmos_tg
+x_sw10 lp net12 phi1 phi2 vss vdd cmos_tg
+XXC_sw5 net12 net13 cap_cmim w=7.0e-6 l=7.0e-6
+x_sw11 net13 net11 phi2 phi1 vss vdd cmos_tg
+XXC_int3 lp net11 cap_cmim w=23.1e-6 l=23.1e-6
+x_ota3 vcm net11 vcm lp vdd vss svf_ota5t
+x_swq0 cq_a net14 q0 q0_b vss vdd cmos_tg
+XXC_q0 cq_b net14 cap_cmim w=1.81e-6 l=1.81e-6
+x_swq1 cq_a net15 q1 q1_b vss vdd cmos_tg
+XXC_q1 cq_b net15 cap_cmim w=2.56e-6 l=2.56e-6
+x_swq2 cq_a net16 q2 q2_b vss vdd cmos_tg
+XXC_q2 cq_b net16 cap_cmim w=3.62e-6 l=3.62e-6
+x_swq3 cq_a net17 q3 q3_b vss vdd cmos_tg
+XXC_q3 cq_b net17 cap_cmim w=5.11e-6 l=5.11e-6
+x_mux_lp lp vout sel1 sel1_b vss vdd cmos_tg
+x_mux_bp bp vout sel0 sel0_b vss vdd cmos_tg
+x_mux_hp hp vout vss vdd vss vdd cmos_tg
+x_mux_byp vin vout vss vdd vss vdd cmos_tg
+XXXMP_invq0 q0_b q0 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_invq0 q0_b q0 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_invq1 q1_b q1 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_invq1 q1_b q1 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_invq2 q2_b q2 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_invq2 q2_b q2 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_invq3 q3_b q3 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_invq3 q3_b q3 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_invs0 sel0_b sel0 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_invs0 sel0_b sel0 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_invs1 sel1_b sel1 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_invs1 sel1_b sel1 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+**.ends
+
+* expanding   symbol:  cmos_tg.sym # of pins=6
+** sym_path: /data/Projects/tiny_workspace/xschem/cmos_tg.sym
+** sch_path: /data/Projects/tiny_workspace/xschem/cmos_tg.sch
+.subckt cmos_tg a b ctrl_n ctrl_p vss vdd
+*.iopin a
+*.iopin b
+*.ipin ctrl_n
+*.ipin ctrl_p
+*.iopin vss
+*.iopin vdd
+XXMN a ctrl_n b vss sg13_lv_nmos w=2e-6 l=0.13e-6 ng=1
+XXMP b ctrl_p a vdd sg13_lv_pmos w=4e-6 l=0.13e-6 ng=1
+.ends
+
+
+* expanding   symbol:  svf_ota5t.sym # of pins=6
+** sym_path: /data/Projects/tiny_workspace/xschem/svf_ota5t.sym
+** sch_path: /data/Projects/tiny_workspace/xschem/svf_ota5t.sch
+.subckt svf_ota5t vinp vinn vbias vout vdd vss
+*.iopin vdd
+*.iopin vss
+*.ipin vinp
+*.ipin vinn
+*.opin vout
+*.ipin vbias
+XXM3 mirr mirr vdd vdd sg13_lv_pmos w=2e-6 l=0.5e-6 ng=1
+XXM4 vout mirr vdd vdd sg13_lv_pmos w=2e-6 l=0.5e-6 ng=1
+XXM1 mirr vinp tail vss sg13_lv_nmos w=4e-6 l=0.5e-6 ng=1
+XXM2 vout vinn tail vss sg13_lv_nmos w=4e-6 l=0.5e-6 ng=1
+XXM5 tail vbias vss vss sg13_lv_nmos w=2e-6 l=0.5e-6 ng=1
+.ends
+
+.end

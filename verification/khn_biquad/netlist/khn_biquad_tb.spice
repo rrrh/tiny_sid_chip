@@ -1,0 +1,181 @@
+** sch_path: /data/Projects/tiny_workspace/xschem/khn_biquad_tb.sch
+**.subckt khn_biquad_tb
+XDUT vin vout en_lp en_bp en_hp sc_clk q0 q1 q2 q3 vdd GND khn_biquad
+Vdd vdd GND {vdd_val}
+Vclk sc_clk GND PULSE(0 {vdd_val} 0 1n 1n {t_clk/2 - 1n} {t_clk})
+Vvin vin GND PWL(0 {vcm_bias} {100*t_clk-1n} {vcm_bias} {100*t_clk} {vcm_bias+0.05})
+Ven_lp en_lp GND 0
+Ven_bp en_bp GND 0
+Ven_hp en_hp GND {vdd_val}
+Vq0 q0 GND 0
+Vq1 q1 GND 0
+Vq2 q2 GND {vdd_val}
+Vq3 q3 GND 0
+**** begin user architecture code
+ .lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib mos_tt
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerCAP.lib cap_typ
+
+
+
+.options method=gear reltol=5e-3 abstol=1e-12 vntol=1e-6 gmin=1e-12
+.param vdd_val = 1.2
+.param f_clk = 93750
+.param t_clk = {1/f_clk}
+.param vcm_bias = 0.47
+
+* Force vcm to ideal voltage for SC debugging (bypasses weak bias gen)
+Vvcm xdut.vcm 0 {vcm_bias}
+
+* SC nodes float during DC OP — initialize near VCM and let transient settle
+.ic v(xdut.bp)=0.614 v(xdut.lp)=0.614 v(xdut.hp)=0.47
++ v(xdut.sum1)=0.47 v(xdut.sum2)=0.47 v(xdut.sum3)=0.47
++ v(xdut.vcm)=0.47
++ v(xdut.cin_t)=0.47 v(xdut.cin_b)=0.47
++ v(xdut.cfb_t)=0.47 v(xdut.cfb_b)=0.47
++ v(xdut.cis_t)=0.47 v(xdut.cis_b)=0.47
++ v(xdut.c5_t)=0.47 v(xdut.c5_b)=0.47
++ v(xdut.c6_t)=0.47 v(xdut.c6_b)=0.47
++ v(xdut.cq0_t)=0.47 v(xdut.cq1_t)=0.47 v(xdut.cq2_t)=0.47 v(xdut.cq3_t)=0.47
++ v(xdut.x_ota1.mirr)=0.72 v(xdut.x_ota1.tail)=0.12
++ v(xdut.x_ota2.mirr)=0.72 v(xdut.x_ota2.tail)=0.12
++ v(xdut.x_ota3.mirr)=0.72 v(xdut.x_ota3.tail)=0.12
++ v(xdut.phi1)=0 v(xdut.n1)=1.2 v(xdut.n3)=1.2
+
+.tran {t_clk/20} {800*t_clk} UIC
+.control
+  run
+  write khn_biquad_tb.raw v(vin) v(vout) v(xdut.bp) v(xdut.lp) v(xdut.hp) v(xdut.sum1) v(xdut.sum2) v(xdut.sum3)
+  set wr_singlescale
+  wrdata khn_biquad_tran.data v(vout) v(xdut.bp) v(xdut.lp) v(xdut.hp) v(xdut.vcm)
+.endc
+
+
+**** end user architecture code
+**.ends
+
+* expanding   symbol:  khn_biquad.sym # of pins=12
+** sym_path: /data/Projects/tiny_workspace/xschem/khn_biquad.sym
+** sch_path: /data/Projects/tiny_workspace/xschem/khn_biquad.sch
+.subckt khn_biquad vin vout en_lp en_bp en_hp sc_clk q0 q1 q2 q3 vdd vss
+*.ipin vin
+*.opin vout
+*.ipin en_lp
+*.ipin en_bp
+*.ipin en_hp
+*.ipin sc_clk
+*.ipin q0
+*.ipin q1
+*.ipin q2
+*.ipin q3
+*.iopin vdd
+*.iopin vss
+XXXMPbias vcm vcm vdd vdd sg13_lv_pmos w=2e-6 l=0.5e-6 ng=1
+XXXMNbias vcm vcm vss vss sg13_lv_nmos w=2e-6 l=0.5e-6 ng=1
+XXXMP_n0 n1 sc_clk vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_n0 n1 sc_clk vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_n1 phi1 n1 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_n1 phi1 n1 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_n2 n3 phi1 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_n2 n3 phi1 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+x_e1_top_vin vin cin_t phi1 n3 vss vdd cmos_tg
+x_e1_bot_vcm vcm cin_b phi1 n3 vss vdd cmos_tg
+x_e1_top_vcm vcm cin_t n3 phi1 vss vdd cmos_tg
+x_e1_bot_sum sum1 cin_b n3 phi1 vss vdd cmos_tg
+XXC_in cin_t cin_b cap_cmim w=7.0e-6 l=7.0e-6
+x_e2_top_lp lp cfb_t phi1 n3 vss vdd cmos_tg
+x_e2_bot_sum sum1 cfb_b phi1 n3 vss vdd cmos_tg
+x_e2_top_vcm vcm cfb_t n3 phi1 vss vdd cmos_tg
+x_e2_bot_vcm vcm cfb_b n3 phi1 vss vdd cmos_tg
+XXC_fb cfb_t cfb_b cap_cmim w=7.0e-6 l=7.0e-6
+XXC_int1 bp sum1 cap_cmim w=23.1e-6 l=23.1e-6
+x_ota1 vcm sum1 vcm bp vdd vss svf_ota5t
+x_e4_top_bp bp cis_t n3 phi1 vss vdd cmos_tg
+x_e4_bot_vcm vcm cis_b n3 phi1 vss vdd cmos_tg
+x_e4_top_vcm vcm cis_t phi1 n3 vss vdd cmos_tg
+x_e4_bot_sum sum2 cis_b phi1 n3 vss vdd cmos_tg
+XXC_is cis_t cis_b cap_cmim w=7.0e-6 l=7.0e-6
+XXC_int2 lp sum2 cap_cmim w=23.1e-6 l=23.1e-6
+x_ota2 vcm sum2 vcm lp vdd vss svf_ota5t
+x_swq0_en bp net1 q0 q0_b vss vdd cmos_tg
+x_swq0_phi net1 cq0_t phi1 n3 vss vdd cmos_tg
+x_swq0_ref vcm cq0_t n3 phi1 vss vdd cmos_tg
+XXC_q0 cq0_t sum1 cap_cmim w=1.81e-6 l=1.81e-6
+x_swq1_en bp net2 q1 q1_b vss vdd cmos_tg
+x_swq1_phi net2 cq1_t phi1 n3 vss vdd cmos_tg
+x_swq1_ref vcm cq1_t n3 phi1 vss vdd cmos_tg
+XXC_q1 cq1_t sum1 cap_cmim w=2.56e-6 l=2.56e-6
+x_swq2_en bp net3 q2 q2_b vss vdd cmos_tg
+x_swq2_phi net3 cq2_t phi1 n3 vss vdd cmos_tg
+x_swq2_ref vcm cq2_t n3 phi1 vss vdd cmos_tg
+XXC_q2 cq2_t sum1 cap_cmim w=3.62e-6 l=3.62e-6
+x_swq3_en bp net4 q3 q3_b vss vdd cmos_tg
+x_swq3_phi net4 cq3_t phi1 n3 vss vdd cmos_tg
+x_swq3_ref vcm cq3_t n3 phi1 vss vdd cmos_tg
+XXC_q3 cq3_t sum1 cap_cmim w=5.11e-6 l=5.11e-6
+XXXMP_invq0 q0_b q0 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_invq0 q0_b q0 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_invq1 q1_b q1 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_invq1 q1_b q1 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_invq2 q2_b q2 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_invq2 q2_b q2 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_invq3 q3_b q3 vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_invq3 q3_b q3 vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+x_e5_top_vin vin c5_t phi1 n3 vss vdd cmos_tg
+x_e5_bot_vcm vcm c5_b phi1 n3 vss vdd cmos_tg
+x_e5_top_vcm vcm c5_t n3 phi1 vss vdd cmos_tg
+x_e5_bot_sum3 sum3 c5_b n3 phi1 vss vdd cmos_tg
+XXC5 c5_t c5_b cap_cmim w=7.0e-6 l=7.0e-6
+x_e6_top_lp lp c6_t n3 phi1 vss vdd cmos_tg
+x_e6_bot_sum3 sum3 c6_b n3 phi1 vss vdd cmos_tg
+x_e6_top_vcm vcm c6_t phi1 n3 vss vdd cmos_tg
+x_e6_bot_vcm vcm c6_b phi1 n3 vss vdd cmos_tg
+XXC6 c6_t c6_b cap_cmim w=7.0e-6 l=7.0e-6
+x_hp_reset sum3 hp phi1 n3 vss vdd cmos_tg
+XXC_hp hp sum3 cap_cmim w=7.0e-6 l=7.0e-6
+x_ota3 vcm sum3 vcm hp vdd vss svf_ota5t
+x_mix_lp lp vout en_lp en_lp_b vss vdd cmos_tg
+x_mix_bp bp vout en_bp en_bp_b vss vdd cmos_tg
+x_mix_hp hp vout en_hp en_hp_b vss vdd cmos_tg
+XXXMP_inv_enlp en_lp_b en_lp vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_inv_enlp en_lp_b en_lp vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_inv_enbp en_bp_b en_bp vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_inv_enbp en_bp_b en_bp vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+XXXMP_inv_enhp en_hp_b en_hp vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6 ng=1
+XXXMN_inv_enhp en_hp_b en_hp vss vss sg13_lv_nmos w=1e-6 l=0.13e-6 ng=1
+.ends
+
+
+* expanding   symbol:  cmos_tg.sym # of pins=6
+** sym_path: /data/Projects/tiny_workspace/xschem/cmos_tg.sym
+** sch_path: /data/Projects/tiny_workspace/xschem/cmos_tg.sch
+.subckt cmos_tg a b ctrl_n ctrl_p vss vdd
+*.iopin a
+*.iopin b
+*.ipin ctrl_n
+*.ipin ctrl_p
+*.iopin vss
+*.iopin vdd
+XXMN a ctrl_n b vss sg13_lv_nmos w=2e-6 l=0.13e-6 ng=1
+XXMP b ctrl_p a vdd sg13_lv_pmos w=4e-6 l=0.13e-6 ng=1
+.ends
+
+
+* expanding   symbol:  svf_ota5t.sym # of pins=6
+** sym_path: /data/Projects/tiny_workspace/xschem/svf_ota5t.sym
+** sch_path: /data/Projects/tiny_workspace/xschem/svf_ota5t.sch
+.subckt svf_ota5t vinp vinn vbias vout vdd vss
+*.iopin vdd
+*.iopin vss
+*.ipin vinp
+*.ipin vinn
+*.opin vout
+*.ipin vbias
+XXM3 mirr mirr vdd vdd sg13_lv_pmos w=2e-6 l=0.5e-6 ng=1
+XXM4 vout mirr vdd vdd sg13_lv_pmos w=2e-6 l=0.5e-6 ng=1
+XXM1 mirr vinp tail vss sg13_lv_nmos w=4e-6 l=0.5e-6 ng=1
+XXM2 vout vinn tail vss sg13_lv_nmos w=4e-6 l=0.5e-6 ng=1
+XXM5 tail vbias vss vss sg13_lv_nmos w=2e-6 l=0.5e-6 ng=1
+.ends
+
+.GLOBAL GND
+.end

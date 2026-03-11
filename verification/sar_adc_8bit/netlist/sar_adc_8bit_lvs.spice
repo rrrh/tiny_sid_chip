@@ -1,0 +1,99 @@
+* 8-bit SAR ADC — IHP SG13G2 (LVS reference netlist)
+* Flat top-level for KLayout LVS comparison against GDS extraction.
+*
+* The GDS layout contains:
+*   - StrongARM comparator (PMOS only: reset + cross-coupled latch)
+*   - Binary-weighted cap DAC (PMOS switches + MIM caps)
+*   - NMOS devices for comparator (tail, input pair, cross-coupled)
+*
+* Note: The extracted netlist from the GDS showed only PMOS and MIM caps.
+* NMOS transistors were not extracted — possible layer recognition issue.
+* This reference includes the full intended circuit for comparison.
+
+* ============================================================
+* Top-level SAR ADC (flat — no sub-hierarchy)
+* ============================================================
+.subckt sar_adc_8bit clk vdd vss
+
+* ── StrongARM Comparator ──────────────────────────────────
+
+* Tail current (clocked NMOS)
+XMtail vtail clk vss vss sg13_lv_nmos w=4e-6 l=0.13e-6
+
+* Input differential pair
+XMn1 dn vinp vtail vss sg13_lv_nmos w=2e-6 l=0.5e-6
+XMn2 dp vinn vtail vss sg13_lv_nmos w=2e-6 l=0.5e-6
+
+* PMOS reset switches
+XMp_rst1 dp clk vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+XMp_rst2 dn clk vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+
+* Cross-coupled NMOS latch
+XMn_cc1 outp outn dn vss sg13_lv_nmos w=1e-6 l=0.13e-6
+XMn_cc2 outn outp dp vss sg13_lv_nmos w=1e-6 l=0.13e-6
+
+* Cross-coupled PMOS latch
+XMp_cc1 outp outn vdd vdd sg13_lv_pmos w=1e-6 l=0.13e-6
+XMp_cc2 outn outp vdd vdd sg13_lv_pmos w=1e-6 l=0.13e-6
+
+* PMOS reset for output nodes
+XMp_rst3 outp clk vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+XMp_rst4 outn clk vdd vdd sg13_lv_pmos w=2e-6 l=0.13e-6
+
+* ── Binary-Weighted Cap DAC (PMOS switches + MIM caps) ────
+* Each bit: PMOS switch connects cap bottom plate to vref or vss.
+* The GDS uses PMOS switches (W=0.8u L=0.13u), three per bit:
+*   - vref-select switch, vss-select switch, sample switch
+
+* Bit 7 (MSB) — ~170.7 fF (cap_cmim 13.064u x 13.064u)
+XMsw7a nsw7 sw7 vref vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw7b nsw7 sw7n vss vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw7c nsw7 sample vin vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+C7 vtop nsw7 cap_cmim w=13.064e-6 l=13.064e-6 m=1
+
+* Bit 6 — ~85.3 fF (cap_cmim 9.238u x 9.237u)
+XMsw6a nsw6 sw6 vref vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw6b nsw6 sw6n vss vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw6c nsw6 sample vin vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+C6 vtop nsw6 cap_cmim w=9.238e-6 l=9.237e-6 m=1
+
+* Bit 5 — ~42.7 fF (cap_cmim 6.532u x 6.532u)
+XMsw5a nsw5 sw5 vref vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw5b nsw5 sw5n vss vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw5c nsw5 sample vin vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+C5 vtop nsw5 cap_cmim w=6.532e-6 l=6.532e-6 m=1
+
+* Bit 4 — ~21.3 fF (cap_cmim 4.619u x 4.619u)
+XMsw4a nsw4 sw4 vref vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw4b nsw4 sw4n vss vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw4c nsw4 sample vin vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+C4 vtop nsw4 cap_cmim w=4.619e-6 l=4.619e-6 m=1
+
+* Bit 3 — ~10.7 fF (cap_cmim 3.266u x 3.266u)
+XMsw3a nsw3 sw3 vref vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw3b nsw3 sw3n vss vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw3c nsw3 sample vin vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+C3 vtop nsw3 cap_cmim w=3.266e-6 l=3.266e-6 m=1
+
+* Bit 2 — ~5.3 fF (cap_cmim 2.309u x 2.31u)
+XMsw2a nsw2 sw2 vref vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw2b nsw2 sw2n vss vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw2c nsw2 sample vin vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+C2 vtop nsw2 cap_cmim w=2.309e-6 l=2.31e-6 m=1
+
+* Bit 1 — ~2.7 fF (cap_cmim 1.633u x 1.633u)
+XMsw1a nsw1 sw1 vref vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw1b nsw1 sw1n vss vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw1c nsw1 sample vin vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+C1 vtop nsw1 cap_cmim w=1.633e-6 l=1.633e-6 m=1
+
+* Bit 0 (LSB) — ~1.3 fF (cap_cmim 1.155u x 1.154u)
+XMsw0a nsw0 sw0 vref vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw0b nsw0 sw0n vss vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+XMsw0c nsw0 sample vin vdd sg13_lv_pmos w=0.8e-6 l=0.13e-6
+C0 vtop nsw0 cap_cmim w=1.155e-6 l=1.154e-6 m=1
+
+* Dummy LSB cap for termination — ~1.3 fF (cap_cmim 1.155u x 1.155u)
+Cdummy vtop vss cap_cmim w=1.155e-6 l=1.155e-6 m=1
+
+.ends sar_adc_8bit

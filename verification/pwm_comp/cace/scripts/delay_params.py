@@ -47,7 +47,7 @@ def postprocess(
                 if vout[j - 1] >= threshold > vout[j]:
                     frac2 = (threshold - vout[j - 1]) / min(vout[j] - vout[j - 1], -1e-15)
                     t_out = time[j - 1] + frac2 * (time[j] - time[j - 1])
-                    t_phl = (t_out - t_cross) * 1e9
+                    t_phl = t_out - t_cross
                     break
             break
 
@@ -60,14 +60,14 @@ def postprocess(
                 if vout[j - 1] < threshold <= vout[j]:
                     frac2 = (threshold - vout[j - 1]) / max(vout[j] - vout[j - 1], 1e-15)
                     t_out = time[j - 1] + frac2 * (time[j] - time[j - 1])
-                    t_plh = (t_out - t_cross) * 1e9
+                    t_plh = t_out - t_cross
                     break
             break
 
     if t_plh is None:
-        t_plh = 999.0
+        t_plh = 999e-9
     if t_phl is None:
-        t_phl = 999.0
+        t_phl = 999e-9
 
     return {
         't_plh': [t_plh],

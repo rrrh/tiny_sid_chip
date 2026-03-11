@@ -1,0 +1,45 @@
+* NGSPICE file created from r2r_dac_8bit.ext - technology: ihp-sg13g2
+
+.subckt r2r_dac_8bit d0 d1 d2 d3 d4 d5 d6 d7 vout vdd vss
+X0 a_1899_4300# a_2651_1900# vss rhigh l=3.68u w=2u
+X1 a_6196_4300# a_6948_1900# vss rhigh l=3.68u w=2u
+X2 a_5229_1900# d5 vdd vdd sg13_lv_pmos ad=2.4p pd=12.8u as=2.4p ps=12.8u w=6u l=0.13u
+X3 a_3510_1900# d3 vdd vdd sg13_lv_pmos ad=2.4p pd=12.8u as=2.4p ps=12.8u w=6u l=0.13u
+X4 a_932_1900# d0 vss vss sg13_lv_nmos ad=1.2p pd=6.8u as=1.2p ps=6.8u w=3u l=0.13u
+X5 a_5237_4800# a_6096_4800# vss rhigh l=3.675u w=2u
+X6 a_3518_4800# a_4377_4800# vss rhigh l=3.675u w=2u
+X7 a_5337_4300# a_6088_1900# vss rhigh l=3.675u w=2u
+X8 a_3618_4300# a_4369_1900# vss rhigh l=3.675u w=2u
+X9 a_2651_1900# d2 vdd vdd sg13_lv_pmos ad=2.4p pd=12.8u as=2.4p ps=12.8u w=6u l=0.13u
+X10 a_4477_4300# a_5237_4800# vss rhigh l=3.68u w=2u
+X11 a_2659_4800# a_3518_4800# vss rhigh l=3.675u w=2u
+X12 a_2759_4300# a_3510_1900# vss rhigh l=3.675u w=2u
+X13 a_932_1900# d0 vdd vdd sg13_lv_pmos ad=2.4p pd=12.8u as=2.4p ps=12.8u w=6u l=0.13u
+X14 a_4369_1900# d4 vss vss sg13_lv_nmos ad=1.2p pd=6.8u as=1.2p ps=6.8u w=3u l=0.13u
+X15 a_940_4800# a_1799_4800# vss rhigh l=3.675u w=2u
+X16 a_1899_4300# a_2659_4800# vss rhigh l=3.68u w=2u
+X17 vdd a_940_4800# vss rhigh l=3.68u w=2u
+X18 a_6196_4300# vout vss rhigh l=3.68u w=2u
+X19 a_1040_4300# a_1791_1900# vss rhigh l=3.675u w=2u
+X20 a_180_4300# a_932_1900# vss rhigh l=3.68u w=2u
+X21 a_1791_1900# d1 vss vss sg13_lv_nmos ad=1.2p pd=6.8u as=1.2p ps=6.8u w=3u l=0.13u
+X22 a_6088_1900# d6 vss vss sg13_lv_nmos ad=1.2p pd=6.8u as=1.2p ps=6.8u w=3u l=0.13u
+X23 a_5337_4300# a_6096_4800# vss rhigh l=3.675u w=2u
+X24 a_6948_1900# d7 vss vss sg13_lv_nmos ad=1.2p pd=6.8u as=1.2p ps=6.8u w=3u l=0.13u
+X25 a_3618_4300# a_4377_4800# vss rhigh l=3.675u w=2u
+X26 a_4369_1900# d4 vdd vdd sg13_lv_pmos ad=2.4p pd=12.8u as=2.4p ps=12.8u w=6u l=0.13u
+X27 a_5229_1900# d5 vss vss sg13_lv_nmos ad=1.2p pd=6.8u as=1.2p ps=6.8u w=3u l=0.13u
+X28 a_4377_4800# a_5237_4800# vss rhigh l=3.68u w=2u
+X29 a_3510_1900# d3 vss vss sg13_lv_nmos ad=1.2p pd=6.8u as=1.2p ps=6.8u w=3u l=0.13u
+X30 a_2759_4300# a_3518_4800# vss rhigh l=3.675u w=2u
+X31 a_4477_4300# a_5229_1900# vss rhigh l=3.68u w=2u
+X32 a_1791_1900# d1 vdd vdd sg13_lv_pmos ad=2.4p pd=12.8u as=2.4p ps=12.8u w=6u l=0.13u
+X33 a_6088_1900# d6 vdd vdd sg13_lv_pmos ad=2.4p pd=12.8u as=2.4p ps=12.8u w=6u l=0.13u
+X34 a_6948_1900# d7 vdd vdd sg13_lv_pmos ad=2.4p pd=12.8u as=2.4p ps=12.8u w=6u l=0.13u
+X35 a_2651_1900# d2 vss vss sg13_lv_nmos ad=1.2p pd=6.8u as=1.2p ps=6.8u w=3u l=0.13u
+X36 a_180_4300# a_940_4800# vss rhigh l=3.68u w=2u
+X37 a_1040_4300# a_1799_4800# vss rhigh l=3.675u w=2u
+X38 a_1799_4800# a_2659_4800# vss rhigh l=3.68u w=2u
+X39 a_6096_4800# vout vss rhigh l=3.68u w=2u
+.ends
+

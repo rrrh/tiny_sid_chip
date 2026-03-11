@@ -75,6 +75,11 @@ def run_parameter(macro_name, cace_dir, param_name, param_def, netlist_path, def
     tool_cfg = param_def['tool']['ngspice']
     template_name = tool_cfg['template']
     template_path = os.path.join(cace_dir, 'templates', template_name)
+    # Prefer .spice over .sch (CACE CLI needs .sch, but we feed ngspice directly)
+    if template_path.endswith('.sch'):
+        spice_alt = template_path[:-4] + '.spice'
+        if os.path.exists(spice_alt):
+            template_path = spice_alt
     variables = tool_cfg['variables']
     script_name = tool_cfg['script']
     script_path = os.path.join(cace_dir, 'scripts', script_name)

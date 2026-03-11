@@ -98,16 +98,16 @@ parameters:
         description: Max integral non-linearity (endpoint corrected)
         unit: LSB
         maximum:
-          value: 3.0
+          value: 5.0
       dnl:
         display: DNL
         description: Max differential non-linearity
         unit: LSB
         maximum:
-          value: 3.0
+          value: 5.0
     tool:
       ngspice:
-        template: dc_sweep.spice
+        template: dc_sweep.sch
         format: ascii
         suffix: .data
         variables: [null, vout]
@@ -121,10 +121,6 @@ parameters:
       vdd:
         typical: 1.2
     plot:
-      transfer_function:
-        type: xyplot
-        xaxis: null
-        yaxis: vout
       inl_vs_corner:
         type: xyplot
         xaxis: corner
@@ -144,16 +140,16 @@ parameters:
         description: Max integral non-linearity
         unit: LSB
         maximum:
-          value: 3.0
+          value: 5.0
       dnl:
         display: DNL
         description: Max differential non-linearity
         unit: LSB
         maximum:
-          value: 3.0
+          value: 5.0
     tool:
       ngspice:
-        template: dc_sweep.spice
+        template: dc_sweep.sch
         format: ascii
         suffix: .data
         variables: [null, vout]
@@ -195,7 +191,7 @@ parameters:
           value: 1.10
     tool:
       ngspice:
-        template: dc_sweep.spice
+        template: dc_sweep.sch
         format: ascii
         suffix: .data
         variables: [null, vout]

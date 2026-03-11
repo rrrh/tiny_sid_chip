@@ -1,0 +1,36 @@
+** sch_path: /data/Projects/tiny_workspace/xschem/r2r_dac_8bit.sch
+.subckt r2r_dac_8bit d0 d1 d2 d3 d4 d5 d6 d7 vdd vout vss
+*.PININFO vdd:B vss:B vout:O d0:I d1:I d2:I d3:I d4:I d5:I d6:I d7:I
+XXRs0 vdd net1 sub! rhigh w=2e-6 l=3.08e-6 m=1 b=0
+XXR2R_0 net1 net2 sub! rhigh w=2e-6 l=6.16e-6 m=1 b=0
+XXMp0 net2 d0 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6 ng=1
+XXMn0 net2 d0 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6 ng=1
+XXRs1 net1 net3 sub! rhigh w=2e-6 l=3.08e-6 m=1 b=0
+XXR2R_1 net3 net4 sub! rhigh w=2e-6 l=6.16e-6 m=1 b=0
+XXMp1 net4 d1 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6 ng=1
+XXMn1 net4 d1 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6 ng=1
+XXRs2 net3 net5 sub! rhigh w=2e-6 l=3.08e-6 m=1 b=0
+XXR2R_2 net5 net6 sub! rhigh w=2e-6 l=6.16e-6 m=1 b=0
+XXMp2 net6 d2 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6 ng=1
+XXMn2 net6 d2 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6 ng=1
+XXRs3 net5 net7 sub! rhigh w=2e-6 l=3.08e-6 m=1 b=0
+XXR2R_3 net7 net8 sub! rhigh w=2e-6 l=6.16e-6 m=1 b=0
+XXMp3 net8 d3 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6 ng=1
+XXMn3 net8 d3 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6 ng=1
+XXRs4 net7 net9 sub! rhigh w=2e-6 l=3.08e-6 m=1 b=0
+XXR2R_4 net9 net10 sub! rhigh w=2e-6 l=6.16e-6 m=1 b=0
+XXMp4 net10 d4 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6 ng=1
+XXMn4 net10 d4 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6 ng=1
+XXRs5 net9 net11 sub! rhigh w=2e-6 l=3.08e-6 m=1 b=0
+XXR2R_5 net11 net12 sub! rhigh w=2e-6 l=6.16e-6 m=1 b=0
+XXMp5 net12 d5 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6 ng=1
+XXMn5 net12 d5 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6 ng=1
+XXRs6 net11 net13 sub! rhigh w=2e-6 l=3.08e-6 m=1 b=0
+XXR2R_6 net13 net14 sub! rhigh w=2e-6 l=6.16e-6 m=1 b=0
+XXMp6 net14 d6 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6 ng=1
+XXMn6 net14 d6 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6 ng=1
+XXRs7 net13 vout sub! rhigh w=2e-6 l=3.08e-6 m=1 b=0
+XXR2R_7 vout net15 sub! rhigh w=2e-6 l=6.16e-6 m=1 b=0
+XXMp7 net15 d7 vdd vdd sg13_lv_pmos w=6e-6 l=0.13e-6 ng=1
+XXMn7 net15 d7 vss vss sg13_lv_nmos w=3e-6 l=0.13e-6 ng=1
+.ends

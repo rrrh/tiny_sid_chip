@@ -1,0 +1,11 @@
+** sch_path: /data/Projects/tiny_workspace/xschem/pwm_comp.sch
+.subckt pwm_comp vinp vinn out vdd vss
+*.PININFO vdd:B vss:B vinp:I vinn:I out:O
+XXM3 mirr mirr vdd vdd sg13_lv_pmos w=2e-6 l=0.5e-6 ng=1
+XXM4 ota_o mirr vdd vdd sg13_lv_pmos w=2e-6 l=0.5e-6 ng=1
+XXM1 mirr vinp tail vss sg13_lv_nmos w=4e-6 l=0.5e-6 ng=1
+XXM2 ota_o vinn tail vss sg13_lv_nmos w=4e-6 l=0.5e-6 ng=1
+XXM5 tail tail vss vss sg13_lv_nmos w=2e-6 l=0.5e-6 ng=1
+XXM7 out ota_o vdd vdd sg13_lv_pmos w=1e-6 l=0.13e-6 ng=1
+XXM6 out ota_o vss vss sg13_lv_nmos w=0.5e-6 l=0.13e-6 ng=1
+.ends
