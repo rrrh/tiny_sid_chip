@@ -111,8 +111,8 @@ proc define_analog_macro_grid {name instances vss_y vdd_y macro_h} {
 # r2r_dac_8bit (30µm): VSS rail y=0-1.5, VDD rail y=28.5-30
 define_analog_macro_grid "r2r_grid" "u_dac u_ramp_dac" 0.75 29.25 30.0
 
-# khn_biquad (70µm): VSS rail y=0-2, VDD rail y=68-70
-define_analog_macro_grid "svf_grid" "u_svf" 1.0 69.0 70.0
+# khn_biquad (58µm): VSS rail y=0-2, VDD rail y=56-58
+define_analog_macro_grid "svf_grid" "u_svf" 1.0 57.0 58.0
 
 # pwm_comp (15µm): VSS rail y=0-2, VDD rail y=13-15
 define_analog_macro_grid "comp_grid" "u_comp" 1.0 14.0 15.0

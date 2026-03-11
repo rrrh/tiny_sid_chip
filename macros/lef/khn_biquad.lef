@@ -6,7 +6,7 @@ MACRO khn_biquad
   CLASS BLOCK ;
   ORIGIN 0 0 ;
   FOREIGN khn_biquad 0 0 ;
-  SIZE 80.000 BY 70.000 ;
+  SIZE 60.000 BY 58.000 ;
   SYMMETRY X Y ;
 
   PIN vin
@@ -14,7 +14,7 @@ MACRO khn_biquad
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 28.000 0.500 32.000 ;
+        RECT 0.000 23.000 0.500 27.000 ;
     END
   END vin
 
@@ -23,7 +23,7 @@ MACRO khn_biquad
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 79.500 18.000 80.000 22.000 ;
+        RECT 59.500 18.000 60.000 22.000 ;
     END
   END vout
 
@@ -32,7 +32,7 @@ MACRO khn_biquad
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 33.500 0.500 34.500 ;
+        RECT 0.000 29.500 0.500 30.500 ;
     END
   END en_lp
 
@@ -41,7 +41,7 @@ MACRO khn_biquad
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 35.500 0.500 36.500 ;
+        RECT 0.000 31.500 0.500 32.500 ;
     END
   END en_bp
 
@@ -50,7 +50,7 @@ MACRO khn_biquad
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 37.500 0.500 38.500 ;
+        RECT 0.000 33.500 0.500 34.500 ;
     END
   END en_hp
 
@@ -59,7 +59,7 @@ MACRO khn_biquad
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 45.000 0.500 47.000 ;
+        RECT 0.000 39.000 0.500 41.000 ;
     END
   END sc_clk
 
@@ -68,7 +68,7 @@ MACRO khn_biquad
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 21.700 0.500 22.300 ;
+        RECT 0.000 14.700 0.500 15.300 ;
     END
   END q0
 
@@ -77,7 +77,7 @@ MACRO khn_biquad
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 23.700 0.500 24.300 ;
+        RECT 0.000 16.700 0.500 17.300 ;
     END
   END q1
 
@@ -86,7 +86,7 @@ MACRO khn_biquad
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 25.700 0.500 26.300 ;
+        RECT 0.000 18.700 0.500 19.300 ;
     END
   END q2
 
@@ -95,7 +95,7 @@ MACRO khn_biquad
     USE SIGNAL ;
     PORT
       LAYER Metal2 ;
-        RECT 0.000 27.700 0.500 28.300 ;
+        RECT 0.000 20.700 0.500 21.300 ;
     END
   END q3
 
@@ -104,7 +104,7 @@ MACRO khn_biquad
     USE POWER ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 68.000 80.000 70.000 ;
+        RECT 0.000 56.000 60.000 58.000 ;
     END
   END VDD
 
@@ -113,23 +113,23 @@ MACRO khn_biquad
     USE GROUND ;
     PORT
       LAYER Metal3 ;
-        RECT 0.000 0.000 80.000 2.000 ;
+        RECT 0.000 0.000 60.000 2.000 ;
     END
   END VSS
 
   OBS
     LAYER Metal1 ;
-      RECT 0.500 0.500 79.500 69.500 ;
+      RECT 0.500 0.500 59.500 57.500 ;
     LAYER Metal2 ;
-      RECT 0.500 0.500 79.500 69.500 ;
+      RECT 0.500 0.500 59.500 57.500 ;
     LAYER Metal3 ;
-      RECT 0.500 2.000 79.500 68.000 ;
+      RECT 0.500 2.000 59.500 56.000 ;
     LAYER Metal4 ;
-      RECT 10.500 18.000 50.000 52.000 ;
+      RECT 10.500 12.000 50.000 42.000 ;
     LAYER Metal5 ;
-      RECT 0.500 2.500 79.500 44.000 ;
+      RECT 0.500 2.500 59.500 37.000 ;
     LAYER TopMetal1 ;
-      RECT 0.500 4.000 79.500 66.000 ;
+      RECT 0.500 3.000 59.500 55.000 ;
   END
 
 END khn_biquad

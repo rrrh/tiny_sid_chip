@@ -19,24 +19,24 @@ Architecture: KHN state-variable filter with SC resistors + OTA integrators.
 
   Output mixer: en_lp→TG→LP, en_bp→TG→BP, en_hp→TG→HP → vout
 
+Compact layout: switches nested under MIM integration caps (different metal
+layers: switches use M1-M3, MIM caps use M5/TM1).  Q array stacked
+vertically beside integration caps.
+
 Components:
   3 × OTA (5T diff pair: 2 integrators + 1 HP reconstruction)
   2 × MIM integration cap (C_int = 0.8 pF, ~23×23 µm)
   6 × MIM switching cap (C_sw = 73.5 fF, ~7×7 µm)
-  1 × MIM HP feedback cap (C_hp = 73.5 fF, ~7×7 µm)
   4 × C_Q array cap (4.9 fF unit, binary-weighted)
-  20 × CMOS TG (5 SC elements × 4 switches each)
-  12 × CMOS TG (Q bank: 4 bits × 3 switches)
-  1 × CMOS TG (HP reset)
-  3 × CMOS TG (output mixer: LP/BP/HP enables)
+  36 × CMOS TG (20 SC + 12 Q-bank + 1 HP reset + 3 mixer, in 2 rows of 18)
   4 × NOL clock inverters (8 transistors)
   7 × complement inverters (4 Q + 3 enable)
   1 × Bias generator (diode-connected PMOS + NMOS)
 
-Macro size: 80 × 70 µm
+Macro size: 60 × 58 µm
 """
 
-import sys, os
+import sys, os, math
 sys.path.insert(0, os.path.dirname(__file__))
 from sg13g2_layers import *
 from gen_sc_svf import (
@@ -44,7 +44,7 @@ from gen_sc_svf import (
     draw_via1, draw_via2, draw_via3, draw_via4, draw_topvia1,
     draw_via_stack_m2_to_m5, draw_via_stack_m2_to_tm1,
     draw_via_stack_m3_to_m5, draw_via_stack_m3_to_tm1,
-    draw_mim_cap, draw_ota, draw_cmos_switch, draw_cap_array,
+    draw_mim_cap, draw_ota, draw_cmos_switch,
     draw_nol_clock, draw_bias_gen,
     OTA_DP_W, OTA_DP_L, OTA_LD_W, OTA_LD_L, OTA_TAIL_W, OTA_TAIL_L,
     C_INT_SIDE, C_SW_SIDE, CQ_UNIT_SIDE,
@@ -58,8 +58,8 @@ from gen_sc_svf import (
 # ===========================================================================
 # Design parameters
 # ===========================================================================
-MACRO_W = 80.0
-MACRO_H = 70.0
+MACRO_W = 60.0
+MACRO_H = 58.0
 
 # Inverter sizes (for complement generation)
 INV_N_W = 1.0
@@ -122,50 +122,8 @@ def draw_inverter(cell, layout, x, y):
     }
 
 
-def draw_mixer_tg(cell, layout, x, y):
-    """Draw 3 CMOS TGs for output mixer (LP, BP, HP → vout).
-    Returns dict with per-channel in/out/ctrl and shared output bus."""
-    li_m1 = layout.layer(*L_METAL1)
-    wire_w = M1_WIDTH
-
-    sw_pitch = SW_N_W + SW_P_W + 3.0  # vertical pitch between TG channels
-
-    switches = []
-    for i in range(3):
-        sy = y + i * sw_pitch
-        sw = draw_cmos_switch(cell, layout, x, sy)
-        switches.append(sw)
-
-    # Connect all outputs (drains) via M1 vertical bus
-    act_len = SD_EXT + SW_N_L + SD_EXT
-    bus_x = x + act_len + 0.50
-    for sw in switches:
-        dx, dy = sw['out']
-        cell.shapes(li_m1).insert(rect(dx - wire_w/2, dy - wire_w/2,
-                                        bus_x + wire_w/2, dy + wire_w/2))
-    cell.shapes(li_m1).insert(rect(bus_x - wire_w/2,
-                                    switches[0]['out'][1] - wire_w/2,
-                                    bus_x + wire_w/2,
-                                    switches[2]['out'][1] + wire_w/2))
-
-    return {
-        'lp_in':     switches[0]['in'],
-        'bp_in':     switches[1]['in'],
-        'hp_in':     switches[2]['in'],
-        'lp_ctrl_n': switches[0]['ctrl_n'],
-        'lp_ctrl_p': switches[0]['ctrl_p'],
-        'bp_ctrl_n': switches[1]['ctrl_n'],
-        'bp_ctrl_p': switches[1]['ctrl_p'],
-        'hp_ctrl_n': switches[2]['ctrl_n'],
-        'hp_ctrl_p': switches[2]['ctrl_p'],
-        'out':       (bus_x, switches[1]['out'][1]),
-        'total_h':   3 * sw_pitch,
-        'act_len':   act_len,
-    }
-
-
 # ===========================================================================
-# Main: build the KHN Biquad
+# Main: build the compact KHN Biquad
 # ===========================================================================
 def build_khn_biquad():
     layout = new_layout()
@@ -181,14 +139,16 @@ def build_khn_biquad():
     wire_w2 = M2_WIDTH
 
     # =====================================================================
-    # Layout sections (Y offsets):
-    #   y=0..2     : VSS rail (Metal3)
-    #   y=3..9     : C_Q array + small MIM switching caps + mixer
-    #   y=10..18   : CMOS switches (32 total: 20 SC + 12 Q)
-    #   y=19..44   : MIM integration caps (C_int1, C_int2) + C_hp
-    #   y=45..53   : NOL clock + bias gen + complement inverters
-    #   y=55..66   : OTA row (3 OTAs)
-    #   y=68..70   : VDD rail (Metal3)
+    # Layout sections (Y offsets) — compact, switches nested under caps:
+    #   y=0..2       : VSS rail (Metal3)
+    #   y=3..10      : 6 small MIM switching caps (M5/TM1)
+    #   y=12..36     : MIM integration caps (M5/TM1, x=2..52)
+    #                  Q array (M5/TM1, x=53..59, stacked vertically)
+    #   y=14..22     : Switch row 1 (18 TGs, M1-M3, under caps)
+    #   y=24..32     : Switch row 2 (18 TGs, M1-M3, under caps)
+    #   y=37..44     : NOL clock + bias gen + complement inverters
+    #   y=45..54     : OTA row (3 OTAs)
+    #   y=56..58     : VDD rail (Metal3)
     # =====================================================================
 
     # --- VDD rail (top, Metal3) ---
@@ -200,7 +160,7 @@ def build_khn_biquad():
     # =====================================================================
     # OTA row: 3 OTAs (integrator 1, integrator 2, HP reconstruction)
     # =====================================================================
-    ota_y = 55.0
+    ota_y = 45.0
     ota_gap = 3.0
     dp_act_len = SD_EXT + OTA_DP_L + SD_EXT
     ota_total_w = dp_act_len * 2 + 1.4  # from draw_ota dp_gap=1.4
@@ -252,7 +212,7 @@ def build_khn_biquad():
     # Bias generator
     # =====================================================================
     bias_x = 2.40
-    bias_y = 47.5
+    bias_y = 37.5
     bias = draw_bias_gen(top, layout, bias_x, bias_y)
 
     # Bias VSS → VSS rail via M3
@@ -271,7 +231,7 @@ def build_khn_biquad():
 
     # Bias output → OTA tail gates via M1 horizontal bus
     bias_out_x, bias_out_y = bias['bias_out']
-    bias_bus_y = 53.8
+    bias_bus_y = 43.8
     top.shapes(li_m1).insert(rect(bias_out_x - wire_w/2, bias_out_y - wire_w/2,
                                    bias_out_x + wire_w/2, bias_bus_y + wire_w/2))
     t3x, t3y = ota3['tail']
@@ -282,7 +242,7 @@ def build_khn_biquad():
                                        tx + wire_w/2, ty + wire_w/2))
 
     # Connect OTA non-inverting inputs (inp) to bias/VCM via M2
-    vcm_bus_y = 54.5
+    vcm_bus_y = 44.5
     for ota in [ota1, ota2, ota3]:
         px, py = ota['inp']
         draw_via1(top, layout, px, py)
@@ -298,7 +258,7 @@ def build_khn_biquad():
     # NOL clock generator
     # =====================================================================
     nol_x = 14.0
-    nol_y = 48.5
+    nol_y = 38.5
     nol = draw_nol_clock(top, layout, nol_x, nol_y)
 
     nol_gate_cx = nol['clk_in'][0]
@@ -328,10 +288,9 @@ def build_khn_biquad():
 
     # =====================================================================
     # Complement inverters (7 total: q0_b..q3_b, en_lp_b, en_bp_b, en_hp_b)
-    # Place in a row near NOL clock
     # =====================================================================
-    inv_x_start = 30.0
-    inv_y = 47.5
+    inv_x_start = 28.0
+    inv_y = 37.5
     inv_pitch = (SD_EXT + INV_N_L + SD_EXT) + 1.2
 
     inverters = []
@@ -365,8 +324,9 @@ def build_khn_biquad():
 
     # =====================================================================
     # MIM Integration Caps (C_int1 and C_int2)
+    # y=12..36, x=2..52 (M5/TM1)
     # =====================================================================
-    cap_y = 19.0
+    cap_y = 12.0
     c1_x = 2.0
     c1_bot, c1_top = draw_mim_cap(top, layout, c1_x, cap_y, C_INT_SIDE, C_INT_SIDE)
 
@@ -374,22 +334,37 @@ def build_khn_biquad():
     c2_bot, c2_top = draw_mim_cap(top, layout, c2_x, cap_y, C_INT_SIDE, C_INT_SIDE)
 
     # =====================================================================
-    # C_Q Binary-Weighted Cap Array
+    # C_Q Binary-Weighted Cap Array — stacked vertically beside integration
+    # caps at x=53.5, y=12..35 (M5/TM1)
     # =====================================================================
-    cq_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.12
-    cq_y = 3.5
-    cq = draw_cap_array(top, layout, cq_x, cq_y)
+    cq_gap = MIM_SPACE + 2 * MIM_ENC_M5  # gap between Q caps (TM1.b)
+
+    # Integration cap 2 M5 right edge: c2_x + C_INT_SIDE + MIM_ENC_M5
+    c2_m5_right = c2_x + C_INT_SIDE + MIM_ENC_M5
+    # Q array Cmim left: need M5 left = Cmim_x - MIM_ENC_M5 >= c2_m5_right + 0.44 (M5 spacing)
+    cq_x = c2_m5_right + 0.44 + MIM_ENC_M5
+    cq_x = snap5(cq_x)
+
+    cq_caps = []
+    cq_cy = cap_y
+    for i in range(4):
+        fF = 4.9 * (2 ** i)
+        side = math.sqrt(fF / 1.5)
+        side = round(side * 200) / 200  # snap to 5nm grid
+        b, t = draw_mim_cap(top, layout, cq_x, cq_cy, side, side)
+        cq_caps.append({'bot': b, 'top': t, 'x': cq_x, 'w': side, 'h': side, 'y': cq_cy})
+        cq_cy += side + cq_gap
 
     # =====================================================================
-    # SC Switching Caps (6 × C_sw + 1 × C_hp)
-    # C_in, C_fb, C_is, C5, C6, C_hp
+    # Small MIM Switching Caps (6 × C_sw)
+    # C_in, C_fb, C_is, C5, C6, C_hp — bottom band y=3
     # =====================================================================
-    sw_cap_y = 3.5
-    csw_gap = 1.64  # TM1.b min spacing
+    sw_cap_y = 3.0
+    csw_gap = MIM_SPACE + 2 * MIM_ENC_M5  # 1.64µm (TM1.b min spacing)
 
     csw_caps = []
-    csw_x = cq_x + cq['total_w'] + csw_gap
-    for i in range(7):  # 6 SC caps + 1 HP cap
+    csw_x = 2.0
+    for i in range(6):
         cx = csw_x + i * (C_SW_SIDE + csw_gap)
         bot, top_c = draw_mim_cap(top, layout, cx, sw_cap_y, C_SW_SIDE, C_SW_SIDE)
         csw_caps.append((bot, top_c))
@@ -400,102 +375,69 @@ def build_khn_biquad():
     csw4_bot, csw4_top = csw_caps[3]  # C5 (vin→sum3)
     csw5_bot, csw5_top = csw_caps[4]  # C6 (lp→sum3)
     csw6_bot, csw6_top = csw_caps[5]  # C_hp (hp feedback)
-    csw7_bot, csw7_top = csw_caps[6]  # spare (if needed)
 
     # =====================================================================
-    # CMOS Switches: 32 in main row (20 SC + 12 Q)
+    # CMOS Switches: 2 rows of 18 (under integration caps, M1-M3)
+    # Row 1 (y=14): SC1(4) + SC2(4) + SC4(4) + Q0 enable(1) + Q0 phi(1) + Q0 ref(1) + Q1(3)
+    # Row 2 (y=24): SC5(4) + SC6(4) + Q2(3) + Q3(3) + HP_reset(1) + mixer_lp(1) + mixer_bp(1) + mixer_hp(1)
     # =====================================================================
-    sw_y = 10.0
-    sw_gap = 1.5
-    sw_start_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.12
-
     sd_ext = SD_EXT
     sw_w = sd_ext + SW_N_L + sd_ext
+    sw_gap = 1.5
     sw_pitch = sw_w + sw_gap
+    sw_start_x = NWELL_SPACE_DN + NWELL_ENC_ACTIV + 0.12
 
-    switches = []
-    for i in range(32):
+    sw_row1_y = 14.0
+    sw_row2_y = 24.0
+
+    switches_r1 = []
+    for i in range(18):
         sx = sw_start_x + i * sw_pitch
-        sw = draw_cmos_switch(top, layout, sx, sw_y)
-        switches.append(sw)
+        sw = draw_cmos_switch(top, layout, sx, sw_row1_y)
+        switches_r1.append(sw)
 
-    # SC Element 1 (C_in: vin→sum1): 4 TGs
-    # phi1 top: vin→cin_t, phi1 bot: vcm→cin_b
-    # phi2 top: vcm→cin_t, phi2 bot: sum1→cin_b
-    sw_e1 = switches[0:4]
+    switches_r2 = []
+    for i in range(18):
+        sx = sw_start_x + i * sw_pitch
+        sw = draw_cmos_switch(top, layout, sx, sw_row2_y)
+        switches_r2.append(sw)
 
-    # SC Element 2 (C_fb: lp→sum1): 4 TGs
-    # phi1 top: lp→cfb_t, phi1 bot: sum1→cfb_b
-    # phi2 top: vcm→cfb_t, phi2 bot: vcm→cfb_b
-    sw_e2 = switches[4:8]
+    # NWell strips for each switch row
+    for row_y in [sw_row1_y, sw_row2_y]:
+        sw_pmos_y = row_y + SW_N_W + 1.5
+        nw_y1 = sw_pmos_y - NWELL_ENC_ACTIV
+        nw_y2 = sw_pmos_y + SW_P_W + NWELL_ENC_ACTIV
+        nw_x1 = sw_start_x - NWELL_ENC_ACTIV
+        sw_last_x = sw_start_x + 17 * sw_pitch
+        nw_x2 = sw_last_x + sw_w + NWELL_ENC_ACTIV
+        top.shapes(li_nw).insert(rect(nw_x1, nw_y1, nw_x2, nw_y2))
 
-    # SC Element 4 (C_is: bp→sum2): 4 TGs
-    # phi2 top: bp→cis_t, phi2 bot: vcm→cis_b
-    # phi1 top: vcm→cis_t, phi1 bot: sum2→cis_b
-    sw_e4 = switches[8:12]
+    # Assign switches to SC elements:
+    # Row 1: SC1(4) + SC2(4) + SC4(4) + Q0(3) + Q1(3)
+    sw_e1 = switches_r1[0:4]    # C_in switches
+    sw_e2 = switches_r1[4:8]    # C_fb switches
+    sw_e4 = switches_r1[8:12]   # C_is switches
+    sw_q = [switches_r1[12:15], switches_r1[15:18]]  # Q0, Q1
 
-    # SC Element 5 (C5: vin→sum3): 4 TGs
-    # phi1 top: vin→c5_t, phi1 bot: vcm→c5_b
-    # phi2 top: vcm→c5_t, phi2 bot: sum3→c5_b
-    sw_e5 = switches[12:16]
-
-    # SC Element 6 (C6: lp→sum3): 4 TGs
-    # phi2 top: lp→c6_t, phi2 bot: sum3→c6_b
-    # phi1 top: vcm→c6_t, phi1 bot: vcm→c6_b
-    sw_e6 = switches[16:20]
-
-    # Q bank switches: 4 bits × 3 TGs
-    # Per bit: enable (q[n]/q[n]_b), phi sample (phi1/n3), vcm reset (n3/phi1)
-    sw_q = [switches[20:23], switches[23:26], switches[26:29], switches[29:32]]
-
-    # Merge switch NWells into one strip
-    sw_pmos_y = sw_y + SW_N_W + 1.5
-    sw_nw_y1 = sw_pmos_y - NWELL_ENC_ACTIV
-    sw_nw_y2 = sw_pmos_y + SW_P_W + NWELL_ENC_ACTIV
-    sw_nw_x1 = sw_start_x - NWELL_ENC_ACTIV
-    sw_last_x = sw_start_x + 31 * sw_pitch
-    sw_nw_x2 = sw_last_x + sw_w + NWELL_ENC_ACTIV
-    top.shapes(li_nw).insert(rect(sw_nw_x1, sw_nw_y1, sw_nw_x2, sw_nw_y2))
-
-    # =====================================================================
-    # HP Reset TG + Output Mixer (right side, near OTAs)
-    # =====================================================================
-    hp_reset_x = 60.0
-    hp_reset_y = 45.0
-    hp_reset = draw_cmos_switch(top, layout, hp_reset_x, hp_reset_y)
-
-    # Merge HP reset NWell
-    hp_pmos_y = hp_reset_y + SW_N_W + 1.5
-    top.shapes(li_nw).insert(rect(hp_reset_x - NWELL_ENC_ACTIV,
-                                   hp_pmos_y - NWELL_ENC_ACTIV,
-                                   hp_reset_x + sw_w + NWELL_ENC_ACTIV,
-                                   hp_pmos_y + SW_P_W + NWELL_ENC_ACTIV))
-
-    # Output mixer: 3 TGs stacked vertically
-    mixer_x = 65.0
-    mixer_y = 3.5
-    mixer = draw_mixer_tg(top, layout, mixer_x, mixer_y)
-
-    # Mixer NWells
-    mixer_act_len = SD_EXT + SW_N_L + SD_EXT
-    mixer_sw_pitch = SW_N_W + SW_P_W + 3.0
-    for i in range(3):
-        my = mixer_y + i * mixer_sw_pitch + SW_N_W + 1.5
-        mnw_x1 = mixer_x - NWELL_ENC_ACTIV
-        mnw_x2 = mixer_x + mixer_act_len + NWELL_ENC_ACTIV
-        top.shapes(li_nw).insert(rect(mnw_x1, my - NWELL_ENC_ACTIV,
-                                       mnw_x2, my + SW_P_W + NWELL_ENC_ACTIV))
+    # Row 2: SC5(4) + SC6(4) + Q2(3) + Q3(3) + HP_reset(1) + mixer(3)
+    sw_e5 = switches_r2[0:4]    # C5 switches
+    sw_e6 = switches_r2[4:8]    # C6 switches
+    sw_q += [switches_r2[8:11], switches_r2[11:14]]  # Q2, Q3
+    hp_reset = switches_r2[14]
+    mixer_lp = switches_r2[15]
+    mixer_bp = switches_r2[16]
+    mixer_hp = switches_r2[17]
 
     # =====================================================================
     # Via stacks for MIM caps
     # =====================================================================
     via_pad_hw = VIA3_ENC_M3 + VIA3_SIZE / 2
 
-    # Integration caps: via stacks
+    # Integration caps: via stacks for top plates
     draw_via_stack_m3_to_tm1(top, layout, c1_top[0], c1_top[1])
     draw_via_stack_m3_to_tm1(top, layout, c2_top[0], c2_top[1])
 
-    # C_int1 bottom plate → sum1
+    # C_int1 bottom plate → sum1 (OTA1 inverting input)
     sum1_x, sum1_y = ota1['inn']
     c1_bot_via_x = sum1_x - 0.25
     c1_bot_via_y = c1_bot[1] + 0.20
@@ -507,12 +449,11 @@ def build_khn_biquad():
     top.shapes(li_m2).insert(rect(c1_bot_via_x - wire_w2/2, sum1_y - wire_w2/2,
                                    sum1_x + wire_w2/2, sum1_y + wire_w2/2))
 
-    # C_int2 bottom plate → sum2
+    # C_int2 bottom plate → sum2 (OTA2 inverting input)
     sum2_x, sum2_y = ota2['inn']
     c2_bot_vy = c2_bot[1] + 0.20
     draw_via_stack_m2_to_m5(top, layout, c2_bot[0], c2_bot_vy)
     draw_via1(top, layout, sum2_x, sum2_y)
-    # Route via M4 horizontal
     c2_route_x = sum2_x - 0.5
     draw_via3(top, layout, c2_route_x, c2_bot_vy)
     e4 = VIA3_ENC_M4 + VIA3_SIZE / 2
@@ -531,7 +472,7 @@ def build_khn_biquad():
         top.shapes(li_m3).insert(rect(csw_bot[0] - via_pad_hw, csw_bot[1] - via_pad_hw,
                                        csw_bot[0] + via_pad_hw, csw_bot[1] + via_pad_hw))
 
-    for cap_info in cq['caps']:
+    for cap_info in cq_caps:
         draw_via_stack_m3_to_tm1(top, layout, cap_info['top'][0], cap_info['top'][1])
         bot_via_x = cap_info['x'] + cap_info['w'] / 2
         draw_via_stack_m2_to_m5(top, layout, bot_via_x, cap_info['bot'][1])
@@ -568,7 +509,7 @@ def build_khn_biquad():
                                    lp_x1 + wire_w2/2, lp_y1 + wire_w2/2))
 
     # LP → C_int2 top plate via M4
-    c2_fb_y = 50.0
+    c2_fb_y = 40.0
     draw_via2(top, layout, lp_x1, c2_fb_y)
     draw_via3(top, layout, lp_x1, c2_fb_y)
     top.shapes(li_m3).insert(rect(c2_top[0] - wire_w2/2, c2_fb_y - wire_w2/2,
@@ -590,6 +531,25 @@ def build_khn_biquad():
     sum3_x, sum3_y = ota3['inn']
     draw_via1(top, layout, sum3_x, sum3_y)
 
+    # --- Mixer output bus: connect mixer_lp, mixer_bp, mixer_hp outputs via M2 ---
+    for sw in [mixer_lp, mixer_bp, mixer_hp]:
+        ox, oy = sw['out']
+        draw_via1(top, layout, ox, oy)
+
+    mx_lp_out = mixer_lp['out']
+    mx_bp_out = mixer_bp['out']
+    mx_hp_out = mixer_hp['out']
+    # All mixer outputs are in row 2, connect via M2 vertical bus
+    mixer_bus_x = mx_lp_out[0] + 0.5
+    for sw in [mixer_lp, mixer_bp, mixer_hp]:
+        ox, oy = sw['out']
+        top.shapes(li_m2).insert(rect(ox - wire_w2/2, oy - wire_w2/2,
+                                       mixer_bus_x + wire_w2/2, oy + wire_w2/2))
+    # Vertical M2 bus connecting all three (they're in the same row, so same Y)
+    # Actually they're adjacent in row 2, so at same Y but different X
+    top.shapes(li_m2).insert(rect(mx_lp_out[0] - wire_w2/2, mx_lp_out[1] - wire_w2/2,
+                                   mx_hp_out[0] + wire_w2/2, mx_hp_out[1] + wire_w2/2))
+
     # =====================================================================
     # Substrate taps
     # =====================================================================
@@ -598,15 +558,14 @@ def build_khn_biquad():
     for xt in [0.5, 26.0, 50.0]:
         draw_ptap(top, layout, xt, ota_y - 1.0)
     for xt in [14.0, 22.0, 36.0]:
-        draw_ptap(top, layout, xt, 47.0)
-    for xt in [2.5, 8.5, 14.5, 20.5, 26.5, 32.5, 38.5, 44.5, 50.5, 56.5, 62.5]:
-        draw_ptap(top, layout, xt, 9.0)
-    draw_ptap(top, layout, 64.0, 3.0)
-    draw_ptap(top, layout, 64.0, 15.0)
-    draw_ptap(top, layout, 64.0, 25.0)
+        draw_ptap(top, layout, xt, 37.0)
+    # ptaps in switch rows (under caps, still needed for substrate contact)
+    for xt in [4.0, 12.0, 20.0, 28.0, 36.0, 44.0]:
+        draw_ptap(top, layout, xt, sw_row1_y - 1.0)
+        draw_ptap(top, layout, xt, sw_row2_y - 1.0)
 
     # ptaps with VSS via connections
-    for ptap_x in [8.0, 25.0, 45.0, 60.0, 72.0]:
+    for ptap_x in [8.0, 25.0, 45.0, 55.0]:
         draw_ptap(top, layout, ptap_x, 1.0)
         ptap_cx = ptap_x + 0.18
         ptap_cy = 1.0 + 0.18
@@ -649,20 +608,22 @@ def build_khn_biquad():
     top.shapes(li_m1).insert(rect(bias_src_x - wire_w/2, bvdd_y - wire_w/2,
                                    bias_src_x + wire_w/2, ntap_bias_cy + wire_w/2))
 
-    # Switch NWell ntaps
-    for ntap_sx in [7.0, 24.0, 40.0, 56.0]:
-        ntap_sw_y = sw_pmos_y + SW_P_W + NTAP_OFFSET
-        draw_ntap(top, layout, ntap_sx, ntap_sw_y)
-        ntap_sw_cx = ntap_sx + 0.18
-        ntap_sw_cy = ntap_sw_y + 0.18
-        draw_via1(top, layout, ntap_sw_cx, ntap_sw_cy)
-        draw_via2(top, layout, ntap_sw_cx, ntap_sw_cy)
-        top.shapes(li_m3).insert(rect(ntap_sw_cx - wire_w2/2, ntap_sw_cy - wire_w2/2,
-                                       ntap_sw_cx + wire_w2/2, MACRO_H))
+    # Switch NWell ntaps (one per row)
+    for row_y in [sw_row1_y, sw_row2_y]:
+        sw_pmos_row_y = row_y + SW_N_W + 1.5
+        for ntap_sx in [7.0, 24.0, 40.0]:
+            ntap_sw_y = sw_pmos_row_y + SW_P_W + NTAP_OFFSET
+            draw_ntap(top, layout, ntap_sx, ntap_sw_y)
+            ntap_sw_cx = ntap_sx + 0.18
+            ntap_sw_cy = ntap_sw_y + 0.18
+            draw_via1(top, layout, ntap_sw_cx, ntap_sw_cy)
+            draw_via2(top, layout, ntap_sw_cx, ntap_sw_cy)
+            top.shapes(li_m3).insert(rect(ntap_sw_cx - wire_w2/2, ntap_sw_cy - wire_w2/2,
+                                           ntap_sw_cx + wire_w2/2, MACRO_H))
 
     # Inverter NWell ntaps
     inv_ntap_y = inv_pmos_y + INV_P_W + NTAP_OFFSET
-    for inv_ntap_x in [33.0, 42.0]:
+    for inv_ntap_x in [31.0, 40.0]:
         draw_ntap(top, layout, inv_ntap_x, inv_ntap_y)
         ntc_x = inv_ntap_x + 0.18
         ntc_y = inv_ntap_y + 0.18
@@ -675,61 +636,58 @@ def build_khn_biquad():
     # Pin routing
     # =====================================================================
 
-    # --- vin pin: left edge ---
-    vin_pin_y = 30.0
-    vin_via_x = sum1_x + 0.96
-    top.shapes(li_m2).insert(rect(0.0, vin_pin_y - wire_w2/2,
-                                   vin_via_x + wire_w2/2, vin_pin_y + wire_w2/2))
-    draw_via2(top, layout, vin_via_x, vin_pin_y)
-    top.shapes(li_m3).insert(rect(vin_via_x - wire_w2/2, vin_pin_y - wire_w2/2,
-                                   vin_via_x + wire_w2/2, sum1_y + wire_w2/2))
+    # --- vin pin: left edge, y=25 ---
+    vin_pin_y = 25.0
+    vin_via_x = 1.0
+    top.shapes(li_m2).insert(rect(0.0, vin_pin_y - 2.0,
+                                   vin_via_x + wire_w2/2, vin_pin_y + 2.0))
 
-    # --- vout pin: right edge ---
+    # --- vout pin: right edge, y=20 ---
     vout_pin_y = 20.0
-    mux_out_x, mux_out_y = mixer['out']
-    draw_via1(top, layout, mux_out_x, mux_out_y)
-    top.shapes(li_m2).insert(rect(mux_out_x - wire_w2/2,
-                                   min(mux_out_y, vout_pin_y) - wire_w2/2,
-                                   mux_out_x + wire_w2/2,
-                                   max(mux_out_y, vout_pin_y) + wire_w2/2))
-    top.shapes(li_m2).insert(rect(mux_out_x - wire_w2/2, vout_pin_y - wire_w2/2,
+    # Route mixer bus to right edge via M2
+    mx_bus_cx = (mx_lp_out[0] + mx_hp_out[0]) / 2
+    top.shapes(li_m2).insert(rect(mx_bus_cx - wire_w2/2,
+                                   min(mx_lp_out[1], vout_pin_y) - wire_w2/2,
+                                   mx_bus_cx + wire_w2/2,
+                                   max(mx_lp_out[1], vout_pin_y) + wire_w2/2))
+    top.shapes(li_m2).insert(rect(mx_bus_cx - wire_w2/2, vout_pin_y - wire_w2/2,
                                    MACRO_W, vout_pin_y + wire_w2/2))
 
     # --- en_lp pin: left edge ---
-    en_lp_pin_y = 34.0
-    top.shapes(li_m2).insert(rect(0.0, en_lp_pin_y - wire_w2/2,
-                                   1.0 + wire_w2/2, en_lp_pin_y + wire_w2/2))
+    en_lp_pin_y = 30.0
+    top.shapes(li_m2).insert(rect(0.0, en_lp_pin_y - 0.5,
+                                   1.0 + wire_w2/2, en_lp_pin_y + 0.5))
 
     # --- en_bp pin ---
-    en_bp_pin_y = 36.0
-    top.shapes(li_m2).insert(rect(0.0, en_bp_pin_y - wire_w2/2,
-                                   1.0 + wire_w2/2, en_bp_pin_y + wire_w2/2))
+    en_bp_pin_y = 32.0
+    top.shapes(li_m2).insert(rect(0.0, en_bp_pin_y - 0.5,
+                                   1.0 + wire_w2/2, en_bp_pin_y + 0.5))
 
     # --- en_hp pin ---
-    en_hp_pin_y = 38.0
-    top.shapes(li_m2).insert(rect(0.0, en_hp_pin_y - wire_w2/2,
-                                   1.0 + wire_w2/2, en_hp_pin_y + wire_w2/2))
+    en_hp_pin_y = 34.0
+    top.shapes(li_m2).insert(rect(0.0, en_hp_pin_y - 0.5,
+                                   1.0 + wire_w2/2, en_hp_pin_y + 0.5))
 
     # --- sc_clk pin: left edge ---
-    sc_clk_pin_y = 46.0
+    sc_clk_pin_y = 40.0
     via_clk_x = 12.20
     via_clk_y = nol_gate_cnt_y
     draw_via1(top, layout, via_clk_x, via_clk_y)
     top.shapes(li_m1).insert(rect(via_clk_x - wire_w/2, via_clk_y - wire_w/2,
                                    nol_gate_cx + CONT_SIZE/2 + CONT_ENC_M1,
                                    via_clk_y + wire_w/2))
-    top.shapes(li_m2).insert(rect(0.0, sc_clk_pin_y - wire_w2/2,
-                                   via_clk_x + wire_w2/2, sc_clk_pin_y + wire_w2/2))
+    top.shapes(li_m2).insert(rect(0.0, sc_clk_pin_y - 1.0,
+                                   via_clk_x + wire_w2/2, sc_clk_pin_y + 1.0))
     top.shapes(li_m2).insert(rect(via_clk_x - wire_w2/2,
                                    min(sc_clk_pin_y, via_clk_y) - wire_w2/2,
                                    via_clk_x + wire_w2/2,
                                    max(sc_clk_pin_y, via_clk_y) + wire_w2/2))
 
     # --- q0..q3 pins: left edge ---
-    q_pin_ys = [22.0, 24.0, 26.0, 28.0]
+    q_pin_ys = [15.0, 17.0, 19.0, 21.0]
     for qi, qy in enumerate(q_pin_ys):
-        top.shapes(li_m2).insert(rect(0.0, qy - wire_w2/2,
-                                       1.0 + wire_w2/2, qy + wire_w2/2))
+        top.shapes(li_m2).insert(rect(0.0, qy - 0.3,
+                                       1.0 + wire_w2/2, qy + 0.3))
 
     # =====================================================================
     # Pin labels
@@ -772,12 +730,12 @@ if __name__ == "__main__":
     layout.write(outpath)
 
     print(f"Wrote {outpath}")
-    print(f"  Topology: KHN SC+OTA biquad with HP reconstruction")
+    print(f"  Topology: KHN SC+OTA biquad (compact, switches under caps)")
     print(f"  OTAs: 3 × 5-transistor (diff pair W={OTA_DP_W}µm L={OTA_DP_L}µm)")
     print(f"  Integration caps: 2 × 0.8 pF (MIM {C_INT_SIDE}×{C_INT_SIDE} µm)")
-    print(f"  Switching caps: 7 × 73.5 fF (MIM {C_SW_SIDE}×{C_SW_SIDE} µm)")
+    print(f"  Switching caps: 6 × 73.5 fF (MIM {C_SW_SIDE}×{C_SW_SIDE} µm)")
     print(f"  C_Q array: 4-bit binary-weighted ({CQ_UNIT_SIDE}µm unit, 4.9 fF)")
-    print(f"  CMOS switches: 32 SC+Q + 1 HP reset + 3 mixer")
+    print(f"  CMOS switches: 36 in 2×18 rows (under integration caps)")
     print(f"  Complement inverters: 7 (4 Q + 3 enable)")
     print(f"  Bias gen: PMOS+NMOS diode (W={BIAS_P_W}µm L={BIAS_P_L}µm)")
     print(f"  NOL clock: 8 transistors (4 CMOS pairs)")
