@@ -29,18 +29,18 @@
         "*": ["dir::../macros/lib/r2r_dac_8bit.lib"]
       }
     },
-    "svf_2nd": {
+    "khn_biquad": {
       "instances": {
         "u_svf": {
-          "location": [137.0, 68],
+          "location": [121.0, 68],
           "orientation": "N"
         }
       },
-      "gds": ["dir::../macros/gds/svf_2nd.gds"],
-      "lef": ["dir::../macros/lef/svf_2nd.lef"],
-      "nl": ["dir::../macros/nl/svf_2nd.v"],
+      "gds": ["dir::../macros/gds/khn_biquad.gds"],
+      "lef": ["dir::../macros/lef/khn_biquad.lef"],
+      "nl": ["dir::../macros/nl/khn_biquad.v"],
       "lib": {
-        "*": ["dir::../macros/lib/svf_2nd.lib"]
+        "*": ["dir::../macros/lib/khn_biquad.lib"]
       }
     },
     "pwm_comp": {

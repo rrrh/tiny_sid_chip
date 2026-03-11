@@ -41,7 +41,7 @@
 //     2: res_filt — [7:4] resonance → Q bias DAC, [3:0] filt enable             ($D417)
 //     3: mode_vol — [6:4] mode (HP/BP/LP), [3:0] vol                            ($D418)
 //
-//   Analog signal chain: vol_scale → R-2R DAC → SC+OTA SVF → comparator → analog PWM
+//   Analog signal chain: vol_scale → R-2R DAC → KHN biquad → comparator → analog PWM
 //   sc_clk from NCO phase accumulator, q[3:0] from inverted resonance register
 //
 // Waveform register (SID $d404 layout):
@@ -499,11 +499,11 @@ module tt_um_sid (
 
     //==========================================================================
     // Analog filter signal chain:
-    //   vol_scale → R-2R DAC → SC+OTA SVF → comparator → analog PWM
+    //   vol_scale → R-2R DAC → KHN biquad → comparator → analog PWM
     //   Ramp DAC (2nd R-2R) generates sawtooth ref for PWM comparator
     //
     // Register mapping (voice_sel=3, flat memory — no SPI):
-    //   mode_vol[6:4] → svf_sel[1:0] (HP>BP>LP priority, or bypass)
+    //   mode_vol[6:4] → en_lp/en_bp/en_hp (individual filter enables)
     //   mode_vol[3:0] → filt_vol     (digital volume scaling BEFORE DAC)
     //   sc_clk from NCO, q[3:0] from inverted resonance register
     //==========================================================================
@@ -515,10 +515,10 @@ module tt_um_sid (
     // Bypass: no voices routed to filter, or no filter mode selected
     wire bypass = (filt_en[2:0] == 3'd0) || (filt_mode[2:0] == 3'd0);
 
-    // SVF mode select: 00=LP, 01=BP, 10=HP, 11=bypass
-    wire [1:0] svf_sel = bypass       ? 2'b11 :
-                         filt_mode[2] ? 2'b10 :
-                         filt_mode[1] ? 2'b01 : 2'b00;
+    // KHN output mixer enables: gate with bypass to silence when not in use
+    wire en_lp_w = filt_mode[0] & ~bypass;
+    wire en_bp_w = filt_mode[1] & ~bypass;
+    wire en_hp_w = filt_mode[2] & ~bypass;
 
     // --- Volume scaling in digital domain BEFORE the DAC ---
     // shift-add volume: filt_vol[3:0], 0=silent, 15=full
@@ -546,12 +546,13 @@ module tt_um_sid (
     // q_pins = 15 - filt_res: high q_pins = more Csw_q = lower Q = flatter
     wire [3:0] q_pins = ~filt_res;
 
-    // --- Analog SC+OTA SVF ---
-    svf_2nd u_svf (
+    // --- Analog SC+OTA KHN Biquad ---
+    khn_biquad u_svf (
         .vin      (dac_out),
         .vout     (filter_out),
-        .sel0     (svf_sel[0]),
-        .sel1     (svf_sel[1]),
+        .en_lp    (en_lp_w),
+        .en_bp    (en_bp_w),
+        .en_hp    (en_hp_w),
         .sc_clk   (sc_clk_nco),
         .q0       (q_pins[0]),
         .q1       (q_pins[1]),

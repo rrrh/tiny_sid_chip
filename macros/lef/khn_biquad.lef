@@ -1,0 +1,137 @@
+VERSION 5.7 ;
+BUSBITCHARS "[]" ;
+DIVIDERCHAR "/" ;
+
+MACRO khn_biquad
+  CLASS BLOCK ;
+  ORIGIN 0 0 ;
+  FOREIGN khn_biquad 0 0 ;
+  SIZE 80.000 BY 70.000 ;
+  SYMMETRY X Y ;
+
+  PIN vin
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 28.000 0.500 32.000 ;
+    END
+  END vin
+
+  PIN vout
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 79.500 18.000 80.000 22.000 ;
+    END
+  END vout
+
+  PIN en_lp
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 33.500 0.500 34.500 ;
+    END
+  END en_lp
+
+  PIN en_bp
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 35.500 0.500 36.500 ;
+    END
+  END en_bp
+
+  PIN en_hp
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 37.500 0.500 38.500 ;
+    END
+  END en_hp
+
+  PIN sc_clk
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 45.000 0.500 47.000 ;
+    END
+  END sc_clk
+
+  PIN q0
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 21.700 0.500 22.300 ;
+    END
+  END q0
+
+  PIN q1
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 23.700 0.500 24.300 ;
+    END
+  END q1
+
+  PIN q2
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 25.700 0.500 26.300 ;
+    END
+  END q2
+
+  PIN q3
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal2 ;
+        RECT 0.000 27.700 0.500 28.300 ;
+    END
+  END q3
+
+  PIN VDD
+    DIRECTION INOUT ;
+    USE POWER ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 68.000 80.000 70.000 ;
+    END
+  END VDD
+
+  PIN VSS
+    DIRECTION INOUT ;
+    USE GROUND ;
+    PORT
+      LAYER Metal3 ;
+        RECT 0.000 0.000 80.000 2.000 ;
+    END
+  END VSS
+
+  OBS
+    LAYER Metal1 ;
+      RECT 0.500 0.500 79.500 69.500 ;
+    LAYER Metal2 ;
+      RECT 0.500 0.500 79.500 69.500 ;
+    LAYER Metal3 ;
+      RECT 0.500 2.000 79.500 68.000 ;
+    LAYER Metal4 ;
+      RECT 10.500 18.000 50.000 52.000 ;
+    LAYER Metal5 ;
+      RECT 0.500 2.500 79.500 44.000 ;
+    LAYER TopMetal1 ;
+      RECT 0.500 4.000 79.500 66.000 ;
+  END
+
+END khn_biquad
+
+END LIBRARY
