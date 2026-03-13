@@ -77,7 +77,7 @@ async def sid_write_pw(dut, pw8, voice=0):
         await sid_write(dut, REG0_PW, pw8 & 0xFF)
     elif(voice == 1):
         await sid_write(dut, REG1_PW, pw8 & 0xFF)
-    else if(voice == 2)
+    elif(voice == 2):
         await sid_write(dut, REG2_PW, pw8 & 0xFF)
 
 
