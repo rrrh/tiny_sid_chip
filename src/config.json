@@ -14,11 +14,11 @@
     "r2r_dac_8bit": {
       "instances": {
         "u_dac": {
-          "location": [165.6, 36.12],
+          "location": [155.6, 36.12],
           "orientation": "N"
         },
         "u_ramp_dac": {
-          "location": [165.6, 4.2],
+          "location": [155.6, 4.2],
           "orientation": "N"
         }
       },
@@ -29,24 +29,10 @@
         "*": ["dir::../macros/lib/r2r_dac_8bit.lib"]
       }
     },
-    "khn_biquad": {
-      "instances": {
-        "u_svf": {
-          "location": [141.0, 68],
-          "orientation": "N"
-        }
-      },
-      "gds": ["dir::../macros/gds/khn_biquad.gds"],
-      "lef": ["dir::../macros/lef/khn_biquad.lef"],
-      "nl": ["dir::../macros/nl/khn_biquad.v"],
-      "lib": {
-        "*": ["dir::../macros/lib/khn_biquad.lib"]
-      }
-    },
     "pwm_comp": {
       "instances": {
         "u_comp": {
-          "location": [190.0, 150],
+          "location": [180.0, 68.0],
           "orientation": "N"
         }
       },
@@ -58,11 +44,12 @@
       }
     }
   },
-  "PL_TARGET_DENSITY_PCT": 75,
+  "PL_TARGET_DENSITY_PCT": 90,
+  "FP_CORE_UTIL": 90,
   "GPL_CELL_PADDING": 0,
   "DPL_CELL_PADDING": 0,
-  "FP_MACRO_HORIZONTAL_HALO": 0,
-  "FP_MACRO_VERTICAL_HALO": 0,
+  "FP_MACRO_HORIZONTAL_HALO": 10,
+  "FP_MACRO_VERTICAL_HALO": 10,
   "FP_SIZING": "absolute",
   "DIE_AREA": "0 0 202.08 313.74",
   "CLOCK_PERIOD": 500,
@@ -88,9 +75,11 @@
   "FP_IO_VLENGTH": 2,
   "PDN_CFG": "dir::pdn_cfg.tcl",
   "FP_PDN_MULTILAYER": false,
-  "RT_MAX_LAYER": "TopMetal1",
+  "RT_MAX_LAYER": "Metal4",
   "MAGIC_DEF_LABELS": 0,
   "MAGIC_WRITE_LEF_PINONLY": 1,
+  "VDD_PIN": "VPWR",
+  "GND_PIN": "VGND",
   "RUN_HEURISTIC_DIODE_INSERTION": 0,
   "ERROR_ON_DISCONNECTED_PINS": false,
   "ERROR_ON_PDN_VIOLATIONS": false,
