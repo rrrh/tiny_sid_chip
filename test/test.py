@@ -36,6 +36,8 @@ REG_FC_HI    = 22
 REG_RES_FILT = 23
 REG_MODE_VOL = 24
 
+VOICE_FILT = 0
+
 # SID-compatible waveform bits ($d404 layout)
 GATE  = 0x01
 SYNC  = 0x02
