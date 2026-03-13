@@ -1,5 +1,5 @@
-/* verilator lint_off UNUSEDSIGNAL */
 `timescale 1ns / 1ps
+/* verilator lint_off UNUSED */
 //==============================================================================
 // TT10 Wrapper — Time-Multiplexed SID Voice Synthesizer (24 MHz, 3 voices)
 //==============================================================================
@@ -63,7 +63,7 @@ module tt_um_sid (
     //==========================================================================
     // Input assignments
     //==========================================================================
-    wire [2:0] reg_addr  = ui_in[2:0];
+    wire [4:0] reg_addr  = ui_in[4:0];
     wire [1:0] voice_sel = ui_in[4:3];
     wire       wr_en     = ui_in[7];
     wire [7:0] wr_data   = uio_in;
@@ -144,17 +144,34 @@ module tt_um_sid (
             mode_vol <= 8'd0;
         end else if (wr_en_rise) begin
             case (reg_addr)
-                3'd0: if (voice_sel <= 2'd2) freq[voice_sel]        <= wr_data;
-                      else                   fc_lo                  <= wr_data;
-                3'd1: if (voice_sel <= 2'd2) freq_hi[voice_sel]     <= wr_data;
-                      else                   fc_hi                  <= wr_data;
-                3'd2: if (voice_sel <= 2'd2) pw_reg[voice_sel]      <= wr_data;
-                      else                   res_filt               <= wr_data;
-                3'd3: if (voice_sel <= 2'd2) pw_hi[voice_sel]       <= wr_data[3:0];
-                      else                   mode_vol               <= wr_data;
-                3'd4: if (voice_sel <= 2'd2) attack_reg[voice_sel]  <= wr_data;
-                3'd5: if (voice_sel <= 2'd2) sustain_reg[voice_sel] <= wr_data;
-                3'd6: if (voice_sel <= 2'd2) waveform[voice_sel]    <= wr_data;
+		5'd0: freq[0]        <= wr_data;
+		5'd1: freq_hi[0]     <= wr_data;
+		5'd2: pw_reg[0]      <= wr_data;
+		5'd3: pw_hi[0]       <= wr_data[3:0];
+		5'd4: waveform[0]    <= wr_data;
+		5'd5: attack_reg[0]  <= wr_data;
+		5'd6: sustain_reg[0] <= wr_data;
+
+		5'd7: freq[1]        <= wr_data;
+		5'd8: freq_hi[1]     <= wr_data;
+		5'd9: pw_reg[1]      <= wr_data;
+		5'd10: pw_hi[1]       <= wr_data[3:0];
+		5'd11: waveform[1]    <= wr_data;
+		5'd12: attack_reg[1]  <= wr_data;
+		5'd13: sustain_reg[1] <= wr_data;
+
+		5'd14: freq[2]        <= wr_data;
+		5'd15: freq_hi[2]     <= wr_data;
+		5'd16: pw_reg[2]      <= wr_data;
+		5'd17: pw_hi[2]       <= wr_data[3:0];
+		5'd18: waveform[2]    <= wr_data;
+		5'd19: attack_reg[2]  <= wr_data;
+		5'd20: sustain_reg[2] <= wr_data;
+
+		5'd21: fc_lo          <= wr_data;
+		5'd22: fc_hi          <= wr_data;
+		5'd23: res_filt       <= wr_data;
+		5'd24: mode_vol       <= wr_data[3:0];
                 default: ;
             endcase
         end
