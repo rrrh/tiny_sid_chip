@@ -36,8 +36,6 @@ REG_FC_HI    = 22
 REG_RES_FILT = 23
 REG_MODE_VOL = 24
 
-VOICE_FILT = 0
-
 # SID-compatible waveform bits ($d404 layout)
 GATE  = 0x01
 SYNC  = 0x02
@@ -76,11 +74,11 @@ async def sid_write_freq(dut, freq16, voice = 0):
 async def sid_write_pw(dut, pw8, voice=0):
     """Write the 8-bit pulse width register (per voice)."""
     if(voice == 0):
-        await sid_write(dut, REG0_PW, pw8 & 0xFF)
+        await sid_write(dut, REG0_PW_LO, pw8 & 0xFF)
     elif(voice == 1):
-        await sid_write(dut, REG1_PW, pw8 & 0xFF)
+        await sid_write(dut, REG1_PW_LO, pw8 & 0xFF)
     elif(voice == 2):
-        await sid_write(dut, REG2_PW, pw8 & 0xFF)
+        await sid_write(dut, REG2_PW_LO, pw8 & 0xFF)
 
 
 def hz_to_freq(hz):
@@ -208,7 +206,7 @@ async def test_gate_release(dut):
     await sid_write(dut, REG0_SUSTAIN, 0xF0)
     await sid_write(dut, REG0_WAVEFORM, SAW | GATE)
     await ClockCycles(dut.clk, 250000)
-    await sid_write(dut, REG_WAVEFORM, SAW)  # release gate
+    await sid_write(dut, REG0_WAVEFORM, SAW)  # release gate
     await ClockCycles(dut.clk, 200000)
     pdm_count = await count_pwm(dut, 25000)
     dut._log.info(f"After release PWM count: {pdm_count}")
@@ -223,7 +221,7 @@ async def test_two_voices(dut):
     await sid_write_freq(dut, hz_to_freq(262))
     await sid_write(dut, REG0_ATTACK, 0x00)
     await sid_write(dut, REG0_SUSTAIN, 0xF0)
-    await sid_write(dut, REG_WAVEFORM, SAW | GATE, voice=0)
+    await sid_write(dut, REG0_WAVEFORM, SAW | GATE, voice=0)
 
     await sid_write_freq(dut, hz_to_freq(330), voice=1)
     await sid_write_pw(dut, 0x80, voice=1)
