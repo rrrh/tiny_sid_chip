@@ -115,7 +115,7 @@ async def setup_and_reset(dut):
     await ClockCycles(dut.clk, 50)
     # Explicitly set bypass path: mode=0 (bypass), vol=max
     # This ensures analog macros (black boxes in GL sim) are not in the signal path
-    await sid_write(dut, REG_MODE_VOL, 0x0F, voice=VOICE_FILT)
+    await sid_write(dut, REG_MODE_VOL, 0x0F)
 
 
 @cocotb.test()
