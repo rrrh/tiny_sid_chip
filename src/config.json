@@ -29,20 +29,6 @@
         "*": ["dir::../macros/lib/r2r_dac_8bit.lib"]
       }
     },
-    "khn_biquad": {
-      "instances": {
-        "u_svf": {
-          "location": [131.0, 68],
-          "orientation": "N"
-        }
-      },
-      "gds": ["dir::../macros/gds/khn_biquad.gds"],
-      "lef": ["dir::../macros/lef/khn_biquad.lef"],
-      "nl": ["dir::../macros/nl/khn_biquad.v"],
-      "lib": {
-        "*": ["dir::../macros/lib/khn_biquad.lib"]
-      }
-    },
     "pwm_comp": {
       "instances": {
         "u_comp": {
@@ -58,7 +44,7 @@
       }
     }
   },
-  "PL_TARGET_DENSITY_PCT": 0.80,
+  "PL_TARGET_DENSITY_PCT": 90,
   "FP_CORE_UTIL": 90,
   "GPL_CELL_PADDING": 0,
   "DPL_CELL_PADDING": 0,
