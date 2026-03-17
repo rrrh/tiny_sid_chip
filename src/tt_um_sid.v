@@ -600,9 +600,8 @@ module tt_um_sid (
 
     // --- Behavioral sim: connect 8-bit data between analog macro models ---
 `ifdef BEHAVIORAL_SIM
-    always @(u_dac.sim_data_out or u_svf.sim_data_out) begin
-        u_svf.sim_data_in = u_dac.sim_data_out;
-        u_comp.sim_data_in = u_svf.sim_data_out;
+    always @(u_dac.sim_data_out) begin
+        u_comp.sim_data_in = u_dec.sim_data_out;
     end
     always @(u_ramp_dac.sim_data_out) begin
         u_comp.sim_ramp_in = u_ramp_dac.sim_data_out;
