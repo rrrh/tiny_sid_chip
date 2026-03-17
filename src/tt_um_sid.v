@@ -525,7 +525,7 @@ module tt_um_sid (
     //   sc_clk from NCO, q[3:0] from inverted resonance register
     //==========================================================================
     (* keep *) wire dac_out;           // R-2R DAC analog output
-    (* keep *) wire filter_out;        // SVF analog output
+    //(* keep *) wire filter_out;        // SVF analog output
     (* keep *) wire ramp_out;          // Ramp DAC analog output
     (* keep *) wire analog_pwm;        // Comparator output (analog PWM)
 
@@ -564,18 +564,18 @@ module tt_um_sid (
     wire [3:0] q_pins = ~filt_res;
 
     // --- Analog SC+OTA KHN Biquad ---
-    khn_biquad u_svf (
-        .vin      (dac_out),
-        .vout     (filter_out),
-        .en_lp    (en_lp_w),
-        .en_bp    (en_bp_w),
-        .en_hp    (en_hp_w),
-        .sc_clk   (sc_clk_nco),
-        .q0       (q_pins[0]),
-        .q1       (q_pins[1]),
-        .q2       (q_pins[2]),
-        .q3       (q_pins[3])
-    );
+    //khn_biquad u_svf (
+    //    .vin      (dac_out),
+    //    .vout     (filter_out),
+    //    .en_lp    (en_lp_w),
+    //    .en_bp    (en_bp_w),
+    //    .en_hp    (en_hp_w),
+    //    .sc_clk   (sc_clk_nco),
+    //    .q0       (q_pins[0]),
+    //    .q1       (q_pins[1]),
+    //    .q2       (q_pins[2]),
+    //    .q3       (q_pins[3])
+    //);
 
     // --- 8-bit ramp counter for PWM reference (runs at clk = 24 MHz) ---
     // 255-step period (0–254) → 94.1 kHz, matches digital PWM
@@ -593,7 +593,7 @@ module tt_um_sid (
 
     // --- Comparator: SVF output vs ramp → analog PWM ---
     pwm_comp u_comp (
-        .vinp     (filter_out),
+        .vinp     (dac_out),
         .vinn     (ramp_out),
         .out      (analog_pwm)
     );
