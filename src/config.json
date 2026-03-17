@@ -14,11 +14,11 @@
     "r2r_dac_8bit": {
       "instances": {
         "u_dac": {
-          "location": [150.6, 36.12],
+          "location": [155.6, 36.12],
           "orientation": "N"
         },
         "u_ramp_dac": {
-          "location": [150.6, 4.2],
+          "location": [155.6, 4.2],
           "orientation": "N"
         }
       },
