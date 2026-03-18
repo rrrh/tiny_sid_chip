@@ -1,6 +1,6 @@
 # SID Waveform Verification Report
 
-**Date:** 2026-03-04 20:04
+**Date:** 2026-03-18 01:50
 **Capture duration:** 75 ms per tone (1,800,000 cycles at 24 MHz)
 **Attack settle:** 200,000 cycles (~8.3 ms)
 **Filter:** 3rd-order RC LPF (R=3.3k x3, C=4.7nF x3) + Cac=1uF + Rload=10k

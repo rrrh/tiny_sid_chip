@@ -9,7 +9,7 @@ You can also include images in this folder and reference them in the markdown. E
 
 ## How it works
 
-This is a triple-voice SID (MOS 6581-inspired) synthesizer with an on-chip switched-capacitor (SC) State Variable Filter. It runs at 24 MHz with a ÷4 clock enable producing a 6 MHz voice pipeline (1 MHz effective per voice). A host microcontroller writes per-voice registers through a flat memory-mapped parallel interface and the chip produces 8-bit PWM audio output on `uo_out[0]`.
+This is a triple-voice SID (MOS 6581-inspired) synthesizer without the filters because lack of time. It runs at 24 MHz with a ÷4 clock enable producing a 6 MHz voice pipeline (1 MHz effective per voice). A host microcontroller writes per-voice registers through a flat memory-mapped parallel interface and the chip produces 8-bit PWM audio output on `uo_out[0]`.
 
 **Architecture:**
 
@@ -18,109 +18,43 @@ This is a triple-voice SID (MOS 6581-inspired) synthesizer with an on-chip switc
 - **Waveform generation** -- four waveform types (sawtooth, triangle, variable-width pulse, noise via shared 15-bit LFSR), AND-combined when multiple waveforms are selected. Sync and ring modulation are fully implemented with circular cross-voice connections (V0←V2, V1←V0, V2←V1).
 - **ADSR envelope** -- 8-bit envelope (256 levels) per voice with per-voice ADSR parameters, per-voice 15-bit rate counters with 16 SID-accurate non-power-of-2 period values (matching MOS 6581/8580), secondary 5-bit exponential counter with 6 breakpoints for exponential decay, and a 4-state FSM (IDLE/ATTACK/DECAY/SUSTAIN). 16 rate settings from ~2.3 ms to ~8 s per full traverse.
 - **3-voice mixer** -- accumulates the three 8-bit voice outputs (8×8 waveform×envelope product, upper byte) into a 10-bit accumulator and divides by 4 to produce an 8-bit mix.
-- **Analog filter chain** -- the mixed digital audio is converted to analog via an 8-bit R-2R DAC (`r2r_dac_8bit`), filtered by a 2nd-order switched-capacitor State Variable Filter (`svf_2nd`, 2 OTAs + 2 MIM caps + SC resistors), and converted back to digital via an 8-bit SAR ADC (`sar_adc_8bit`). A programmable clock divider sets the SC switching frequency (fc tuning), and a 4-bit binary-weighted capacitor array sets Q directly from register values. LP/BP/HP modes via priority mux (HP > BP > LP), with bypass when no voices are routed or no mode is selected. Digital volume scaling (shift-add) is applied post-ADC.
-- **2 kHz lowpass** (`output_lpf`) -- fixed single-pole IIR (6 dB/octave) between filter output and PWM input. Alpha = 1/128 (single shift, fc ≈ 1244 Hz), 10-bit unsigned accumulator (8.2 fixed-point), no multiplier.
+- **Analog filter chain** -- Removed
 - **PWM audio** (`pwm_audio`) -- single instance on `uo_out[0]`. 8-bit PWM with a 255-clock period (~94.1 kHz at 24 MHz).
-- **Analog hard macros** -- three IHP SG13G2 130nm hard macros placed on-die: `r2r_dac_8bit` (38×45 µm), `svf_2nd` (62×68 µm), `sar_adc_8bit` (42×42 µm). Total macro area ~7,182 µm² (~11.3% of die). FC and Q tuning are digital (clock divider + cap switches), eliminating the need for a bias DAC.
-
-**Clock tree:**
-
-There is a single physical clock (`clk` at 24 MHz). All registers use `posedge clk`. Slower rates are implemented as clock enables gating register updates, not separate clock domains.
-
-```
-                         24 MHz clk
-                            │
-            ┌───────────────┼───────────────────────┐
-            │               │                       │
-            ▼               ▼                       ▼
-      ┌──────────┐    ┌──────────┐            ┌──────────┐
-      │ clk_div  │    │ wr_en_d  │            │ pwm_audio│
-      │ ÷4 ctr   │    │ edge det │            │ 8-bit ctr│
-      │ (2-bit)  │    └──────────┘            │ /255     │
-      └────┬─────┘     24 MHz                 │ 94.1 kHz │
-           │                                  └──────────┘
-           ▼                                    24 MHz
-      clk_en_6m                               (free-running)
-       (6 MHz)
-           │
-     ┌─────┼──────────────────────┐
-     │     │                      │
-     ▼     ▼                      ▼
- ┌───────┐ ┌───────────────┐ ┌──────────┐
- │ slot  │ │ pipeline regs │ │ rate_cnt │
- │ mod-6 │ │ (V0/V1/V2     │ │ 15-bit   │
- │(3-bit)│ │  load/compute)│ │ per-voice│
- └───┬───┘ └───────────────┘ └──────────┘
-     │
-     ▼
- voice_active ──► acc/env/ast state (slots 0-2)
-     │
-     ▼
- mix_acc ──► mix_out (slot 4 latch)
-     │
-     ▼
- sample_valid ──► 1 clk pulse after slot 4
-     │
-     ├──► r2r_dac → svf_2nd → sar_adc  (continuous analog)
-     ├──► output_lpf (IIR) @ 1 MHz
-     └──► pwm_audio        @ 24 MHz (free-running)
-```
-
-| Domain | Rate | Drives |
-|--------|------|--------|
-| 24 MHz (`clk`) | 24 MHz | All flip-flops, PWM counter, write-enable edge detect |
-| 6 MHz (`clk_en_6m`) | 6 MHz | Slot counter, pipeline loads, voice state updates, mix, ADSR rate counters |
-| 1 MHz (`sample_valid`) | 1 MHz | output_lpf IIR (1 pulse per mod-6 frame) |
-| Continuous | analog | R-2R DAC → SC SVF → SAR ADC (free-running conversion) |
-| Noise LFSR | pitch-dependent | Edge-detected from voice 0 accumulator bit 19 |
 
 **Register map** — full address = `{voice_sel[1:0], reg_addr[2:0]}`, selected by `ui_in[4:3]` (voice_sel) and `ui_in[2:0]` (reg_addr):
 
 | Addr | Register | Description |
 |------|----------|-------------|
-| **Voice 0** (`voice_sel=0`) | | |
+| **Voice 0**  | | |
 | 0x00 | freq_lo[0] | Frequency low byte [7:0] |
 | 0x01 | freq_hi[0] | Frequency high byte [15:8] |
 | 0x02 | pw_lo[0] | Pulse width low byte [7:0] |
 | 0x03 | pw_hi[0] | Pulse width high nibble [11:8] (bits [3:0] only) |
-| 0x04 | attack[0] | attack_rate[3:0] / decay_rate[7:4] |
-| 0x05 | sustain[0] | sustain_level[3:0] / release_rate[7:4] |
-| 0x06 | waveform[0] | {noise, pulse, saw, tri, test, ring, sync, gate} |
-| 0x07 | — | unused |
-| **Voice 1** (`voice_sel=1`) | | |
-| 0x08 | freq_lo[1] | Frequency low byte [7:0] |
-| 0x09 | freq_hi[1] | Frequency high byte [15:8] |
-| 0x0A | pw_lo[1] | Pulse width low byte [7:0] |
-| 0x0B | pw_hi[1] | Pulse width high nibble [11:8] (bits [3:0] only) |
+| 0x04 | waveform[0] | {noise, pulse, saw, tri, test, ring, sync, gate} |
+| 0x05 | attack[0] | attack_rate[3:0] / decay_rate[7:4] |
+| 0x04 | sustain[0] | sustain_level[3:0] / release_rate[7:4] |
+| **Voice 1**  | | |
+| 0x07 | freq_lo[1] | Frequency low byte [7:0] |
+| 0x08 | freq_hi[1] | Frequency high byte [15:8] |
+| 0x09 | pw_lo[1] | Pulse width low byte [7:0] |
+| 0x0A | pw_hi[1] | Pulse width high nibble [11:8] (bits [3:0] only) |
+| 0x0B | waveform[1] | {noise, pulse, saw, tri, test, ring, sync, gate} |
 | 0x0C | attack[1] | attack_rate[3:0] / decay_rate[7:4] |
 | 0x0D | sustain[1] | sustain_level[3:0] / release_rate[7:4] |
-| 0x0E | waveform[1] | {noise, pulse, saw, tri, test, ring, sync, gate} |
-| 0x0F | — | unused |
-| **Voice 2** (`voice_sel=2`) | | |
-| 0x10 | freq_lo[2] | Frequency low byte [7:0] |
-| 0x11 | freq_hi[2] | Frequency high byte [15:8] |
-| 0x12 | pw_lo[2] | Pulse width low byte [7:0] |
-| 0x13 | pw_hi[2] | Pulse width high nibble [11:8] (bits [3:0] only) |
-| 0x14 | attack[2] | attack_rate[3:0] / decay_rate[7:4] |
-| 0x15 | sustain[2] | sustain_level[3:0] / release_rate[7:4] |
-| 0x16 | waveform[2] | {noise, pulse, saw, tri, test, ring, sync, gate} |
-| 0x17 | — | unused |
-| **Filter** (`voice_sel=3`) | | |
-| 0x18 | fc_lo | Cutoff low byte [7:0] (bits [2:0] used in filt_fc) |
-| 0x19 | fc_hi | Cutoff high byte [7:0] → filt_fc[10:7] drives d_fc[3:0] bias DAC |
-| 0x1A | res_filt | [7:4] resonance → d_q[3:0] bias DAC, [3:0] per-voice filter enable |
-| 0x1B | mode_vol | [7] V3OFF, [6:4] mode (HP/BP/LP) → svf_sel, [3:0] master volume |
+| **Voice 2**  | | |
+| 0x0E | freq_lo[2] | Frequency low byte [7:0] |
+| 0x0F | freq_hi[2] | Frequency high byte [15:8] |
+| 0x10 | pw_lo[2] | Pulse width low byte [7:0] |
+| 0x11 | pw_hi[2] | Pulse width high nibble [11:8] (bits [3:0] only) |
+| 0x12 | waveform[2] | {noise, pulse, saw, tri, test, ring, sync, gate} |
+| 0x13 | attack[2] | attack_rate[3:0] / decay_rate[7:4] |
+| 0x14 | sustain[2] | sustain_level[3:0] / release_rate[7:4] |
+| **Filter**  | | |
+| 0x15 | fc_lo | unused |
+| 0x16 | fc_hi | unused |
+| 0x17 | res_filt | unused |
+| 0x18 | mode_vol | [7:4] unused, [3:0] master volume |
 | 0x1C–0x1F | — | unused |
-
-**Filter register detail — analog macro mapping:**
-
-| Register | Bits | Maps to | Destination |
-|----------|------|---------|-------------|
-| fc_lo + fc_hi | `{fc_hi, fc_lo[2:0]}` → `filt_fc[10:7]` | `d_fc[3:0]` | Clock divider LUT → `sc_clk` → SVF cutoff frequency |
-| res_filt | `[7:4]` = `filt_res[3:0]` | `q[3:0]` | Direct to SC SVF binary-weighted C_Q capacitor array → Q / resonance |
-| res_filt | `[3:0]` = `filt_en` | bypass control | bypass if `[2:0] == 0` (no voices routed to filter) |
-| mode_vol | `[6:4]` = `filt_mode[2:0]` | `svf_sel[1:0]` | HP(10) > BP(01) > LP(00), bypass → 11 |
-| mode_vol | `[3:0]` = `filt_vol` | volume scaling | post-ADC digital shift-add (÷16 per bit) |
 
 **Frequency formula:**
 

@@ -10,40 +10,6 @@
       "odb.RemovePDNObstructions": null
     }
   },
-  "MACROS": {
-    "r2r_dac_8bit": {
-      "instances": {
-        "u_dac": {
-          "location": [155.6, 36.12],
-          "orientation": "N"
-        },
-        "u_ramp_dac": {
-          "location": [155.6, 4.2],
-          "orientation": "N"
-        }
-      },
-      "gds": ["dir::../macros/gds/r2r_dac_8bit.gds"],
-      "lef": ["dir::../macros/lef/r2r_dac_8bit.lef"],
-      "nl": ["dir::../macros/nl/r2r_dac_8bit.v"],
-      "lib": {
-        "*": ["dir::../macros/lib/r2r_dac_8bit.lib"]
-      }
-    },
-    "pwm_comp": {
-      "instances": {
-        "u_comp": {
-          "location": [180.0, 68.0],
-          "orientation": "N"
-        }
-      },
-      "gds": ["dir::../macros/gds/pwm_comp.gds"],
-      "lef": ["dir::../macros/lef/pwm_comp.lef"],
-      "nl": ["dir::../macros/nl/pwm_comp.v"],
-      "lib": {
-        "*": ["dir::../macros/lib/pwm_comp.lib"]
-      }
-    }
-  },
   "PL_TARGET_DENSITY_PCT": 90,
   "FP_CORE_UTIL": 90,
   "GPL_CELL_PADDING": 0,
@@ -73,16 +39,13 @@
   "ERROR_ON_TR_DRC": false,
   "FP_IO_HLENGTH": 2,
   "FP_IO_VLENGTH": 2,
-  "PDN_CFG": "dir::pdn_cfg.tcl",
   "FP_PDN_MULTILAYER": false,
   "RT_MAX_LAYER": "Metal4",
   "MAGIC_DEF_LABELS": 0,
   "MAGIC_WRITE_LEF_PINONLY": 1,
-  "VDD_PIN": "VPWR",
-  "GND_PIN": "VGND",
   "RUN_HEURISTIC_DIODE_INSERTION": 0,
   "ERROR_ON_DISCONNECTED_PINS": false,
-  "ERROR_ON_PDN_VIOLATIONS": false,
+  "ERROR_ON_PDN_VIOLATIONS": true,
   "RUN_POST_CTS_RESIZER_TIMING": false,
   "RUN_POST_GRT_DESIGN_REPAIR": false,
   "RUN_POST_GRT_RESIZER_TIMING": false

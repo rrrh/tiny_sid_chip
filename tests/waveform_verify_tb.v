@@ -37,9 +37,9 @@ module waveform_verify_tb;
                      REG_FREQ_HI  = 3'd1,
                      REG_PW_LO    = 3'd2,
                      REG_PW_HI    = 3'd3,
-                     REG_ATK      = 3'd4,
-                     REG_SUS      = 3'd5,
-                     REG_WAV      = 3'd6;
+                     REG_WAV      = 3'd4,
+                     REG_ATK      = 3'd5,
+                     REG_SUS      = 3'd6;
 
     localparam [2:0] REG_FC_LO    = 3'd0,
                      REG_FC_HI    = 3'd1,
@@ -54,16 +54,36 @@ module waveform_verify_tb;
         input [2:0] addr;
         input [7:0] data;
         input [1:0] voice;
+        reg [7:0] reg_addr;
         begin
-            ui_in  = {1'b0, 2'b00, voice, addr};
+            reg_addr = addr + (voice * 7);
+            //$display("Actual register: %02x, Data: %02x", reg_addr, data);
+            ui_in  = reg_addr;
             uio_in = data;
+            //$display("SID Write Addr: %0d, Data: %0d, Voice: %0d", addr + (7 * voice), data, voice);
             @(posedge clk);
-            ui_in[7] = 1'b1;
+            ui_in[7] = 1'b1;   // WE rising edge triggers write
             @(posedge clk);
-            ui_in[7] = 1'b0;
+            ui_in[7] = 1'b0;   // deassert WE
             @(posedge clk);
         end
     endtask
+
+
+//    task sid_write;
+//        input [2:0] addr;
+//        input [7:0] data;
+//        input [1:0] voice;
+//        begin
+//            ui_in  = {1'b0, 2'b00, voice, addr};
+//            uio_in = data;
+//            @(posedge clk);
+//            ui_in[7] = 1'b1;
+//            @(posedge clk);
+//            ui_in[7] = 1'b0;
+//            @(posedge clk);
+//        end
+//    endtask
 
     //==========================================================================
     // Reset
@@ -148,7 +168,7 @@ module waveform_verify_tb;
             sid_write(REG_PW_LO, 8'h00, 2'd0);
             sid_write(REG_PW_HI, 8'h08, 2'd0);  // pw=0x800 (50% duty)
             sid_write(REG_ATK, 8'h00, 2'd0);     // instant attack/decay
-            sid_write(REG_SUS, 8'h0F, 2'd0);     // max sustain, instant release
+            sid_write(REG_SUS, 8'hF0, 2'd0);     // max sustain, instant release
 
             // Filter bypass: vol=15
             sid_write(REG_FC_LO, 8'h00, VOICE_FILT);
@@ -180,6 +200,10 @@ module waveform_verify_tb;
         // 220 Hz -> 3691 (0x0E6B), 440 Hz -> 7382 (0x1CD6), 880 Hz -> 14764 (0x39AC)
 
         $display("=== SID Waveform Verification ===");
+	$display("Setup vcd dump");
+        $dumpfile("waveform_verify.vcd");
+        $dumpvars(0, dut );
+	
 
         // --- Triangle (0x11) ---
         $display("[1/12] Triangle 220 Hz");

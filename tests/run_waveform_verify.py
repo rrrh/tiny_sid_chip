@@ -25,9 +25,9 @@ VERILOG_SRCS = [
     "src/tt_um_sid.v",
     "src/output_lpf.v",
     "src/pwm_audio.v",
-    "macros/nl/r2r_dac_8bit.v",
-    "macros/nl/svf_2nd.v",
-    "macros/nl/pwm_comp.v",
+#    "macros/nl/r2r_dac_8bit.v",
+#    "macros/nl/svf_2nd.v",
+#    "macros/nl/pwm_comp.v",
 ]
 
 # Tone definitions: (name, label, freq_hz, waveform)

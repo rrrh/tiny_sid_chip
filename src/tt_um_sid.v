@@ -524,10 +524,10 @@ module tt_um_sid (
     //   mode_vol[3:0] → filt_vol     (digital volume scaling BEFORE DAC)
     //   sc_clk from NCO, q[3:0] from inverted resonance register
     //==========================================================================
-    (* keep *) wire dac_out;           // R-2R DAC analog output
+    //(* keep *) wire dac_out;           // R-2R DAC analog output
     //(* keep *) wire filter_out;        // SVF analog output
-    (* keep *) wire ramp_out;          // Ramp DAC analog output
-    (* keep *) wire analog_pwm;        // Comparator output (analog PWM)
+    //(* keep *) wire ramp_out;          // Ramp DAC analog output
+    //(* keep *) wire analog_pwm;        // Comparator output (analog PWM)
 
     // Bypass: no voices routed to filter, or no filter mode selected
     wire bypass = (filt_en[2:0] == 3'd0) || (filt_mode[2:0] == 3'd0);
@@ -545,11 +545,11 @@ module tt_um_sid (
                          (filt_vol[0] ? {4'b0, mix_out[7:4]} : 8'd0);
 
     // --- R-2R DAC: volume-scaled mixer output → analog ---
-    r2r_dac_8bit u_dac (
-        .d0(vol_mix[0]), .d1(vol_mix[1]), .d2(vol_mix[2]), .d3(vol_mix[3]),
-        .d4(vol_mix[4]), .d5(vol_mix[5]), .d6(vol_mix[6]), .d7(vol_mix[7]),
-        .vout (dac_out)
-    );
+    //r2r_dac_8bit u_dac (
+    //    .d0(vol_mix[0]), .d1(vol_mix[1]), .d2(vol_mix[2]), .d3(vol_mix[3]),
+    //    .d4(vol_mix[4]), .d5(vol_mix[5]), .d6(vol_mix[6]), .d7(vol_mix[7]),
+    //    .vout (dac_out)
+    //);
 
     // --- NCO phase accumulator: filt_fc[10:0] → sc_clk ---
     // increment = fc + fc/4 (×5/4 scaling), folded into single accumulator add
@@ -585,27 +585,27 @@ module tt_um_sid (
         else        ramp_cnt <= (ramp_cnt == 8'd254) ? 8'd0 : ramp_cnt + 8'd1;
 
     // --- Ramp DAC: converts counter to analog ramp ---
-    r2r_dac_8bit u_ramp_dac (
-        .d0(ramp_cnt[0]), .d1(ramp_cnt[1]), .d2(ramp_cnt[2]), .d3(ramp_cnt[3]),
-        .d4(ramp_cnt[4]), .d5(ramp_cnt[5]), .d6(ramp_cnt[6]), .d7(ramp_cnt[7]),
-        .vout (ramp_out)
-    );
+    //r2r_dac_8bit u_ramp_dac (
+    //    .d0(ramp_cnt[0]), .d1(ramp_cnt[1]), .d2(ramp_cnt[2]), .d3(ramp_cnt[3]),
+    //    .d4(ramp_cnt[4]), .d5(ramp_cnt[5]), .d6(ramp_cnt[6]), .d7(ramp_cnt[7]),
+    //    .vout (ramp_out)
+    //);
 
     // --- Comparator: SVF output vs ramp → analog PWM ---
-    pwm_comp u_comp (
-        .vinp     (dac_out),
-        .vinn     (ramp_out),
-        .out      (analog_pwm)
-    );
+    //pwm_comp u_comp (
+    //    .vinp     (dac_out),
+    //    .vinn     (ramp_out),
+    //    .out      (analog_pwm)
+    //);
 
     // --- Behavioral sim: connect 8-bit data between analog macro models ---
 `ifdef BEHAVIORAL_SIM
-    always @(u_dac.sim_data_out) begin
-        u_comp.sim_data_in = u_dec.sim_data_out;
-    end
-    always @(u_ramp_dac.sim_data_out) begin
-        u_comp.sim_ramp_in = u_ramp_dac.sim_data_out;
-    end
+//    always @(u_dac.sim_data_out) begin
+//        u_comp.sim_data_in = u_dec.sim_data_out;
+//    end
+//    always @(u_ramp_dac.sim_data_out) begin
+//        u_comp.sim_ramp_in = u_ramp_dac.sim_data_out;
+//    end
 `endif
 
     // --- Digital PWM for bypass path (volume already applied) ---
@@ -619,7 +619,7 @@ module tt_um_sid (
     );
 
     // --- Final output: analog PWM when filter active, digital when bypass ---
-    wire pwm_out = bypass ? digital_pwm : analog_pwm;
+    wire pwm_out = digital_pwm;
 
     //==========================================================================
     // Output Pin Mapping
