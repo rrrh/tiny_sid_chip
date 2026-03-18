@@ -1,0 +1,335 @@
+#--------------------------------------------------------------
+# CACE circuit characterization file
+# KHN 2-OTA SC Biquad Filter — IHP SG13G2
+#--------------------------------------------------------------
+
+name:           khn_biquad
+description:    KHN 2-OTA SC biquad filter with HP reconstruction and output mixer
+PDK:            ihp-sg13g2
+
+cace_format:    5.2
+
+authorship:
+  designer:         shue
+  creation_date:    March 11, 2026
+  license:          Apache 2.0
+
+paths:
+  root:             ..
+  schematic:        xschem
+  layout:           gds
+  netlist:          netlist
+  documentation:    doc
+
+pins:
+  vin:
+    description: Audio input signal
+    type: signal
+    direction: input
+    Vmin: 0
+    Vmax: vdd
+  vout:
+    description: Filtered output (LP+BP+HP mixer)
+    type: signal
+    direction: output
+    Vmin: 0
+    Vmax: vdd
+  en_lp:
+    description: Enable low-pass output in mixer
+    type: digital
+    direction: input
+  en_bp:
+    description: Enable band-pass output in mixer
+    type: digital
+    direction: input
+  en_hp:
+    description: Enable high-pass output in mixer
+    type: digital
+    direction: input
+  sc_clk:
+    description: Switching clock (sets center frequency)
+    type: digital
+    direction: input
+  q0:
+    description: Q tuning bit 0 (LSB)
+    type: digital
+    direction: input
+  q1:
+    description: Q tuning bit 1
+    type: digital
+    direction: input
+  q2:
+    description: Q tuning bit 2
+    type: digital
+    direction: input
+  q3:
+    description: Q tuning bit 3 (MSB)
+    type: digital
+    direction: input
+  vdd:
+    description: Positive power supply
+    type: power
+    direction: inout
+    Vmin: 1.08
+    Vmax: 1.32
+  vss:
+    description: Ground
+    type: ground
+    direction: inout
+
+default_conditions:
+  vdd:
+    description: Power supply voltage
+    display: Vdd
+    unit: V
+    typical: 1.2
+  temperature:
+    description: Simulation temperature
+    display: Temp
+    unit: "\u00B0C"
+    typical: 27
+  corner:
+    description: Process corner
+    display: Corner
+    typical: mos_tt
+  f_clk:
+    description: Switching clock frequency
+    display: f_clk
+    unit: Hz
+    typical: 93750
+  q_code:
+    description: Q control code (1-15)
+    display: Q code
+    typical: 4
+
+parameters:
+
+  # ── Band-pass mode (CT equivalent AC) ─────────────────────
+  bp_response:
+    description: BP mode — center frequency, peak gain, and Q factor
+    display: Band-Pass Response
+    spec:
+      f0:
+        display: Center Frequency
+        description: BP center frequency (f_clk * C_sw / (2*pi*C_int))
+        unit: Hz
+        minimum:
+          value: any
+        typical:
+          value: any
+        maximum:
+          value: any
+      peak_gain:
+        display: BP Peak Gain
+        description: Gain at center frequency (20*log10(Q) for ideal biquad)
+        unit: dB
+        minimum:
+          value: -30.0
+        maximum:
+          value: 30.0
+      q_meas:
+        display: Measured Q
+        description: Quality factor (f0 / bandwidth)
+        minimum:
+          value: any
+        typical:
+          value: any
+        maximum:
+          value: any
+    tool:
+      ngspice:
+        template: ac_response.spice
+        format: ascii
+        suffix: .data
+        variables: [freq, vout_re, vout_im]
+        script: bp_params.py
+        script_variables: [f0, peak_gain, q_meas]
+    conditions:
+      en_lp_n:
+        typical: 0
+      en_bp_n:
+        typical: 1
+      en_hp_n:
+        typical: 0
+      f_clk:
+        enumerate: [23437.5, 93750, 375000, 1500000]
+      q_code:
+        enumerate: [1, 4, 8, 15]
+    plot:
+      f0_vs_fclk:
+        type: loglog
+        xaxis: f_clk
+        yaxis: f0
+      q_vs_qcode:
+        type: xyplot
+        xaxis: q_code
+        yaxis: q_meas
+      gain_vs_qcode:
+        type: xyplot
+        xaxis: q_code
+        yaxis: peak_gain
+
+  # ── Low-pass mode (CT equivalent AC) ──────────────────────
+  lp_response:
+    description: LP mode — DC gain and -3dB frequency
+    display: Low-Pass Response
+    spec:
+      dc_gain:
+        display: DC Gain
+        description: Low-frequency passband gain
+        unit: dB
+        minimum:
+          value: -1.0
+        maximum:
+          value: 1.0
+      f_3db:
+        display: -3dB Frequency
+        description: Low-pass corner frequency
+        unit: Hz
+        minimum:
+          value: any
+        typical:
+          value: any
+        maximum:
+          value: any
+    tool:
+      ngspice:
+        template: ac_response.spice
+        format: ascii
+        suffix: .data
+        variables: [freq, vout_re, vout_im]
+        script: lp_params.py
+        script_variables: [dc_gain, f_3db]
+    conditions:
+      en_lp_n:
+        typical: 1
+      en_bp_n:
+        typical: 0
+      en_hp_n:
+        typical: 0
+      f_clk:
+        enumerate: [23437.5, 93750, 375000, 1500000]
+      q_code:
+        enumerate: [4]
+    plot:
+      f3db_vs_fclk:
+        type: loglog
+        xaxis: f_clk
+        yaxis: f_3db
+      dc_gain_vs_fclk:
+        type: semilogx
+        xaxis: f_clk
+        yaxis: dc_gain
+
+  # ── High-pass mode (CT equivalent AC) ─────────────────────
+  hp_response:
+    description: HP mode — high-frequency gain and -3dB corner frequency
+    display: High-Pass Response
+    spec:
+      hf_gain:
+        display: HF Gain
+        description: High-frequency passband gain
+        unit: dB
+        minimum:
+          value: -1.0
+        maximum:
+          value: 1.0
+      f_3db:
+        display: -3dB Frequency
+        description: High-pass corner frequency
+        unit: Hz
+        minimum:
+          value: any
+        typical:
+          value: any
+        maximum:
+          value: any
+    tool:
+      ngspice:
+        template: ac_response.spice
+        format: ascii
+        suffix: .data
+        variables: [freq, vout_re, vout_im]
+        script: hp_params.py
+        script_variables: [hf_gain, f_3db]
+    conditions:
+      en_lp_n:
+        typical: 0
+      en_bp_n:
+        typical: 0
+      en_hp_n:
+        typical: 1
+      f_clk:
+        enumerate: [23437.5, 93750, 375000, 1500000]
+      q_code:
+        enumerate: [4]
+    plot:
+      f3db_vs_fclk:
+        type: loglog
+        xaxis: f_clk
+        yaxis: f_3db
+      hf_gain_vs_fclk:
+        type: semilogx
+        xaxis: f_clk
+        yaxis: hf_gain
+
+  # ── Transistor-level step response ────────────────────────
+  step_response:
+    description: Transistor-level transient step response (HP mode)
+    display: Step Response
+    spec:
+      v_final:
+        display: Final Value
+        description: Steady-state output after step settles
+        unit: V
+        minimum:
+          value: any
+        typical:
+          value: any
+        maximum:
+          value: any
+      settling_cycles:
+        display: Settling Cycles
+        description: Clock cycles to settle within 5% of final value
+        minimum:
+          value: any
+        typical:
+          value: any
+        maximum:
+          value: 500
+      overshoot:
+        display: Overshoot
+        description: Peak overshoot relative to step size
+        unit: "%"
+        minimum:
+          value: any
+        typical:
+          value: any
+        maximum:
+          value: 50
+    tool:
+      ngspice:
+        template: step_response.spice
+        format: ascii
+        suffix: .data
+        variables: [time, vout, null, null, null]
+        script: step_params.py
+        script_variables: [v_final, settling_cycles, overshoot]
+    conditions:
+      corner:
+        enumerate: [mos_tt, mos_ff, mos_ss]
+      temperature:
+        typical: 27
+      f_clk:
+        typical: 93750
+      q_code:
+        typical: 4
+    plot:
+      settling_vs_corner:
+        type: xyplot
+        xaxis: corner
+        yaxis: settling_cycles
+      overshoot_vs_corner:
+        type: xyplot
+        xaxis: corner
+        yaxis: overshoot

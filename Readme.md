@@ -30,13 +30,17 @@ MOS 6581/8580 SID chip from the Commodore 64. Three independent voices
 share a single compute pipeline via time-multiplexing, each providing
 four classic waveform types (sawtooth, triangle, pulse, noise), a full
 8-bit ADSR amplitude envelope with exponential decay, hard sync, and ring
-modulation -- all packed into a Tiny Tapeout 1x2 tile.
+modulation in a Tiny Tapeout 1x2 tile.
 
 A host microcontroller (Arduino, RP2040, ESP32, etc.) writes per-voice
 control registers through a simple flat parallel interface using 8-bit
 data and a rising-edge write strobe. The three voice outputs are mixed
 and output as an 8-bit PWM signal on `uo_out[0]` at ~94.1 kHz, requiring
 only a passive RC low-pass filter to produce analog audio.
+
+#### Filters
+
+I did not get the filters to work as analog macros. So: no filters.
 
 ### Key Features
 
@@ -53,14 +57,11 @@ only a passive RC low-pass filter to produce analog audio.
 - 16-bit frequency register, 24-bit phase accumulator (~0.06 Hz resolution, matching original C64 SID)
 - 15-bit LFSR noise generator, accumulator-clocked from voice 0
 - 3-voice mixer with 10-bit accumulator and ÷4 scaling
-- 9-bit Q8.1 State Variable Filter (SVF) with LP/BP/HP priority mux (HP > BP > LP), shift-add multiply
-- 3-bit alpha1 (fc[10:8], 3-term /8) and 2-bit alpha2 ((15-res)>>2, 2-term /4)
-- SID-compatible filter interface: 11-bit cutoff, 4-bit resonance, per-voice routing, 4-bit volume
-- Fixed 6 dB/octave lowpass (fc ≈ 1244 Hz) before PWM output — single-pole IIR, alpha = 1/128 (single shift)
+- 4-bit volume
 - Single 8-bit PWM audio output on uo_out[0] (~94.1 kHz carrier at 24 MHz)
-- Flat parallel write interface (no SPI/I2C overhead)
+- Flat parallel write interface
 - Mod-6 pipeline: 1 MHz effective per voice at 6 MHz voice clock (24 MHz ÷4)
-- Fits in a Tiny Tapeout 1x2 tile on IHP SG13G2 130nm (~77% utilization, CTS enabled)
+
 
 ### Source Files
 
@@ -68,44 +69,10 @@ only a passive RC low-pass filter to produce analog audio.
 |------|-------------|
 | `src/tt_um_sid.v` | Top-level: register banks, voice pipeline, mixer, filter, pin mapping |
 | `src/pwm_audio.v` | 8-bit PWM audio output (255-clock period) |
-| `src/filter.v` | SID filter wrapper: bypass, mode mixing, volume scaling |
-| `src/SVF_8bit.v` | 9-bit Q8.1 State Variable Filter core (shift-add, 3-bit alpha1, 2-bit alpha2) |
-| `src/output_lpf.v` | Fixed 6 dB/octave lowpass (fc ≈ 1244 Hz), single-pole IIR before PWM |
 
 ---
 
 ## Architecture
-
-![Architecture Block Diagram](docs/architecture.svg)
-
-<details><summary>ASCII fallback</summary>
-
-```
-                 ┌─────────────────────────────────────────────────────────────┐
- ui_in[2:0] ──┐  │              Mod-5 Voice Pipeline (×3 TDM)                │
- ui_in[4:3] ──┤  │  ┌─────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐  │
- ui_in[7]   ──┤  │  │ Phase   │  │ Waveform  │  │  ADSR    │  │ Envelope │  │
-              ├──┤  │ Acc     │──│ Gen       │──│ Envelope │──│ Scaling  │──┤
- uio_in ──────┤  │  │ (24-bit)│  │(saw/tri/  │  │(8-bit    │  │ (8×8→8)  │  │  ┌───────┐
-              │  │  │  8-bit  │  │ pulse/    │  │ per      │  │          │  ├──│ Mixer │
- Register     │  │  │  freq   │  │ noise)    │  │ voice)   │  │          │  │  │ (÷4)  │
- Banks        │  │  └─────────┘  └──────────┘  └──────────┘  └──────────┘  │  └───┬───┘
- (all per-    │  │                                                          │      │
-  voice)      │  │  ÷4 clk_en → 6 MHz voice pipeline, 1 MHz per voice      │      ▼
-              │  └─────────────────────────────────────────────────────────────┘  ┌──────────┐  ┌──────────┐  ┌──────────┐
-              │                                                                  │ R-2R DAC │──│  SC SVF  │──│ SAR ADC  │
-              │   Analog signal chain:                                           │ (8-bit)  │  │(2nd ord) │  │ (8-bit)  │
-              │   R-2R DAC → SC SVF → SAR ADC → volume scaling                  └──────────┘  └──────────┘  └─────┬────┘
-              │                                                                                                    │
-              │                                                               ┌──────────┐  ┌─────────┐           │
-              │                                                               │output_lpf│──│pwm_audio│── uo_out[0]
-              │                                                               │(1244 Hz) │  │ (8-bit) │           │
-              │                                                               └─────┬────┘  └─────────┘           │
-              │                                                                     │        24 MHz               │
-              │                                                                     └─────────────────────────────┘
-```
-
-</details>
 
 **Signal flow:**
 
@@ -139,12 +106,7 @@ only a passive RC low-pass filter to produce analog audio.
    over 3 slots, then divides by 4 (right-shift by 2) to produce an 8-bit
    mix sample for the PWM module.
 
-7. A fixed single-pole IIR lowpass (`output_lpf`) with fc ≈ 1244 Hz and
-   6 dB/octave rolloff smooths the mix before PWM conversion. It uses
-   a single arithmetic right shift (alpha = 1/128, no multiplier) with
-   a 10-bit unsigned accumulator (8.2 fixed-point).
-
-8. `pwm_audio` converts the filtered sample into a PWM signal at
+7. `pwm_audio` converts the filtered sample into a PWM signal at
    ~94.1 kHz (running at full 24 MHz). An external RC low-pass filter
    recovers analog audio.
 
@@ -156,8 +118,7 @@ only a passive RC low-pass filter to produce analog audio.
 
 | Pin | Signal | Description |
 |-----|--------|-------------|
-| `ui_in[2:0]` | `reg_addr` | Register address (0--6) |
-| `ui_in[4:3]` | `voice_sel` | Voice select: 0=voice 0, 1=voice 1, 2=voice 2, 3=filter |
+| `ui_in[4:0]` | `reg_addr` | Register address (0--24) |
 | `ui_in[6:5]` | -- | Unused |
 | `ui_in[7]` | `wr_en` | Write enable (rising-edge triggered) |
 
@@ -171,8 +132,8 @@ only a passive RC low-pass filter to produce analog audio.
 
 | Pin | Signal | Description |
 |-----|--------|-------------|
-| `uo_out[0]` | `pwm_out` | PWM audio output (filtered or bypass). Connect to RC filter. |
-| `uo_out[7:1]` | -- | Tied low. |
+| `uo_out[7]` | `pwm_out` | PWM audio output (filtered or bypass). Connect to RC filter. |
+| `uo_out[6:0]` | -- | Tied low. |
 
 ### Bidirectional Pin Direction
 
@@ -249,31 +210,7 @@ by comparison with the accumulator upper 12 bits (`acc[23:12] >= pw`):
 - `pw = 0x800`: ~50% duty cycle (square wave)
 - `pw = 0xFFF`: Narrow pulse (~0.02% duty)
 
-### Register 4: Attack / Decay Rates (8-bit, per-voice)
-
-```
-Bit:   7    6    5    4    3    2    1    0
-     [  decay_rate[3:0]  ][ attack_rate[3:0] ]
-```
-
-| Field | Bits | Description |
-|-------|------|-------------|
-| `attack_rate` | `[3:0]` | How fast the envelope rises from 0 to 255 |
-| `decay_rate` | `[7:4]` | How fast the envelope falls from 255 to sustain level (with exponential decay) |
-
-### Register 5: Sustain Level / Release Rate (8-bit, per-voice)
-
-```
-Bit:   7    6    5    4    3    2    1    0
-     [ release_rate[3:0] ][sustain_level[3:0]]
-```
-
-| Field | Bits | Description |
-|-------|------|-------------|
-| `sustain_level` | `[3:0]` | Sustain amplitude (0--15). The 8-bit envelope holds at `{sustain_level, sustain_level}` (nibble duplication: 0x00, 0x11, ..., 0xFF), matching the original SID. |
-| `release_rate` | `[7:4]` | How fast the envelope falls to 0 after gate off (with exponential decay) |
-
-### Register 6: Waveform Control (8-bit, per-voice)
+### Register 4: Waveform Control (8-bit, per-voice)
 
 ```
 Bit:   7      6      5        4        3     2     1     0
@@ -296,43 +233,35 @@ AND-combined (starting from 0xFF, each enabled waveform ANDs its value).
 This matches the real SID's behavior where simultaneous waveforms produce
 a bitwise AND of their individual outputs.
 
-### Filter Registers (voice_sel = 3)
-
-Four registers control the on-chip analog filter chain (R-2R DAC → SC SVF
-→ SAR ADC → digital volume scaling). These are accessed with `ui_in[4:3]`
-= 3 (voice_sel = 3).
-
-#### Register 0 (addr 0x18): Cutoff Low Byte
+### Register 5: Attack / Decay Rates (8-bit, per-voice)
 
 ```
 Bit:   7    6    5    4    3    2    1    0
-     [              fc_lo[7:0]                ]
-```
-
-Only bits `[2:0]` are used in the cutoff frequency calculation.
-
-#### Register 1 (addr 0x19): Cutoff High Byte
-
-```
-Bit:   7    6    5    4    3    2    1    0
-     [              fc_hi[7:0]                ]
-```
-
-The 11-bit cutoff `{fc_hi, fc_lo[2:0]}` maps bits `[10:7]` to a 4-bit
-code (`d_fc[3:0]`) that selects the SC switching clock divider from a
-16-entry LUT, setting the filter center frequency (~250 Hz to ~16 kHz).
-
-#### Register 2 (addr 0x1A): Resonance / Filter Enable
-
-```
-Bit:   7    6    5    4    3    2    1    0
-     [  filt_res[3:0]   ][ filt_en[3:0]      ]
+     [  decay_rate[3:0]  ][ attack_rate[3:0] ]
 ```
 
 | Field | Bits | Description |
 |-------|------|-------------|
-| `filt_en` | `[3:0]` | Per-voice filter routing: bit 0 = voice 0, bit 1 = voice 1, bit 2 = voice 2. Filter is bypassed if `[2:0]` are all zero. |
-| `filt_res` | `[7:4]` | Resonance (Q). Drives the 4-bit binary-weighted C_Q capacitor array in the SC SVF. Higher values = lower Q (less resonance). |
+| `attack_rate` | `[3:0]` | How fast the envelope rises from 0 to 255 |
+| `decay_rate` | `[7:4]` | How fast the envelope falls from 255 to sustain level (with exponential decay) |
+
+### Register 6: Sustain Level / Release Rate (8-bit, per-voice)
+
+```
+Bit:   7    6    5    4    3    2    1    0
+     [ release_rate[3:0] ][sustain_level[3:0]]
+```
+
+| Field | Bits | Description |
+|-------|------|-------------|
+| `sustain_level` | `[3:0]` | Sustain amplitude (0--15). The 8-bit envelope holds at `{sustain_level, sustain_level}` (nibble duplication: 0x00, 0x11, ..., 0xFF), matching the original SID. |
+| `release_rate` | `[7:4]` | How fast the envelope falls to 0 after gate off (with exponential decay) |
+
+
+
+### Filter Registers
+
+The filter is not implemented. Only the volume is present.
 
 #### Register 3 (addr 0x1B): Mode / Volume
 
@@ -343,36 +272,8 @@ Bit:   7    6    5    4    3    2    1    0
 
 | Field | Bits | Description |
 |-------|------|-------------|
-| `filt_vol` | `[3:0]` | Master volume (0--15). Post-ADC digital shift-add scaling. |
-| `LP` | `[4]` | Enable lowpass output from SVF. |
-| `BP` | `[5]` | Enable bandpass output from SVF. |
-| `HP` | `[6]` | Enable highpass output from SVF. Priority: HP > BP > LP. |
-| `V3OFF` | `[7]` | Disconnect voice 3 from mixer output (filter-only routing). |
-
-### Analog Signal Chain
-
-The mixed digital audio passes through an on-chip analog processing chain
-before reaching the PWM output:
-
-```
-  Mix (8-bit) → R-2R DAC → SC SVF → SAR ADC → Volume Scaling → output_lpf → PWM
-                (8-bit)    (2nd ord)  (8-bit)    (digital)       (IIR)
-```
-
-1. **R-2R DAC** (`r2r_dac_8bit`, 38×45 µm) — converts the 8-bit digital
-   mix to an analog voltage.
-2. **SC SVF** (`svf_2nd`, 62×68 µm) — 2nd-order switched-capacitor State
-   Variable Filter with LP/BP/HP outputs. Center frequency is set by a
-   programmable clock divider (16 steps, ~250 Hz to ~16 kHz). Q is set by
-   a 4-bit binary-weighted capacitor array.
-3. **SAR ADC** (`sar_adc_8bit`, 42×42 µm) — converts the filtered analog
-   signal back to 8-bit digital.
-4. **Volume Scaling** — digital shift-add volume control using `filt_vol[3:0]`.
-5. **Output LPF** (`output_lpf`) — fixed ~1.2 kHz single-pole IIR smoothing
-   before PWM conversion.
-
-When the filter is bypassed (no voices routed or no mode selected), the
-digital mix passes directly to the output LPF, skipping the analog chain.
+| `filt_vol` | `[3:0]` | Master volume (0--15). Post-ADC digital shift-add 
+|  | `[7:4]` | unused |
 
 ### Envelope Rate Table
 

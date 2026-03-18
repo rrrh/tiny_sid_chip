@@ -1,0 +1,86 @@
+* KHN Biquad — Transistor-Level Step Response
+* Full SC circuit transient simulation with step input.
+*
+* Conditions substituted by CACE:
+*   CACE{corner}      — MOS process corner
+*   CACE{temperature} — temperature (deg C)
+*   CACE{vdd}         — supply voltage (V)
+*   CACE{f_clk}       — switching clock frequency (Hz)
+*   CACE{q_code}      — Q control code (1..15)
+
+* ── PDK Models ────────────────────────────────────────────
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib CACE{corner}
+.lib /data/Projects/chip/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerCAP.lib cap_typ
+
+* ── DUT ───────────────────────────────────────────────────
+.include CACE{DUT_path}
+
+* ── Parameters ────────────────────────────────────────────
+.param vdd_val = CACE{vdd}
+.param f_clk = CACE{f_clk}
+.param t_clk = {1/f_clk}
+.param vcm_bias = 0.47
+.param q_code = CACE{q_code}
+
+.temp CACE{temperature}
+
+.options method=gear reltol=5e-3 abstol=1e-12 vntol=1e-6 gmin=1e-12
+
+* ── Q code bit extraction ─────────────────────────────────
+.param q0_bit = {floor(q_code) - 2*floor(q_code/2)}
+.param q1_bit = {floor(q_code/2) - 2*floor(q_code/4)}
+.param q2_bit = {floor(q_code/4) - 2*floor(q_code/8)}
+.param q3_bit = {floor(q_code/8) - 2*floor(q_code/16)}
+
+* ── Power ─────────────────────────────────────────────────
+Vdd vdd 0 {vdd_val}
+
+* ── Clock (50% duty cycle) ────────────────────────────────
+Vclk sc_clk 0 PULSE(0 {vdd_val} 0 1n 1n {t_clk/2 - 1n} {t_clk})
+
+* ── Q code ────────────────────────────────────────────────
+Vq0 q0 0 {q0_bit * vdd_val}
+Vq1 q1 0 {q1_bit * vdd_val}
+Vq2 q2 0 {q2_bit * vdd_val}
+Vq3 q3 0 {q3_bit * vdd_val}
+
+* ── Mixer enables: HP mode ────────────────────────────────
+Ven_lp en_lp 0 0
+Ven_bp en_bp 0 0
+Ven_hp en_hp 0 {vdd_val}
+
+* ── Input: step from VCM to VCM+50mV at t=100*t_clk ──────
+Vvin vin 0 PWL(0 {vcm_bias} {100*t_clk-1n} {vcm_bias} {100*t_clk} {vcm_bias+0.05})
+
+* ── DUT instantiation ─────────────────────────────────────
+Xdut vin vout en_lp en_bp en_hp sc_clk q0 q1 q2 q3 vdd 0 khn_biquad
+
+* ── Force VCM (bypass weak bias gen) ──────────────────────
+Vvcm xdut.vcm 0 {vcm_bias}
+
+* ── Initial conditions ────────────────────────────────────
+.ic v(xdut.bp)=0.614 v(xdut.lp)=0.614 v(xdut.hp)=0.47
++ v(xdut.sum1)=0.47 v(xdut.sum2)=0.47 v(xdut.sum3)=0.47
++ v(xdut.vcm)=0.47
++ v(xdut.cin_t)=0.47 v(xdut.cin_b)=0.47
++ v(xdut.cfb_t)=0.47 v(xdut.cfb_b)=0.47
++ v(xdut.cis_t)=0.47 v(xdut.cis_b)=0.47
++ v(xdut.c5_t)=0.47 v(xdut.c5_b)=0.47
++ v(xdut.c6_t)=0.47 v(xdut.c6_b)=0.47
++ v(xdut.cq0_t)=0.47 v(xdut.cq1_t)=0.47 v(xdut.cq2_t)=0.47 v(xdut.cq3_t)=0.47
++ v(xdut.x_ota1.mirr)=0.72 v(xdut.x_ota1.tail)=0.12
++ v(xdut.x_ota2.mirr)=0.72 v(xdut.x_ota2.tail)=0.12
++ v(xdut.x_ota3.mirr)=0.72 v(xdut.x_ota3.tail)=0.12
++ v(xdut.phi1)=0 v(xdut.n1)=1.2 v(xdut.n3)=1.2
+
+* ── Transient analysis ────────────────────────────────────
+.tran {t_clk/20} {800*t_clk} UIC
+
+.control
+  run
+  set wr_singlescale
+  wrdata CACE{simpath}/CACE{filename}_CACE{N}.data v(vout) v(xdut.bp) v(xdut.lp) v(xdut.hp)
+  quit
+.endc
+
+.end

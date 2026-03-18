@@ -10,14 +10,13 @@ SRCDIR    = src
 MACRODIR  = macros/nl
 TESTDIR   = tests
 
-# Verilog sources (exclude other testbenches and SVF top-level)
+# Verilog sources
 VSRC = $(SRCDIR)/tt_um_sid.v \
-       $(SRCDIR)/filter.v \
-       $(SRCDIR)/filter_top.v \
        $(SRCDIR)/output_lpf.v \
        $(SRCDIR)/pwm_audio.v \
-       $(SRCDIR)/SVF_8bit.v \
-       $(wildcard $(MACRODIR)/*.v)
+       $(MACRODIR)/r2r_dac_8bit.v \
+       $(MACRODIR)/svf_2nd.v \
+       $(MACRODIR)/pwm_comp.v
 
 CPP_TB    = $(TESTDIR)/monty_full_verilator.cpp
 OBJ_DIR   = $(TESTDIR)/obj_dir

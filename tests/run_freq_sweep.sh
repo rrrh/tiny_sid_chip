@@ -14,7 +14,7 @@ echo ""
 echo "--- Step 1: Digital frequency sweep (Icarus Verilog) ---"
 iverilog -o tests/freq_sweep -g2005 \
     src/tt_um_sid.v src/output_lpf.v src/pwm_audio.v \
-    macros/nl/r2r_dac_8bit.v macros/nl/svf_2nd.v macros/nl/sar_adc_8bit.v \
+    macros/nl/r2r_dac_8bit.v macros/nl/svf_2nd.v macros/nl/pwm_comp.v \
     tests/freq_sweep_tb.v
 vvp tests/freq_sweep
 

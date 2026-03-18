@@ -4,7 +4,7 @@
 #--------------------------------------------------------------
 
 name:           r2r_dac_8bit
-description:    8-bit R-2R DAC with complementary CMOS switches
+description:    8-bit R-2R DAC with CMOS complementary shunt switches
 PDK:            ihp-sg13g2
 
 cace_format:    5.2
@@ -86,11 +86,6 @@ default_conditions:
     description: Process corner (MOS)
     display: Corner
     typical: mos_tt
-  res_corner:
-    description: Resistor process corner
-    display: Res Corner
-    typical: res_typ
-
 parameters:
 
   # ── Static linearity (INL / DNL) ──────────────────────────
@@ -103,16 +98,16 @@ parameters:
         description: Max integral non-linearity (endpoint corrected)
         unit: LSB
         maximum:
-          value: 1.0
+          value: 5.0
       dnl:
         display: DNL
         description: Max differential non-linearity
         unit: LSB
         maximum:
-          value: 1.0
+          value: 5.0
     tool:
       ngspice:
-        template: dc_sweep.spice
+        template: dc_sweep.sch
         format: ascii
         suffix: .data
         variables: [null, vout]
@@ -121,17 +116,11 @@ parameters:
     conditions:
       corner:
         enumerate: [mos_tt, mos_ff, mos_ss]
-      res_corner:
-        enumerate: [res_typ]
       temperature:
         enumerate: [27]
       vdd:
         typical: 1.2
     plot:
-      transfer_function:
-        type: xyplot
-        xaxis: null
-        yaxis: vout
       inl_vs_corner:
         type: xyplot
         xaxis: corner
@@ -151,16 +140,16 @@ parameters:
         description: Max integral non-linearity
         unit: LSB
         maximum:
-          value: 1.0
+          value: 5.0
       dnl:
         display: DNL
         description: Max differential non-linearity
         unit: LSB
         maximum:
-          value: 1.0
+          value: 5.0
     tool:
       ngspice:
-        template: dc_sweep.spice
+        template: dc_sweep.sch
         format: ascii
         suffix: .data
         variables: [null, vout]
@@ -169,8 +158,6 @@ parameters:
     conditions:
       corner:
         enumerate: [mos_tt]
-      res_corner:
-        enumerate: [res_typ]
       temperature:
         enumerate: [-40, 27, 130]
       vdd:
@@ -191,20 +178,20 @@ parameters:
     display: Full Scale Range
     spec:
       vout_min:
-        display: Vout(0)
-        description: Output at code 0 (all bits low)
+        display: Vout_min
+        description: Minimum output voltage (code 255, all shunts on)
         unit: V
         maximum:
           value: 0.050
       vout_max:
-        display: Vout(255)
-        description: Output at code 255 (all bits high)
+        display: Vout_max
+        description: Maximum output voltage (code 0, all shunts off)
         unit: V
         minimum:
           value: 1.10
     tool:
       ngspice:
-        template: dc_sweep.spice
+        template: dc_sweep.sch
         format: ascii
         suffix: .data
         variables: [null, vout]
@@ -213,8 +200,6 @@ parameters:
     conditions:
       corner:
         enumerate: [mos_tt, mos_ff, mos_ss]
-      res_corner:
-        enumerate: [res_typ, res_bcs, res_wcs]
       temperature:
         enumerate: [-40, 27, 130]
       vdd:

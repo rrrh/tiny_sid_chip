@@ -1,0 +1,35 @@
+#  <pinnumber>  <direction>[<circle><edge_trigger>] <name>
+# circle: !
+# edge_trigger: >
+# direction is mandatory: i=input, o=output, b=bidirectional (inout)
+
+[labels] 
+TEST XSCHEM SYMGEN
+RRRH
+@symname
+@name
+! type=subcircuit
+! format="@name @pinlist @symname"
+! template="name=x1"
+--vmode
+[left]
+.bus
+1   i    D0
+2   i    D1
+3   i    D2
+4   i    D3
+5   i    D4
+6   i    D5
+7   i    D6
+8   i    D7
+
+[right]
+9   o    VOUT
+
+[top]
+10  i    VDD
+11  i    VSS
+
+[bottom]
+
+

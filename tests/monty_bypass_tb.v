@@ -27,7 +27,7 @@ module monty_bypass_tb;
     );
 
     // Tap bypass output (= mix_out when no voices routed to filter)
-    wire [7:0] bypass_out = dut.filtered_out;
+    //wire [7:0] bypass_out = dut.filtered_out;
     wire [7:0] dbg_mix    = dut.mix_out;
 
     //==========================================================================
@@ -37,9 +37,13 @@ module monty_bypass_tb;
         input [1:0] voice;
         input [2:0] addr;
         input [7:0] data;
+	reg [7:0] reg_addr;
         begin
-            ui_in  = {1'b0, 2'b00, voice, addr};
+	    reg_addr = addr + (voice * 7);
+	    //$display("Actual register: %02x, Data: %02x", reg_addr, data);
+            ui_in  = reg_addr;
             uio_in = data;
+	    //$display("SID Write Addr: %0d, Data: %0d, Voice: %0d", addr + (7 * voice), data, voice);
             @(posedge clk);
             ui_in[7] = 1'b1;   // WE rising edge triggers write
             @(posedge clk);
@@ -68,30 +72,25 @@ module monty_bypass_tb;
         integer    voice_offset;
         begin
             skip = 0;
+
+	    //$display("SID Write Sid Addr: %0d, Data: %0d", sid_addr, data);
             if (sid_addr < 7) begin
                 voice = 2'd0;
-                voice_offset = sid_addr;
+                reg_addr = sid_addr;
             end else if (sid_addr < 14) begin
                 voice = 2'd1;
-                voice_offset = sid_addr - 7;
+                reg_addr = sid_addr - 7;
             end else if (sid_addr < 21) begin
                 voice = 2'd2;
-                voice_offset = sid_addr - 14;
+                reg_addr = sid_addr - 14;
             end else begin
-                skip = 1;  // filter regs or read-only: skip for bypass
-                voice_offset = 0;
+                //skip = 1;  // filter regs or read-only: skip for bypass
+		voice = 2'd3;
+                reg_addr = sid_addr - 21;
             end
+	    //$display("SID Write Sid reg_adr: %0d, Data: %0d", reg_addr, data);
 
-            // Remap per-voice registers 4/5/6
-            case (voice_offset)
-                4: reg_addr = 3'd6;  // SID ctrl/waveform → internal reg 6
-                5: reg_addr = 3'd4;  // SID attack/decay  → internal reg 4
-                6: reg_addr = 3'd5;  // SID sustain/rel   → internal reg 5
-                default: reg_addr = voice_offset[2:0];
-            endcase
-
-            if (!skip)
-                sid_write(voice, reg_addr, data[7:0]);
+            sid_write(voice, reg_addr, data[7:0]);
         end
     endtask
 
@@ -119,7 +118,7 @@ module monty_bypass_tb;
             @(posedge clk);
             decim_cnt = decim_cnt + 1;
             if (decim_cnt >= DECIM) begin
-                $fwrite(wav_fd, "%d\n", bypass_out);
+                $fwrite(wav_fd, "%d\n", dut.mix_out);
                 sample_count = sample_count + 1;
                 decim_cnt = 0;
             end
@@ -142,25 +141,31 @@ module monty_bypass_tb;
         uio_in = 0;
         event_count = 0;
 
+	$display("Setup vcd dump");
+        $dumpfile("waveform_verify.vcd");
+        //$dumpvars(0, dut.voice_out, dut.mix_out, dut.vol_mix, dut.filt_vol, dut.shared_lfsr, dut.mode_vol );
+        $dumpvars(0, dut );
+
         // Reset sequence
         repeat (100) @(posedge clk);
         rst_n = 1;
         repeat (50) @(posedge clk);
 
         // Set mode_vol = 0x0F: mode=0 (no filter), vol=15
-        sid_write(2'd3, 3'd3, 8'h0F);
+        sid_write_sid(8'h18, 8'h0F);
 
         // Open preprocessed stimulus (decimal: tick addr data)
-        stim_fd = $fopen("tests/monty_stim_dec.txt", "r");
+        stim_fd = $fopen("tests/short.txt", "r");
         if (stim_fd == 0) begin
-            $display("ERROR: Cannot open stimulus file tests/monty_stim_dec.txt");
+            $display("ERROR: Cannot open stimulus file tests/Hubbard_Rob_Monty_on_the_Run_stimulus.short.txt");
             $finish;
         end
 
         $display("Starting Monty on the Run bypass simulation...");
 
         while (!$feof(stim_fd)) begin
-            scan_result = $fscanf(stim_fd, "%d %d %d\n", tick_i, addr_i, data_i);
+            scan_result = $fscanf(stim_fd, "%d 0x%x 0x%x\n", tick_i, addr_i, data_i);
+	    //$display("Scan result: %0d", scan_result);
             if (scan_result == 3) begin
                 // Convert 50 MHz ticks to nanoseconds: tick * 20ns
                 target_ns = tick_i;
@@ -170,6 +175,7 @@ module monty_bypass_tb;
                 while ($time < target_ns)
                     @(posedge clk);
 
+		//$display("sid_write_sid");
                 sid_write_sid(addr_i, data_i);
                 event_count = event_count + 1;
 
@@ -182,12 +188,12 @@ module monty_bypass_tb;
         $fclose(stim_fd);
         $display("Stimulus complete: %0d events at T=%0t ns", event_count, $time);
 
-        $display("  Filter: bypass=%0d mix_out=%0d filtered_out=%0d",
-                 dut.bypass, dut.mix_out, bypass_out);
+        $display("  Filter: mix_out=%0d",
+                 dut.mix_out);
 
         // Run 0.5 more seconds for audio tail
-        $display("Running 0.5s tail...");
-        #500_000_000;
+        //$display("Running 0.5s tail...");
+        //#500_000_000;
 
         $fclose(wav_fd);
         $display("Captured %0d samples (~%.1f seconds at 44.1 kHz)",

@@ -10,55 +10,12 @@
       "odb.RemovePDNObstructions": null
     }
   },
-  "MACROS": {
-    "r2r_dac_8bit": {
-      "instances": {
-        "u_dac": {
-          "location": [165.6, 49],
-          "orientation": "N"
-        }
-      },
-      "gds": ["dir::../macros/gds/r2r_dac_8bit.gds"],
-      "lef": ["dir::../macros/lef/r2r_dac_8bit.lef"],
-      "nl": ["dir::../macros/nl/r2r_dac_8bit.v"],
-      "lib": {
-        "*": ["dir::../macros/lib/r2r_dac_8bit.lib"]
-      }
-    },
-    "svf_2nd": {
-      "instances": {
-        "u_svf": {
-          "location": [135.6, 99],
-          "orientation": "N"
-        }
-      },
-      "gds": ["dir::../macros/gds/svf_2nd.gds"],
-      "lef": ["dir::../macros/lef/svf_2nd.lef"],
-      "nl": ["dir::../macros/nl/svf_2nd.v"],
-      "lib": {
-        "*": ["dir::../macros/lib/svf_2nd.lib"]
-      }
-    },
-    "sar_adc_8bit": {
-      "instances": {
-        "u_adc": {
-          "location": [159.6, 4],
-          "orientation": "N"
-        }
-      },
-      "gds": ["dir::../macros/gds/sar_adc_8bit.gds"],
-      "lef": ["dir::../macros/lef/sar_adc_8bit.lef"],
-      "nl": ["dir::../macros/nl/sar_adc_8bit.v"],
-      "lib": {
-        "*": ["dir::../macros/lib/sar_adc_8bit.lib"]
-      }
-    }
-  },
-  "PL_TARGET_DENSITY_PCT": 50,
+  "PL_TARGET_DENSITY_PCT": 90,
+  "FP_CORE_UTIL": 90,
   "GPL_CELL_PADDING": 0,
   "DPL_CELL_PADDING": 0,
-  "FP_MACRO_HORIZONTAL_HALO": 0,
-  "FP_MACRO_VERTICAL_HALO": 0,
+  "FP_MACRO_HORIZONTAL_HALO": 10,
+  "FP_MACRO_VERTICAL_HALO": 10,
   "FP_SIZING": "absolute",
   "DIE_AREA": "0 0 202.08 313.74",
   "CLOCK_PERIOD": 500,
@@ -82,18 +39,13 @@
   "ERROR_ON_TR_DRC": false,
   "FP_IO_HLENGTH": 2,
   "FP_IO_VLENGTH": 2,
-  "PDN_CFG": "dir::pdn_cfg.tcl",
   "FP_PDN_MULTILAYER": false,
-  "FP_PDN_VPITCH": 82.0,
-  "FP_PDN_VWIDTH": 2.2,
-  "FP_PDN_VOFFSET": 38.0,
-  "FP_PDN_VSPACING": 4.0,
-  "RT_MAX_LAYER": "TopMetal1",
+  "RT_MAX_LAYER": "Metal4",
   "MAGIC_DEF_LABELS": 0,
   "MAGIC_WRITE_LEF_PINONLY": 1,
   "RUN_HEURISTIC_DIODE_INSERTION": 0,
   "ERROR_ON_DISCONNECTED_PINS": false,
-  "ERROR_ON_PDN_VIOLATIONS": false,
+  "ERROR_ON_PDN_VIOLATIONS": true,
   "RUN_POST_CTS_RESIZER_TIMING": false,
   "RUN_POST_GRT_DESIGN_REPAIR": false,
   "RUN_POST_GRT_RESIZER_TIMING": false

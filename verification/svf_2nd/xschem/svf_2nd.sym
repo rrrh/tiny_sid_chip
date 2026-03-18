@@ -1,0 +1,30 @@
+v {xschem version=3.4.6 file_version=1.2}
+G {}
+K {type=subcircuit
+format="@name @pinlist @symname r_eff_val=@r_eff_val r_q_val=@r_q_val"
+template="name=x1 r_eff_val=145.1e6 r_q_val=145.1e6"
+}
+V {}
+S {}
+E {}
+L 4 -80 -40 80 40 {}
+T {@symname} -75 -14 0 0 0.2 0.2 {}
+T {@name} -75 24 0 0 0.2 0.2 {}
+P 4 5 -80 -30 -100 -30 -100 -30 -80 -30 -80 -30 {name=vin dir=in}
+B 5 -100 -30 -100 -30 {name=vin dir=in}
+T {vin} -96 -44 0 0 0.15 0.15 {}
+P 4 5 80 -30 100 -30 100 -30 80 -30 80 -30 {name=vout dir=out}
+B 5 100 -30 100 -30 {name=vout dir=out}
+T {vout} 64 -44 0 0 0.15 0.15 {}
+P 4 5 -80 0 -100 0 -100 0 -80 0 -80 0 {name=sel1 dir=in}
+B 5 -100 0 -100 0 {name=sel1 dir=in}
+T {sel1} -96 -14 0 0 0.15 0.15 {}
+P 4 5 -80 30 -100 30 -100 30 -80 30 -80 30 {name=sel0 dir=in}
+B 5 -100 30 -100 30 {name=sel0 dir=in}
+T {sel0} -96 16 0 0 0.15 0.15 {}
+P 4 5 0 -40 0 -60 0 -60 0 -40 0 -40 {name=vdd dir=inout}
+B 5 0 -60 0 -60 {name=vdd dir=inout}
+T {vdd} 4 -56 0 0 0.15 0.15 {}
+P 4 5 0 40 0 60 0 60 0 40 0 40 {name=vss dir=inout}
+B 5 0 60 0 60 {name=vss dir=inout}
+T {vss} 4 44 0 0 0.15 0.15 {}

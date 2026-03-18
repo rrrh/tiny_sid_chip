@@ -1,24 +1,25 @@
-// 2nd-order Switched-Capacitor State Variable Filter (analog hard macro)
-// Scalar pin names to match LEF for OpenROAD compatibility
-// Power (vdd/vss) connected via PDN, not RTL ports
+// 2nd-order SC+OTA State Variable Filter (analog hard macro)
+// Tow-Thomas biquad with switched-cap resistors and OTA integrators.
+// Scalar pin names to match LEF for OpenROAD compatibility.
+// Power (vdd/vss) connected via PDN, not RTL ports.
 //
-// SC SVF replaces gm-C topology:
-//   sc_clk  : switching clock (from programmable divider), sets fc
-//   q0..q3  : 4-bit binary-weighted C_Q array switches, sets Q
+// SC+OTA topology — fc set by sc_clk, Q set by cap ratio (q[3:0]):
+//   sc_clk : switched-cap clock (from NCO phase accumulator MSB)
+//   q[3:0] : Q select — enables binary-weighted Csw_q unit caps
+//   sel0/sel1 : output mux (00=LP, 01=BP, 10=HP, 11=bypass)
 
 `ifdef BEHAVIORAL_SIM
 //----------------------------------------------------------------------
-// Behavioral model: 2nd-order state variable filter using real arithmetic.
+// Behavioral model: 2nd-order SVF using real arithmetic.
 // Parent writes sim_data_in[7:0] (from DAC) and reads sim_data_out[7:0]
-// (to ADC) via hierarchical references.
+// (to comparator) via hierarchical references.
 //
-// SVF topology (discrete-time, one iteration per sc_clk posedge):
-//   hp = input - damping*bp - lp
+// SVF topology (Tow-Thomas, one iteration per sample_clk posedge):
+//   hp = input - (1/Q)*bp - lp
 //   bp += alpha * hp
-//   lp += alpha * bp          (uses updated bp — standard SVF)
+//   lp += alpha * bp
 //
-// alpha = C_sw / C_int = 73.5fF / 1.1pF ≈ 0.0668
-// damping = 1/Q = 1/(0.5 + q_val)   [q_val = {q3,q2,q1,q0}]
+// alpha ≈ 0.0673 (fixed for behavioral model)
 // sel = {sel1,sel0}: 00=LP, 01=BP, 10=HP, 11=bypass
 //----------------------------------------------------------------------
 module svf_2nd (
@@ -36,20 +37,30 @@ module svf_2nd (
     real lp, bp;
     real hp_r, in_r, out_r, damp_r;
 
+    // Internal sample clock for behavioral sim (not a real pin)
+    reg sample_clk;
     initial begin
         lp = 0.0;
         bp = 0.0;
         sim_data_in  = 8'd128;
         sim_data_out = 8'd128;
+        sample_clk = 0;
+        forever #500 sample_clk = ~sample_clk; // 1 MHz sample rate
     end
 
-    localparam real ALPHA = 0.0668;   // C_sw / C_int
+    localparam real ALPHA = 0.0673;   // Csw*fclk / (2*pi*Cint) normalized
 
-    always @(posedge sc_clk) begin : svf_update
-        integer q_val, out_i;
+    always @(posedge sample_clk) begin : svf_update
+        integer out_i;
+        integer q_val;
 
-        q_val  = {q3, q2, q1, q0};
-        damp_r = 1.0 / (0.5 + q_val);
+        // Q from binary-weighted caps: q_val = q3*8 + q2*4 + q1*2 + q0
+        // Q = Csw_in / (q_val * Cq_unit), damping = 1/Q
+        q_val = q3*8 + q2*4 + q1*2 + q0;
+        if (q_val == 0)
+            damp_r = 0.067;  // near self-oscillation
+        else
+            damp_r = q_val / 15.0;  // 1/15 to 1.0
 
         // AC-couple: center 0-255 around zero
         in_r = (sim_data_in - 128.0) / 128.0;

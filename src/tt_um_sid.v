@@ -1,5 +1,5 @@
-/* verilator lint_off UNUSEDSIGNAL */
 `timescale 1ns / 1ps
+/* verilator lint_off UNUSED */
 //==============================================================================
 // TT10 Wrapper — Time-Multiplexed SID Voice Synthesizer (24 MHz, 3 voices)
 //==============================================================================
@@ -32,8 +32,8 @@
 //     1: freq_hi  — frequency[15:8]
 //     2: pw_lo    — pulse width[7:0]
 //     3: pw_hi    — pulse width[11:8] (bits [3:0] only)
-//     4: attack   — attack[3:0]/decay[7:4]
-//     5: sustain  — sustain[3:0]/rel[7:4]
+//     4: attack   — attack[7:4]/decay[3:0]  (SID $D405)
+//     5: sustain  — sustain[7:4]/rel[3:0]  (SID $D406)
 //     6: waveform — SID-compatible layout
 //   Filter (voice_sel 3):
 //     0: fc_lo    — cutoff low [7:0] (fc_hi:fc_lo[2:0] → filt_fc[10:7] → DAC)  ($D415)
@@ -41,8 +41,8 @@
 //     2: res_filt — [7:4] resonance → Q bias DAC, [3:0] filt enable             ($D417)
 //     3: mode_vol — [6:4] mode (HP/BP/LP), [3:0] vol                            ($D418)
 //
-//   Analog signal chain: mix → R-2R DAC → SC SVF → SAR ADC → vol scaling
-//   SC clock divider + C_Q array driven from register bank (flat memory, no SPI)
+//   Analog signal chain: vol_scale → R-2R DAC → KHN biquad → comparator → analog PWM
+//   sc_clk from NCO phase accumulator, q[3:0] from inverted resonance register
 //
 // Waveform register (SID $d404 layout):
 //   [0] gate  [1] sync  [2] ring-mod  [3] test
@@ -63,7 +63,7 @@ module tt_um_sid (
     //==========================================================================
     // Input assignments
     //==========================================================================
-    wire [2:0] reg_addr  = ui_in[2:0];
+    wire [4:0] reg_addr  = ui_in[4:0];
     wire [1:0] voice_sel = ui_in[4:3];
     wire       wr_en     = ui_in[7];
     wire [7:0] wr_data   = uio_in;
@@ -144,17 +144,34 @@ module tt_um_sid (
             mode_vol <= 8'd0;
         end else if (wr_en_rise) begin
             case (reg_addr)
-                3'd0: if (voice_sel <= 2'd2) freq[voice_sel]        <= wr_data;
-                      else                   fc_lo                  <= wr_data;
-                3'd1: if (voice_sel <= 2'd2) freq_hi[voice_sel]     <= wr_data;
-                      else                   fc_hi                  <= wr_data;
-                3'd2: if (voice_sel <= 2'd2) pw_reg[voice_sel]      <= wr_data;
-                      else                   res_filt               <= wr_data;
-                3'd3: if (voice_sel <= 2'd2) pw_hi[voice_sel]       <= wr_data[3:0];
-                      else                   mode_vol               <= wr_data;
-                3'd4: if (voice_sel <= 2'd2) attack_reg[voice_sel]  <= wr_data;
-                3'd5: if (voice_sel <= 2'd2) sustain_reg[voice_sel] <= wr_data;
-                3'd6: if (voice_sel <= 2'd2) waveform[voice_sel]    <= wr_data;
+		5'd0: freq[0]        <= wr_data;
+		5'd1: freq_hi[0]     <= wr_data;
+		5'd2: pw_reg[0]      <= wr_data;
+		5'd3: pw_hi[0]       <= wr_data[3:0];
+		5'd4: waveform[0]    <= wr_data;
+		5'd5: attack_reg[0]  <= wr_data;
+		5'd6: sustain_reg[0] <= wr_data;
+
+		5'd7: freq[1]        <= wr_data;
+		5'd8: freq_hi[1]     <= wr_data;
+		5'd9: pw_reg[1]      <= wr_data;
+		5'd10: pw_hi[1]       <= wr_data[3:0];
+		5'd11: waveform[1]    <= wr_data;
+		5'd12: attack_reg[1]  <= wr_data;
+		5'd13: sustain_reg[1] <= wr_data;
+
+		5'd14: freq[2]        <= wr_data;
+		5'd15: freq_hi[2]     <= wr_data;
+		5'd16: pw_reg[2]      <= wr_data;
+		5'd17: pw_hi[2]       <= wr_data[3:0];
+		5'd18: waveform[2]    <= wr_data;
+		5'd19: attack_reg[2]  <= wr_data;
+		5'd20: sustain_reg[2] <= wr_data;
+
+		5'd21: fc_lo          <= wr_data;
+		5'd22: fc_hi          <= wr_data;
+		5'd23: res_filt       <= wr_data;
+		5'd24: mode_vol       <= wr_data[3:0];
                 default: ;
             endcase
         end
@@ -336,17 +353,17 @@ module tt_um_sid (
     end
 
     // --- ADSR rate selection with SID-accurate counters ---
-    wire [3:0] sustain_level = p_sustain[3:0];
+    wire [3:0] sustain_level = p_sustain[7:4];
     wire       cur_gate      = p_waveform[0];
 
     // Select rate index (no exponential adjustment — expo counter handles it)
     reg [3:0] cur_rate_idx;
     always @(*) begin
         if (p_releasing)
-            cur_rate_idx = p_sustain[7:4];
+            cur_rate_idx = p_sustain[3:0];
         else case (p_ast)
-            ENV_ATTACK:  cur_rate_idx = p_attack[3:0];
-            ENV_DECAY:   cur_rate_idx = p_attack[7:4];
+            ENV_ATTACK:  cur_rate_idx = p_attack[7:4];
+            ENV_DECAY:   cur_rate_idx = p_attack[3:0];
             default:     cur_rate_idx = 4'd0;
         endcase
     end
@@ -499,149 +516,110 @@ module tt_um_sid (
 
     //==========================================================================
     // Analog filter signal chain:
-    //   mix_out → R-2R DAC → SC SVF → SAR ADC → volume scaling
+    //   vol_scale → R-2R DAC → KHN biquad → comparator → analog PWM
+    //   Ramp DAC (2nd R-2R) generates sawtooth ref for PWM comparator
     //
     // Register mapping (voice_sel=3, flat memory — no SPI):
-    //   fc_lo/fc_hi → filt_fc[10:7] → clock divider LUT → sc_clk
-    //   res_filt[3:0] → q0..q3 (C_Q cap array switches, direct)
-    //   mode_vol[6:4] → svf_sel[1:0] (HP>BP>LP priority, or bypass)
-    //   mode_vol[3:0] → filt_vol     (digital volume scaling post-ADC)
+    //   mode_vol[6:4] → en_lp/en_bp/en_hp (individual filter enables)
+    //   mode_vol[3:0] → filt_vol     (digital volume scaling BEFORE DAC)
+    //   sc_clk from NCO, q[3:0] from inverted resonance register
     //==========================================================================
-    (* keep *) wire dac_out;           // R-2R DAC analog output
-    (* keep *) wire filter_out;        // SVF analog output
-    (* keep *) wire sc_clk;            // SC switching clock to SVF
+    //(* keep *) wire dac_out;           // R-2R DAC analog output
+    //(* keep *) wire filter_out;        // SVF analog output
+    //(* keep *) wire ramp_out;          // Ramp DAC analog output
+    //(* keep *) wire analog_pwm;        // Comparator output (analog PWM)
 
     // Bypass: no voices routed to filter, or no filter mode selected
     wire bypass = (filt_en[2:0] == 3'd0) || (filt_mode[2:0] == 3'd0);
 
-    // SVF mode select: 00=LP, 01=BP, 10=HP, 11=bypass
-    wire [1:0] svf_sel = bypass       ? 2'b11 :
-                         filt_mode[2] ? 2'b10 :
-                         filt_mode[1] ? 2'b01 : 2'b00;
+    // KHN output mixer enables: gate with bypass to silence when not in use
+    wire en_lp_w = filt_mode[0] & ~bypass;
+    wire en_bp_w = filt_mode[1] & ~bypass;
+    wire en_hp_w = filt_mode[2] & ~bypass;
 
-    // --- R-2R DAC: mixer output → analog ---
-    r2r_dac_8bit u_dac (
-        .d0(mix_out[0]), .d1(mix_out[1]), .d2(mix_out[2]), .d3(mix_out[3]),
-        .d4(mix_out[4]), .d5(mix_out[5]), .d6(mix_out[6]), .d7(mix_out[7]),
-        .vout (dac_out)
-    );
+    // --- Volume scaling in digital domain BEFORE the DAC ---
+    // shift-add volume: filt_vol[3:0], 0=silent, 15=full
+    wire [7:0] vol_mix = (filt_vol[3] ? {1'b0, mix_out[7:1]} : 8'd0) +
+                         (filt_vol[2] ? {2'b0, mix_out[7:2]} : 8'd0) +
+                         (filt_vol[1] ? {3'b0, mix_out[7:3]} : 8'd0) +
+                         (filt_vol[0] ? {4'b0, mix_out[7:4]} : 8'd0);
 
-    // --- Programmable clock divider for SC SVF fc tuning ---
-    // filt_fc[10:7] selects divider ratio via LUT (16 log-spaced steps)
-    // f_clk = 24 MHz / divider → fc ≈ f_clk * C_sw / (2π * C_int)
-    // Range: ~250 Hz (code 0, ÷1024) to ~16 kHz (code 15, ÷16)
-    reg [10:0] div_ratio;
-    always @(*) begin
-        case (filt_fc[10:7])
-            4'd0:  div_ratio = 11'd1024;  // f_clk ≈ 23.4 kHz → fc ≈ 250 Hz
-            4'd1:  div_ratio = 11'd768;   // f_clk ≈ 31.3 kHz → fc ≈ 330 Hz
-            4'd2:  div_ratio = 11'd640;   // f_clk ≈ 37.5 kHz → fc ≈ 400 Hz
-            4'd3:  div_ratio = 11'd512;   // f_clk ≈ 46.9 kHz → fc ≈ 500 Hz
-            4'd4:  div_ratio = 11'd384;   // f_clk ≈ 62.5 kHz → fc ≈ 660 Hz
-            4'd5:  div_ratio = 11'd320;   // f_clk ≈ 75.0 kHz → fc ≈ 800 Hz
-            4'd6:  div_ratio = 11'd256;   // f_clk ≈ 93.8 kHz → fc ≈ 1.0 kHz
-            4'd7:  div_ratio = 11'd192;   // f_clk ≈ 125  kHz → fc ≈ 1.3 kHz
-            4'd8:  div_ratio = 11'd128;   // f_clk ≈ 188  kHz → fc ≈ 2.0 kHz
-            4'd9:  div_ratio = 11'd96;    // f_clk ≈ 250  kHz → fc ≈ 2.7 kHz
-            4'd10: div_ratio = 11'd64;    // f_clk ≈ 375  kHz → fc ≈ 4.0 kHz
-            4'd11: div_ratio = 11'd48;    // f_clk ≈ 500  kHz → fc ≈ 5.3 kHz
-            4'd12: div_ratio = 11'd32;    // f_clk ≈ 750  kHz → fc ≈ 8.0 kHz
-            4'd13: div_ratio = 11'd24;    // f_clk ≈ 1.0  MHz → fc ≈ 10.6 kHz
-            4'd14: div_ratio = 11'd20;    // f_clk ≈ 1.2  MHz → fc ≈ 12.7 kHz
-            4'd15: div_ratio = 11'd16;    // f_clk ≈ 1.5  MHz → fc ≈ 16.0 kHz
-        endcase
-    end
+    // --- R-2R DAC: volume-scaled mixer output → analog ---
+    //r2r_dac_8bit u_dac (
+    //    .d0(vol_mix[0]), .d1(vol_mix[1]), .d2(vol_mix[2]), .d3(vol_mix[3]),
+    //    .d4(vol_mix[4]), .d5(vol_mix[5]), .d6(vol_mix[6]), .d7(vol_mix[7]),
+    //    .vout (dac_out)
+    //);
 
-    reg [10:0] clk_cnt;
-    reg       sc_clk_reg;
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            clk_cnt    <= 11'd0;
-            sc_clk_reg <= 1'b0;
-        end else begin
-            if (clk_cnt >= div_ratio - 1'b1) begin
-                clk_cnt    <= 11'd0;
-                sc_clk_reg <= ~sc_clk_reg;
-            end else begin
-                clk_cnt <= clk_cnt + 1'b1;
-            end
-        end
-    end
-    assign sc_clk = sc_clk_reg;
+    // --- NCO phase accumulator: filt_fc[10:0] → sc_clk ---
+    // increment = fc + fc/4 (×5/4 scaling), folded into single accumulator add
+    reg [15:0] phase_acc;
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n) phase_acc <= 16'd0;
+        else        phase_acc <= phase_acc + {5'b0, filt_fc} + {7'b0, filt_fc[10:2]};
+    wire sc_clk_nco = phase_acc[15];
 
-    // --- Analog SC SVF ---
-    svf_2nd u_svf (
-        .vin      (dac_out),
-        .vout     (filter_out),
-        .sel0     (svf_sel[0]),
-        .sel1     (svf_sel[1]),
-        .sc_clk   (sc_clk),
-        .q0       (filt_res[0]),
-        .q1       (filt_res[1]),
-        .q2       (filt_res[2]),
-        .q3       (filt_res[3])
-    );
+    // --- Q register inversion: SID res=0 → flat, res=15 → self-oscillation ---
+    // q_pins = 15 - filt_res: high q_pins = more Csw_q = lower Q = flatter
+    wire [3:0] q_pins = ~filt_res;
 
-    // --- SAR ADC: analog → digital (continuous conversion) ---
-    wire       adc_eoc;
-    wire [7:0] adc_dout;
-    reg        adc_busy;
-    reg        adc_start;
+    // --- Analog SC+OTA KHN Biquad ---
+    //khn_biquad u_svf (
+    //    .vin      (dac_out),
+    //    .vout     (filter_out),
+    //    .en_lp    (en_lp_w),
+    //    .en_bp    (en_bp_w),
+    //    .en_hp    (en_hp_w),
+    //    .sc_clk   (sc_clk_nco),
+    //    .q0       (q_pins[0]),
+    //    .q1       (q_pins[1]),
+    //    .q2       (q_pins[2]),
+    //    .q3       (q_pins[3])
+    //);
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            adc_busy  <= 1'b0;
-            adc_start <= 1'b0;
-        end else begin
-            if (adc_eoc) begin
-                adc_busy  <= 1'b0;
-                adc_start <= 1'b1;
-            end else if (adc_start) begin
-                adc_start <= 1'b0;
-                adc_busy  <= 1'b1;
-            end else if (!adc_busy) begin
-                adc_start <= 1'b1;
-            end
-        end
-    end
+    // --- 8-bit ramp counter for PWM reference (runs at clk = 24 MHz) ---
+    // 255-step period (0–254) → 94.1 kHz, matches digital PWM
+    reg [7:0] ramp_cnt;
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n) ramp_cnt <= 8'd0;
+        else        ramp_cnt <= (ramp_cnt == 8'd254) ? 8'd0 : ramp_cnt + 8'd1;
 
-    sar_adc_8bit u_adc (
-        .clk   (clk),
-        .rst_n (rst_n),
-        .vin   (filter_out),
-        .start (adc_start),
-        .eoc   (adc_eoc),
-        .dout0(adc_dout[0]), .dout1(adc_dout[1]), .dout2(adc_dout[2]), .dout3(adc_dout[3]),
-        .dout4(adc_dout[4]), .dout5(adc_dout[5]), .dout6(adc_dout[6]), .dout7(adc_dout[7])
-    );
+    // --- Ramp DAC: converts counter to analog ramp ---
+    //r2r_dac_8bit u_ramp_dac (
+    //    .d0(ramp_cnt[0]), .d1(ramp_cnt[1]), .d2(ramp_cnt[2]), .d3(ramp_cnt[3]),
+    //    .d4(ramp_cnt[4]), .d5(ramp_cnt[5]), .d6(ramp_cnt[6]), .d7(ramp_cnt[7]),
+    //    .vout (ramp_out)
+    //);
+
+    // --- Comparator: SVF output vs ramp → analog PWM ---
+    //pwm_comp u_comp (
+    //    .vinp     (dac_out),
+    //    .vinn     (ramp_out),
+    //    .out      (analog_pwm)
+    //);
 
     // --- Behavioral sim: connect 8-bit data between analog macro models ---
 `ifdef BEHAVIORAL_SIM
-    always @(u_dac.sim_data_out or u_svf.sim_data_out) begin
-        u_svf.sim_data_in = u_dac.sim_data_out;
-        u_adc.sim_data_in = u_svf.sim_data_out;
-    end
+//    always @(u_dac.sim_data_out) begin
+//        u_comp.sim_data_in = u_dec.sim_data_out;
+//    end
+//    always @(u_ramp_dac.sim_data_out) begin
+//        u_comp.sim_ramp_in = u_ramp_dac.sim_data_out;
+//    end
 `endif
 
-    // --- Volume scaling (shift-add, same as original filter.v) ---
-    wire [7:0] scaled = (filt_vol[3] ? {1'b0, adc_dout[7:1]} : 8'd0) +
-                        (filt_vol[2] ? {2'b0, adc_dout[7:2]} : 8'd0) +
-                        (filt_vol[1] ? {3'b0, adc_dout[7:3]} : 8'd0) +
-                        (filt_vol[0] ? {4'b0, adc_dout[7:4]} : 8'd0);
-
-    wire [7:0] filtered_out = bypass ? mix_out : scaled;
-
-    //==========================================================================
-    // PWM Audio Output (8-bit, ~94.1 kHz at 24 MHz)
-    //==========================================================================
-    wire pwm_out;
-
+    // --- Digital PWM for bypass path (volume already applied) ---
+    wire [7:0] bypass_sample = vol_mix;
+    wire digital_pwm;
     pwm_audio u_pwm (
         .clk    (clk),
         .rst_n  (rst_n),
-        .sample (filtered_out),
-        .pwm    (pwm_out)
+        .sample (bypass_sample),
+        .pwm    (digital_pwm)
     );
+
+    // --- Final output: analog PWM when filter active, digital when bypass ---
+    wire pwm_out = digital_pwm;
 
     //==========================================================================
     // Output Pin Mapping
@@ -650,6 +628,6 @@ module tt_um_sid (
     assign uio_out = 8'b0;
     assign uio_oe  = 8'b0;
 
-    wire _unused = &{ena, ui_in[6:5], adc_busy, filt_fc[6:0], 1'b0};
+    wire _unused = &{ena, ui_in[6:5], 1'b0};
 
 endmodule

@@ -188,3 +188,51 @@ parameters:
         type: xyplot
         xaxis: null
         yaxis: vtop
+
+  # ── Full SAR conversion (analytical SAR + real DAC) ───────
+  sar_full_conversion:
+    description: Full SAR ADC conversion loop — analytical bit decisions driving real cap DAC
+    display: SAR Full Conversion
+    spec:
+      inl:
+        display: INL
+        description: Max integral non-linearity from transfer function
+        unit: LSB
+        maximum:
+          value: 0.5
+      dnl:
+        display: DNL
+        description: Max differential non-linearity from transfer function
+        unit: LSB
+        maximum:
+          value: 0.5
+      conv_time_ns:
+        display: Conversion Time
+        description: Time for one full 8-bit conversion (8 clk cycles)
+        unit: ns
+        maximum:
+          value: 1000
+    tool:
+      ngspice:
+        template: sar_full_conversion.spice
+        format: ascii
+        suffix: .data
+        variables: [null, code_out, null, vtop, null, residual]
+        script: sar_full_params.py
+        script_variables: [inl, dnl, conv_time_ns]
+    conditions:
+      corner:
+        enumerate: [mos_tt, mos_ff, mos_ss]
+      temperature:
+        typical: 27
+      vdd:
+        enumerate: [1.08, 1.2, 1.32]
+    plot:
+      transfer_function:
+        type: xyplot
+        xaxis: null
+        yaxis: code_out
+      dac_output:
+        type: xyplot
+        xaxis: null
+        yaxis: vtop
