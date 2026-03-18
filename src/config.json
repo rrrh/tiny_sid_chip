@@ -75,7 +75,7 @@
   "FP_IO_VLENGTH": 2,
   "PDN_CFG": "dir::pdn_cfg.tcl",
   "FP_PDN_MULTILAYER": false,
-  "RT_MAX_LAYER": "TopMetal1",
+  "RT_MAX_LAYER": "Metal4",
   "MAGIC_DEF_LABELS": 0,
   "MAGIC_WRITE_LEF_PINONLY": 1,
   "VDD_PIN": "VPWR",
