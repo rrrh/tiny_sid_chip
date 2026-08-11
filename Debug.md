@@ -151,3 +151,6 @@ PWM conversion, reducing aliasing artifacts in the reconstructed analog signal.
 4. **Noise LFSR**: Shared 15-bit LFSR clocked from voice 0's accumulator bit 11. Noise pitch only tracks voice 0's frequency setting.
 
 5. **No voice 3 off**: The V3OFF bit in mode_vol[7] is parsed but not yet implemented (voice 3 doesn't exist in this 3-voice design).
+
+## Build Information
+
